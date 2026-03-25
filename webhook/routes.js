@@ -4,29 +4,15 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Setup multer storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir); 
-    },
-    filename: (req, file, cb) => {
-        // Keep the original filename or modify it to be unique
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
-});
-
+// Setup multer to use memory storage instead of disk to support Vercel serverless functions
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
 
 // The 'upload.any()' middleware will accept any files that come over the wire.
 // We invoke it manually inside the route to catch any multer-specific errors.
 router.post('/', (req, res) => {
-    upload.any()(req, res, (err) => {
+    upload.any()(req, res, async (err) => {
         if (err instanceof multer.MulterError) {
             // A Multer error occurred when uploading (e.g. file too large).
             return res.status(400).json({
@@ -49,7 +35,7 @@ router.post('/', (req, res) => {
         try {
             console.log('--- Webhook Received ---');
             console.log('Body data:', req.body);
-            console.log('Files received:', req.files);
+            console.log('Files received:', req.files ? req.files.length : 0);
             console.log('------------------------');
 
             // Quick check if body or files are empty
@@ -62,9 +48,35 @@ router.post('/', (req, res) => {
                 });
             }
 
+            // Import model here or at the top of the file
+            const WebhookPayload = require('../models/WebhookPayload');
+
+            // Process files from memory buffer
+            const processedFiles = [];
+            if (req.files && req.files.length > 0) {
+                for (const file of req.files) {
+                    // Extract text content from the file buffer
+                    const content = file.buffer ? file.buffer.toString('utf8') : '';
+                    processedFiles.push({
+                        originalName: file.originalname,
+                        mimeType: file.mimetype,
+                        content: content
+                    });
+                }
+            }
+
+            const payloadData = {
+                body: req.body,
+                files: processedFiles,
+                headers: req.headers
+            };
+
+            const payload = new WebhookPayload(payloadData);
+            await payload.save();
+
             res.status(200).json({ 
                 success: true, 
-                message: 'Webhook processed successfully',
+                message: 'Webhook processed and saved successfully',
                 dataReceived: req.body,
                 filesReceived: req.files ? req.files.length : 0
             });
@@ -74,7 +86,7 @@ router.post('/', (req, res) => {
                 success: false, 
                 error: 'Internal Server Error',
                 message: 'Something went wrong while processing your webhook payload.',
-                details: 'Please try again later or contact support if the issue persists.'
+                details: error.message
             });
         }
     });
