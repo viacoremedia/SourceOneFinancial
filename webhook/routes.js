@@ -246,4 +246,26 @@ router.get('/', async (req, res) => {
     }
 });
 
+// ==========================================
+// GET /webhook/:id — View full payload by ID
+// ==========================================
+router.get('/:id', async (req, res) => {
+    try {
+        const WebhookPayload = require('../models/WebhookPayload');
+        const payload = await WebhookPayload.findById(req.params.id).lean();
+
+        if (!payload) {
+            return res.status(404).json({ success: false, error: 'Not Found' });
+        }
+
+        res.status(200).json({
+            success: true,
+            payload: payload
+        });
+    } catch (error) {
+        console.error('Error fetching payload:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;
