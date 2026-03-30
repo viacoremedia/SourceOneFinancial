@@ -8,10 +8,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+
+// Capture raw body for multipart requests BEFORE other parsers.
+// On Vercel, the request stream is pre-consumed by the runtime.
+// This ensures we have the raw body as a Buffer for busboy to parse.
+app.use(express.raw({
+    type: (req) => {
+        const ct = req.headers['content-type'] || '';
+        return ct.includes('multipart/form-data') || ct.includes('application/octet-stream');
+    },
+    limit: '50mb'
+}));
+
+// Handle plain text payloads (in case data is sent as raw text/csv)
+app.use(express.text({ type: ['text/*'], limit: '50mb' }));
+
 // Parse incoming JSON requests and put the parsed data in req.body.
-app.use(express.json({ limit: '50mb' }))
+app.use(express.json({ limit: '50mb' }));
 // Parse incoming requests with urlencoded payloads and put the parsed data in req.body.
-app.use(express.urlencoded({ extended: true }))
+app.use(express.urlencoded({ extended: true }));
 
 // Global cache for connection (per serverless invocation)
 let cached = global.mongoose;

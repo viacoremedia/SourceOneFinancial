@@ -1,95 +1,139 @@
 const express = require('express');
-const multer = require('multer');
+const busboy = require('busboy');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
 
-// Setup multer to use memory storage instead of disk to support Vercel serverless functions
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+/**
+ * Parse multipart/form-data from a raw body Buffer using busboy.
+ * This works on both local dev (where express.raw captures the body)
+ * and Vercel (where the stream would otherwise be pre-consumed).
+ */
+function parseMultipartBuffer(rawBuffer, headers) {
+    return new Promise((resolve, reject) => {
+        const files = [];
+        const fields = {};
 
+        const bb = busboy({ headers });
 
-// The 'upload.any()' middleware will accept any files that come over the wire.
-// We invoke it manually inside the route to catch any multer-specific errors.
-router.post('/', (req, res) => {
-    upload.any()(req, res, async (err) => {
-        if (err instanceof multer.MulterError) {
-            // A Multer error occurred when uploading (e.g. file too large).
-            return res.status(400).json({
-                success: false,
-                error: 'File Upload Error',
-                message: err.message,
-                details: 'Please ensure you are sending the correct files and not exceeding size limits.'
+        bb.on('file', (name, stream, info) => {
+            const chunks = [];
+            stream.on('data', (chunk) => chunks.push(chunk));
+            stream.on('end', () => {
+                files.push({
+                    fieldname: name,
+                    originalName: info.filename || 'unknown',
+                    mimeType: info.mimeType || 'application/octet-stream',
+                    buffer: Buffer.concat(chunks)
+                });
             });
-        } else if (err) {
-            // An unknown error occurred when uploading.
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid Request',
-                message: err.message || 'There was an issue parsing your request data.',
-                details: 'Make sure your request is formatted as multipart/form-data correctly.'
-            });
-        }
+        });
 
-        // Everything went fine.
-        try {
-            console.log('--- Webhook Received ---');
-            console.log('Body data:', req.body);
-            console.log('Files received:', req.files ? req.files.length : 0);
-            console.log('------------------------');
+        bb.on('field', (name, value) => {
+            fields[name] = value;
+        });
 
-            // Quick check if body or files are empty
-            if (Object.keys(req.body || {}).length === 0 && (!req.files || req.files.length === 0)) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Empty Payload',
-                    message: 'No data or files were provided in the request.',
-                    details: 'Please provide some form data or attach files to this webhook payload.'
+        bb.on('finish', () => resolve({ files, fields }));
+        bb.on('error', (err) => reject(err));
+
+        // Feed the raw buffer to busboy
+        bb.end(rawBuffer);
+    });
+}
+
+router.post('/', async (req, res) => {
+    try {
+        const contentType = req.headers['content-type'] || '';
+
+        console.log('--- Webhook Received ---');
+        console.log('Content-Type:', contentType);
+        console.log('Body type:', typeof req.body, Buffer.isBuffer(req.body) ? `(Buffer, ${req.body.length} bytes)` : '');
+
+        let bodyData = {};
+        let processedFiles = [];
+
+        // --- Handle multipart/form-data (file uploads) ---
+        if (contentType.includes('multipart/form-data') && Buffer.isBuffer(req.body)) {
+            const { files, fields } = await parseMultipartBuffer(req.body, req.headers);
+            bodyData = fields;
+
+            for (const file of files) {
+                const content = file.buffer.toString('utf8');
+                processedFiles.push({
+                    originalName: file.originalName,
+                    mimeType: file.mimeType,
+                    content: content
                 });
             }
-
-            // Import model here or at the top of the file
-            const WebhookPayload = require('../models/WebhookPayload');
-
-            // Process files from memory buffer
-            const processedFiles = [];
-            if (req.files && req.files.length > 0) {
-                for (const file of req.files) {
-                    // Extract text content from the file buffer
-                    const content = file.buffer ? file.buffer.toString('utf8') : '';
-                    processedFiles.push({
-                        originalName: file.originalname,
-                        mimeType: file.mimetype,
-                        content: content
-                    });
-                }
-            }
-
-            const payloadData = {
-                body: req.body,
-                files: processedFiles,
-                headers: req.headers
-            };
-
-            const payload = new WebhookPayload(payloadData);
-            await payload.save();
-
-            res.status(200).json({ 
-                success: true, 
-                message: 'Webhook processed and saved successfully',
-                dataReceived: req.body,
-                filesReceived: req.files ? req.files.length : 0
-            });
-        } catch (error) {
-            console.error('Error processing webhook:', error);
-            res.status(500).json({ 
-                success: false, 
-                error: 'Internal Server Error',
-                message: 'Something went wrong while processing your webhook payload.',
-                details: error.message
+        }
+        // --- Handle plain text / CSV payloads ---
+        else if (typeof req.body === 'string' && req.body.length > 0) {
+            // Source One might send the CSV as raw text instead of multipart
+            bodyData = {};
+            processedFiles.push({
+                originalName: 'payload.csv',
+                mimeType: contentType || 'text/plain',
+                content: req.body
             });
         }
-    });
+        // --- Handle raw binary payloads ---
+        else if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+            bodyData = {};
+            processedFiles.push({
+                originalName: 'payload.bin',
+                mimeType: contentType || 'application/octet-stream',
+                content: req.body.toString('utf8')
+            });
+        }
+        // --- Handle JSON or urlencoded payloads ---
+        else if (typeof req.body === 'object' && req.body !== null && Object.keys(req.body).length > 0) {
+            bodyData = req.body;
+        }
+
+        console.log('Body data:', JSON.stringify(bodyData));
+        console.log('Files received:', processedFiles.length);
+        if (processedFiles.length > 0) {
+            processedFiles.forEach((f, i) => {
+                console.log(`  File ${i + 1}: ${f.originalName} (${f.mimeType}, ${f.content.length} chars)`);
+            });
+        }
+        console.log('------------------------');
+
+        // Check if payload is empty
+        if (Object.keys(bodyData).length === 0 && processedFiles.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Empty Payload',
+                message: 'No data or files were provided in the request.',
+                details: 'Please provide some form data or attach files to this webhook payload.'
+            });
+        }
+
+        // Save to database
+        const WebhookPayload = require('../models/WebhookPayload');
+
+        const payloadData = {
+            body: bodyData,
+            files: processedFiles,
+            headers: req.headers
+        };
+
+        const payload = new WebhookPayload(payloadData);
+        await payload.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Webhook processed and saved successfully',
+            dataReceived: bodyData,
+            filesReceived: processedFiles.length
+        });
+    } catch (error) {
+        console.error('Error processing webhook:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: 'Something went wrong while processing your webhook payload.',
+            details: error.message
+        });
+    }
 });
 
 module.exports = router;
