@@ -1,0 +1,35 @@
+/* ============================================
+   SOURCE ONE — TYPOGRAPHY
+   Font: Inter (Google Fonts)
+   Dense data-table optimized scale
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --font-display: 28px;
+  --font-h1: 22px;
+  --font-h2: 18px;
+  --font-h3: 15px;
+  --font-body: 13px;
+  --font-small: 12px;
+  --font-caption: 11px;
+  --font-micro: 10px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.05em;
+  --tracking-caps: 0.08em;
+}
