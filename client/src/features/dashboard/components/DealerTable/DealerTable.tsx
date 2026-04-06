@@ -274,6 +274,24 @@ export function DealerTable({
     </>
   );
 
+  // Infinite scroll for dealer mode (must be before any early returns)
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || mode !== 'dealers' || !hasMore || isLoadingMore) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      if (scrollHeight - scrollTop - clientHeight < 300 && onLoadMore) {
+        onLoadMore();
+      }
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [mode, hasMore, isLoadingMore, onLoadMore]);
+
   // ── Loading ──
   if (isLoading) {
     return (
@@ -313,24 +331,6 @@ export function DealerTable({
 
   const isEmpty = mode === 'groups' ? sortedGroups.length === 0 : sortedDealers.length === 0;
   const hasExpandedGroups = expandedSlugs.size > 0;
-
-  // Infinite scroll for dealer mode
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || mode !== 'dealers' || !hasMore || isLoadingMore) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = el;
-      if (scrollHeight - scrollTop - clientHeight < 300 && onLoadMore) {
-        onLoadMore();
-      }
-    };
-
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [mode, hasMore, isLoadingMore, onLoadMore]);
 
   return (
     <div className={styles.tableWrapper} id="dealer-table">
