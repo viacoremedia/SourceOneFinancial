@@ -248,7 +248,7 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
 
 // ==========================================
 // GET /analytics/groups
-// List all dealer groups with basic stats
+// List all dealer groups with summary stats
 // ==========================================
 router.get('/groups', async (req, res) => {
     try {
@@ -256,13 +256,134 @@ router.get('/groups', async (req, res) => {
             .sort({ dealerCount: -1 })
             .lean();
 
+        // Get the latest report date to query the most recent snapshots
+        const latestSnapshot = await DailyDealerSnapshot.findOne({})
+            .sort({ reportDate: -1 }).lean();
+
+        if (!latestSnapshot) {
+            // No snapshot data yet — return groups without summaries
+            return res.status(200).json({
+                success: true,
+                count: groups.length,
+                groups: groups.map(g => ({ ...g, summary: null }))
+            });
+        }
+
+        const latestDate = latestSnapshot.reportDate;
+
+        // Aggregate latest snapshots per group
+        const groupSummaries = await DailyDealerSnapshot.aggregate([
+            { $match: { reportDate: latestDate, dealerGroup: { $ne: null } } },
+            {
+                $group: {
+                    _id: '$dealerGroup',
+                    locationCount: { $sum: 1 },
+                    activeCount: {
+                        $sum: { $cond: [{ $eq: ['$activityStatus', 'active'] }, 1, 0] }
+                    },
+                    inactive30Count: {
+                        $sum: { $cond: [{ $eq: ['$activityStatus', '30d_inactive'] }, 1, 0] }
+                    },
+                    inactive60Count: {
+                        $sum: { $cond: [{ $eq: ['$activityStatus', '60d_inactive'] }, 1, 0] }
+                    },
+                    longInactiveCount: {
+                        $sum: { $cond: [{ $eq: ['$activityStatus', 'long_inactive'] }, 1, 0] }
+                    },
+                    minDaysSinceApp: {
+                        $min: { $cond: [{ $ne: ['$daysSinceLastApplication', null] }, '$daysSinceLastApplication', 99999] }
+                    },
+                    maxDaysSinceApp: {
+                        $max: { $cond: [{ $ne: ['$daysSinceLastApplication', null] }, '$daysSinceLastApplication', null] }
+                    },
+                    minDaysSinceApproval: {
+                        $min: { $cond: [{ $ne: ['$daysSinceLastApproval', null] }, '$daysSinceLastApproval', 99999] }
+                    },
+                    maxDaysSinceApproval: {
+                        $max: { $cond: [{ $ne: ['$daysSinceLastApproval', null] }, '$daysSinceLastApproval', null] }
+                    },
+                    minDaysSinceBooking: {
+                        $min: { $cond: [{ $ne: ['$daysSinceLastBooking', null] }, '$daysSinceLastBooking', 99999] }
+                    },
+                    maxDaysSinceBooking: {
+                        $max: { $cond: [{ $ne: ['$daysSinceLastBooking', null] }, '$daysSinceLastBooking', null] }
+                    },
+                }
+            }
+        ]);
+
+        // Map summaries by group ID for fast lookup
+        const summaryMap = {};
+        for (const s of groupSummaries) {
+            summaryMap[s._id.toString()] = {
+                locationCount: s.locationCount,
+                activeCount: s.activeCount,
+                inactive30Count: s.inactive30Count,
+                inactive60Count: s.inactive60Count,
+                longInactiveCount: s.longInactiveCount,
+                daysSinceApp: {
+                    best: s.minDaysSinceApp === 99999 ? null : s.minDaysSinceApp,
+                    worst: s.maxDaysSinceApp,
+                },
+                daysSinceApproval: {
+                    best: s.minDaysSinceApproval === 99999 ? null : s.minDaysSinceApproval,
+                    worst: s.maxDaysSinceApproval,
+                },
+                daysSinceBooking: {
+                    best: s.minDaysSinceBooking === 99999 ? null : s.minDaysSinceBooking,
+                    worst: s.maxDaysSinceBooking,
+                },
+            };
+        }
+
+        // Merge summaries into groups
+        const enrichedGroups = groups.map(g => ({
+            ...g,
+            summary: summaryMap[g._id.toString()] || null,
+        }));
+
         res.status(200).json({
             success: true,
-            count: groups.length,
-            groups
+            count: enrichedGroups.length,
+            groups: enrichedGroups
         });
     } catch (error) {
         console.error('Error fetching groups:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// GET /analytics/dealers/small
+// All dealers without a group (small/independent)
+// ==========================================
+router.get('/dealers/small', async (req, res) => {
+    try {
+        const locations = await DealerLocation.find({
+            dealerGroup: null
+        }).sort({ dealerName: 1 }).lean();
+
+        // Attach latest snapshot for each location
+        const dealersWithSnapshot = await Promise.all(
+            locations.map(async (loc) => {
+                const latestSnapshot = await DailyDealerSnapshot.findOne({
+                    dealerLocation: loc._id
+                }).sort({ reportDate: -1 }).lean();
+
+                return {
+                    ...loc,
+                    latestSnapshot: latestSnapshot || null
+                };
+            })
+        );
+
+        res.status(200).json({
+            success: true,
+            count: dealersWithSnapshot.length,
+            dealers: dealersWithSnapshot
+        });
+    } catch (error) {
+        console.error('Error fetching small dealers:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
