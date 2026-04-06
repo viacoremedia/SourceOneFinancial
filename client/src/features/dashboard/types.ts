@@ -26,6 +26,7 @@ export interface DealerGroup {
   name: string;
   slug: string;
   dealerCount: number;
+  states: string[];  // 2-letter state codes from locations
   createdAt: string;
   summary: GroupSummary | null;
 }

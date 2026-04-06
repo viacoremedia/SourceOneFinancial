@@ -13,6 +13,10 @@ const DailyDealerSnapshot = require('../../models/DailyDealerSnapshot');
 const MonthlyDealerRollup = require('../../models/MonthlyDealerRollup');
 const DealerGroup = require('../../models/DealerGroup');
 const DealerLocation = require('../../models/DealerLocation');
+const budgetRoutes = require('./budget');
+
+// Mount budget sub-routes
+router.use('/budget', budgetRoutes);
 
 // ==========================================
 // GET /analytics/dealers/:dealerId/trend
@@ -336,9 +340,20 @@ router.get('/groups', async (req, res) => {
             };
         }
 
-        // Merge summaries into groups
+        // Aggregate distinct states per group from DealerLocation
+        const groupStates = await DealerLocation.aggregate([
+            { $match: { dealerGroup: { $ne: null }, statePrefix: { $ne: null } } },
+            { $group: { _id: '$dealerGroup', states: { $addToSet: '$statePrefix' } } },
+        ]);
+        const statesMap = {};
+        for (const gs of groupStates) {
+            statesMap[gs._id.toString()] = gs.states.sort();
+        }
+
+        // Merge summaries + states into groups
         const enrichedGroups = groups.map(g => ({
             ...g,
+            states: statesMap[g._id.toString()] || [],
             summary: summaryMap[g._id.toString()] || null,
         }));
 

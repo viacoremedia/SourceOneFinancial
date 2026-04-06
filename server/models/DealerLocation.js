@@ -46,13 +46,19 @@ const dealerLocationSchema = new mongoose.Schema({
 });
 
 /**
- * Auto-extract statePrefix from dealerId before validation.
- * Matches the leading alphabetic characters (e.g. TX from TX400, SCA from SCA161).
+ * Auto-extract and normalize statePrefix from dealerId before validation.
+ * Handles: TX400→TX, SCA161→CA (Southern CA), EFL123→FL (EPIC prefix).
  */
 dealerLocationSchema.pre('validate', function () {
     if (this.dealerId && (!this.statePrefix || this.isModified('dealerId'))) {
         const match = this.dealerId.match(/^([A-Z]+)/i);
-        this.statePrefix = match ? match[1].toUpperCase() : '';
+        let prefix = match ? match[1].toUpperCase() : '';
+
+        // Normalize 3-letter codes
+        if (prefix === 'SCA' || prefix === 'NCA') prefix = 'CA';
+        else if (prefix.length === 3 && prefix.startsWith('E')) prefix = prefix.substring(1);
+
+        this.statePrefix = prefix || null;
     }
 });
 

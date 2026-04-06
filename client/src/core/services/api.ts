@@ -124,4 +124,30 @@ export async function getDealerMonthly(
   return { dealerId: data.dealerId, dealerName: data.dealerName, rollups: data.rollups };
 }
 
+// ── State → Rep Map ──
+export type StateRepMap = Record<string, string>;
+
+export async function getStateRepMap(year?: number): Promise<StateRepMap> {
+  const params: Record<string, number> = {};
+  if (year) params.year = year;
+  const { data } = await api.get('/analytics/budget/state-rep-map', { params });
+  return data.stateRepMap;
+}
+
+// ── Budget by State ──
+export interface StateBudget {
+  state: string;
+  rep: string;
+  growthTarget: number | null;
+  marketShare: number | null;
+  annualTotal: number;
+}
+
+export async function getBudgetByState(year?: number): Promise<StateBudget[]> {
+  const params: Record<string, number> = {};
+  if (year) params.year = year;
+  const { data } = await api.get('/analytics/budget/by-state', { params });
+  return data.states;
+}
+
 export default api;

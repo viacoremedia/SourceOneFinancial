@@ -1,15 +1,17 @@
 /**
  * Dashboard — Main page component that composes all dashboard widgets.
- * StatsBar + TabBar + DealerTable with server-side sort + infinite scroll.
+ * StatsBar + FilterBar + TabBar + DealerTable with server-side sort + infinite scroll.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { AppShell } from '../../../core/components/AppShell';
 import { StatsBar } from '../components/StatsBar';
 import { TabBar, type TabId } from '../components/TabBar';
+import { FilterBar } from '../components/FilterBar';
 import { DealerTable } from '../components/DealerTable';
 import { useOverview, useDealerGroups } from '../hooks';
-import { getGroupLocations, getSmallDealers } from '../../../core/services/api';
+import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState } from '../../../core/services/api';
+import type { StateRepMap, StateBudget } from '../../../core/services/api';
 import type { DealerLocation } from '../types';
 
 // Map frontend sort keys to server sort keys
@@ -29,6 +31,47 @@ export function Dashboard() {
   const [groupLocations, setGroupLocations] = useState<
     Record<string, DealerLocation[]>
   >({});
+
+  // ── Filter state ──
+  const [stateRepMap, setStateRepMap] = useState<StateRepMap>({});
+  const [budgets, setBudgets] = useState<StateBudget[]>([]);
+  const [selectedRep, setSelectedRep] = useState('');
+  const [selectedState, setSelectedState] = useState('');
+
+  // Fetch state-rep map + budgets on mount
+  useEffect(() => {
+    getStateRepMap().then(setStateRepMap).catch(console.error);
+    getBudgetByState().then(setBudgets).catch(console.error);
+  }, []);
+
+  // Build reverse map: rep → states[]
+  const repStatesMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const [state, rep] of Object.entries(stateRepMap)) {
+      if (!map[rep]) map[rep] = [];
+      map[rep].push(state);
+    }
+    return map;
+  }, [stateRepMap]);
+
+  // Filter groups by rep/state
+  const filteredGroups = useMemo(() => {
+    if (!selectedRep && !selectedState) return groups;
+
+    const targetStates: Set<string> = new Set();
+    if (selectedState) {
+      targetStates.add(selectedState);
+    } else if (selectedRep && repStatesMap[selectedRep]) {
+      repStatesMap[selectedRep].forEach((s) => targetStates.add(s));
+    }
+
+    if (targetStates.size === 0) return groups;
+
+    return groups.filter((g) => {
+      if (!g.states || g.states.length === 0) return false;
+      return g.states.some((s) => targetStates.has(s));
+    });
+  }, [groups, selectedRep, selectedState, repStatesMap]);
 
   // ── Independent dealers state (paginated) ──
   const [smallDealers, setSmallDealers] = useState<DealerLocation[]>([]);
@@ -78,15 +121,10 @@ export function Dashboard() {
   const handleLoadMore = useCallback(() => {
     if (smallDealersLoadingMore || !hasMore) return;
     const nextPage = pageRef.current + 1;
-    fetchSmallDealers(
-      nextPage,
-      sortStateRef.current.sort,
-      sortStateRef.current.dir,
-      true
-    );
+    fetchSmallDealers(nextPage, sortStateRef.current.sort, sortStateRef.current.dir, true);
   }, [smallDealersLoadingMore, hasMore, fetchSmallDealers]);
 
-  // Sort change from DealerTable — re-fetch from page 1 with new server sort
+  // Sort change from DealerTable — re-fetch from page 1
   const handleDealerSortChange = useCallback(
     (sortKey: string, sortDir: 'asc' | 'desc') => {
       const serverKey = SORT_KEY_MAP[sortKey] || 'dealerName';
@@ -96,6 +134,22 @@ export function Dashboard() {
     },
     [fetchSmallDealers]
   );
+
+  // Filter small dealers by rep/state (client-side since already loaded)
+  const filteredSmallDealers = useMemo(() => {
+    if (!selectedRep && !selectedState) return smallDealers;
+
+    const targetStates: Set<string> = new Set();
+    if (selectedState) {
+      targetStates.add(selectedState);
+    } else if (selectedRep && repStatesMap[selectedRep]) {
+      repStatesMap[selectedRep].forEach((s) => targetStates.add(s));
+    }
+
+    if (targetStates.size === 0) return smallDealers;
+
+    return smallDealers.filter((d) => d.statePrefix && targetStates.has(d.statePrefix));
+  }, [smallDealers, selectedRep, selectedState, repStatesMap]);
 
   // Load locations for a group when expanded
   const handleExpandGroup = useCallback(
@@ -110,6 +164,25 @@ export function Dashboard() {
     },
     [groupLocations]
   );
+
+  // Filter child locations by rep/state (so expanded groups only show relevant locations)
+  const filteredGroupLocations = useMemo(() => {
+    if (!selectedRep && !selectedState) return groupLocations;
+
+    const targetStates: Set<string> = new Set();
+    if (selectedState) {
+      targetStates.add(selectedState);
+    } else if (selectedRep && repStatesMap[selectedRep]) {
+      repStatesMap[selectedRep].forEach((s) => targetStates.add(s));
+    }
+    if (targetStates.size === 0) return groupLocations;
+
+    const filtered: Record<string, DealerLocation[]> = {};
+    for (const [slug, locs] of Object.entries(groupLocations)) {
+      filtered[slug] = locs.filter((loc) => loc.statePrefix && targetStates.has(loc.statePrefix));
+    }
+    return filtered;
+  }, [groupLocations, selectedRep, selectedState, repStatesMap]);
 
   const smallDealerCount = totalSmallDealers || (overview
     ? overview.totalDealers - groups.reduce((sum, g) => sum + g.dealerCount, 0)
@@ -134,13 +207,23 @@ export function Dashboard() {
           groupCount={groups.length || undefined}
           dealerCount={smallDealerCount}
         />
+        {Object.keys(stateRepMap).length > 0 && (
+          <FilterBar
+            stateRepMap={stateRepMap}
+            budgets={budgets}
+            selectedRep={selectedRep}
+            selectedState={selectedState}
+            onRepChange={setSelectedRep}
+            onStateChange={setSelectedState}
+          />
+        )}
       </div>
 
       <DealerTable
         mode={activeTab}
-        groups={groups}
-        groupLocations={groupLocations}
-        smallDealers={smallDealers}
+        groups={filteredGroups}
+        groupLocations={filteredGroupLocations}
+        smallDealers={filteredSmallDealers}
         isLoading={activeTab === 'groups' ? groupsLoading : smallDealersLoading}
         isLoadingMore={smallDealersLoadingMore}
         hasMore={hasMore}
