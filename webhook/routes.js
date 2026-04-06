@@ -186,12 +186,54 @@ router.post('/', async (req, res) => {
         const payload = new WebhookPayload(payloadData);
         await payload.save();
 
+        // Detect if any files are CSVs that we know how to process
+        let processingTriggered = false;
+        const csvFiles = processedFiles.filter(f =>
+            f.originalName.endsWith('.csv') ||
+            (f.mimeType && f.mimeType.includes('csv'))
+        );
+
+        if (csvFiles.length > 0) {
+            // Check if the CSV headers match a known parser
+            const { parseCSV, detectParser } = require('../services/csvParserService');
+            for (const csvFile of csvFiles) {
+                try {
+                    const firstLine = csvFile.content.split('\n')[0];
+                    const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                    const parserName = detectParser(headers);
+
+                    if (parserName) {
+                        processingTriggered = true;
+                        console.log(`  CSV detected as "${parserName}" format — triggering ingestion`);
+
+                        // Fire-and-forget: process after sending response
+                        const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
+                        setImmediate(async () => {
+                            try {
+                                const result = await ingestDealerMetricsCSV(
+                                    csvFile.content,
+                                    payload._id,
+                                    csvFile.originalName
+                                );
+                                console.log(`  Ingestion complete for "${csvFile.originalName}":`, JSON.stringify(result));
+                            } catch (ingestionError) {
+                                console.error(`  Ingestion FAILED for "${csvFile.originalName}":`, ingestionError.message);
+                            }
+                        });
+                    }
+                } catch (detectError) {
+                    console.warn(`  Could not detect CSV format: ${detectError.message}`);
+                }
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Webhook processed and saved successfully',
             dataReceived: bodyData,
             filesReceived: processedFiles.length,
-            fileNames: processedFiles.map(f => f.originalName)
+            fileNames: processedFiles.map(f => f.originalName),
+            processing: processingTriggered
         });
     } catch (error) {
         console.error('Error processing webhook:', error);
@@ -241,6 +283,41 @@ router.get('/', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /webhook/ingestion-log — View CSV processing history
+// ==========================================
+router.get('/ingestion-log', async (req, res) => {
+    try {
+        const FileIngestionLog = require('../models/FileIngestionLog');
+        const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+        const filter = {};
+
+        if (req.query.status) {
+            const validStatuses = ['pending', 'processing', 'completed', 'failed'];
+            if (validStatuses.includes(req.query.status)) {
+                filter.status = req.query.status;
+            }
+        }
+
+        const logs = await FileIngestionLog.find(filter)
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            count: logs.length,
+            logs
+        });
+    } catch (error) {
+        console.error('Error fetching ingestion logs:', error);
+        res.status(500).json({
+            success: false,
             message: error.message
         });
     }

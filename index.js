@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const webhookRoutes = require('./webhook/routes');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -99,6 +100,9 @@ app.use(ensureDbConnected)
 
 // Use webhook routes
 app.use('/webhook', webhookRoutes);
+
+// Use analytics routes
+app.use('/analytics', analyticsRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {
