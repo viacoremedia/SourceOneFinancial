@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 
 // Capture raw body for multipart requests BEFORE other parsers.
-// On Vercel, the request stream is pre-consumed by the runtime..
+// On Vercel, the request stream is pre-consumed by the runtime.
 // This ensures we have the raw body as a Buffer for busboy to parse.
 app.use(express.raw({
     type: (req) => {
