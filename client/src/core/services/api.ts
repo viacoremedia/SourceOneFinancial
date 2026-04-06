@@ -61,13 +61,35 @@ export async function getGroupMonthly(
   return { group: data.group, months: data.months };
 }
 
-// ── All Dealers (no group) ──
-export async function getSmallDealers(): Promise<DealerLocation[]> {
-  // This endpoint doesn't exist yet on the server — we'll build it.
-  // For now, we fetch all groups and find dealers with no group.
-  // TODO: Add a dedicated server endpoint for small dealers
-  const { data } = await api.get('/analytics/dealers/small');
-  return data.dealers;
+// ── Independent Dealers (no group) — server-side sort + pagination ──
+export interface SmallDealerParams {
+  sort?: string;
+  dir?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedDealers {
+  dealers: DealerLocation[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
+export async function getSmallDealers(params: SmallDealerParams = {}): Promise<PaginatedDealers> {
+  const { data } = await api.get('/analytics/dealers/small', {
+    params: {
+      sort: params.sort || 'dealerName',
+      dir: params.dir || 'asc',
+      page: params.page || 1,
+      limit: params.limit || 50,
+    },
+  });
+  return { dealers: data.dealers, pagination: data.pagination };
 }
 
 // ── Single Dealer Trend ──

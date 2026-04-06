@@ -355,32 +355,103 @@ router.get('/groups', async (req, res) => {
 
 // ==========================================
 // GET /analytics/dealers/small
-// All dealers without a group (small/independent)
+// Independent dealers (no group) with server-side sort + pagination
+// Query: ?sort=daysSinceLastApplication&dir=asc&page=1&limit=50
 // ==========================================
 router.get('/dealers/small', async (req, res) => {
     try {
-        const locations = await DealerLocation.find({
-            dealerGroup: null
-        }).sort({ dealerName: 1 }).lean();
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+        const skip = (page - 1) * limit;
+        const sortField = req.query.sort || 'dealerName';
+        const sortDir = req.query.dir === 'desc' ? -1 : 1;
 
-        // Attach latest snapshot for each location
-        const dealersWithSnapshot = await Promise.all(
-            locations.map(async (loc) => {
-                const latestSnapshot = await DailyDealerSnapshot.findOne({
-                    dealerLocation: loc._id
-                }).sort({ reportDate: -1 }).lean();
+        // Get latest report date
+        const latestSnapshot = await DailyDealerSnapshot.findOne({})
+            .sort({ reportDate: -1 }).lean();
+        const latestDate = latestSnapshot?.reportDate;
 
-                return {
-                    ...loc,
-                    latestSnapshot: latestSnapshot || null
-                };
-            })
-        );
+        // Map frontend sort keys to snapshot fields
+        const SORT_FIELD_MAP = {
+            'name': 'dealerName',
+            'dealerName': 'dealerName',
+            'daysSinceLastApplication': 'latestSnapshot.daysSinceLastApplication',
+            'daysSinceLastApproval': 'latestSnapshot.daysSinceLastApproval',
+            'daysSinceLastBooking': 'latestSnapshot.daysSinceLastBooking',
+            'activityStatus': 'latestSnapshot.activityStatus',
+        };
+
+        const resolvedSort = SORT_FIELD_MAP[sortField] || 'dealerName';
+
+        // Build aggregation pipeline
+        const pipeline = [
+            // 1. Match only ungrouped locations
+            { $match: { dealerGroup: null } },
+
+            // 2. Lookup latest snapshot (single doc per location)
+            ...(latestDate ? [{
+                $lookup: {
+                    from: 'dailydealersnapshots',
+                    let: { locId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$dealerLocation', '$$locId'] },
+                                        { $eq: ['$reportDate', latestDate] }
+                                    ]
+                                }
+                            }
+                        },
+                        { $limit: 1 }
+                    ],
+                    as: 'snapshotArr'
+                }
+            }] : []),
+
+            // 3. Flatten snapshot
+            {
+                $addFields: {
+                    latestSnapshot: latestDate
+                        ? { $arrayElemAt: ['$snapshotArr', 0] }
+                        : null
+                }
+            },
+            { $project: { snapshotArr: 0 } },
+
+            // 4. Sort with null handling (nulls go to end)
+            {
+                $addFields: {
+                    _sortValue: resolvedSort.startsWith('latestSnapshot.')
+                        ? { $ifNull: [`$${resolvedSort}`, sortDir === 1 ? 99999 : -1] }
+                        : `$${resolvedSort}`
+                }
+            },
+            { $sort: { _sortValue: sortDir } },
+            { $project: { _sortValue: 0 } },
+        ];
+
+        // Get total count (separate lightweight query)
+        const totalCount = await DealerLocation.countDocuments({ dealerGroup: null });
+
+        // Execute with pagination
+        const dealers = await DealerLocation.aggregate([
+            ...pipeline,
+            { $skip: skip },
+            { $limit: limit },
+        ]);
 
         res.status(200).json({
             success: true,
-            count: dealersWithSnapshot.length,
-            dealers: dealersWithSnapshot
+            dealers,
+            pagination: {
+                page,
+                limit,
+                totalCount,
+                totalPages: Math.ceil(totalCount / limit),
+                hasMore: skip + dealers.length < totalCount,
+            }
         });
     } catch (error) {
         console.error('Error fetching small dealers:', error);

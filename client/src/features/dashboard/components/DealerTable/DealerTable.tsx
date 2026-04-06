@@ -10,7 +10,7 @@
  * - Search, trend dropdown, skeleton loading
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import styles from './DealerTable.module.css';
 import { TABLE_COLUMNS } from './columns';
 import { StatusBadge } from './StatusBadge';
@@ -31,7 +31,11 @@ interface DealerTableProps {
   groupLocations: Record<string, DealerLocation[]>;
   smallDealers: DealerLocation[];
   isLoading: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
   onExpandGroup: (slug: string) => void;
+  onLoadMore?: () => void;
+  onDealerSortChange?: (sortKey: string, sortDir: 'asc' | 'desc') => void;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -127,7 +131,11 @@ export function DealerTable({
   groupLocations,
   smallDealers,
   isLoading,
+  isLoadingMore,
+  hasMore,
   onExpandGroup,
+  onLoadMore,
+  onDealerSortChange,
 }: DealerTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
@@ -171,13 +179,38 @@ export function DealerTable({
 
       if (isChildSort) {
         setLastSortTarget('children');
-        setChildSortStack((prev) => updateSortStack(prev, key, isMulti));
+        if (isMulti) {
+          // Shift+Ctrl: add to existing child sort stack
+          setChildSortStack((prev) => updateSortStack(prev, key, true));
+        } else {
+          // Shift only: mirror group sort to children, then apply clicked column
+          // This ensures multi-sort from groups carries over
+          const mirrored = [...groupSortStack];
+          const exists = mirrored.findIndex((s) => s.key === key);
+          if (exists !== -1) {
+            // Toggle direction of existing column in mirrored stack
+            mirrored[exists] = {
+              ...mirrored[exists],
+              dir: mirrored[exists].dir === 'asc' ? 'desc' : 'asc',
+            };
+          } else {
+            mirrored.push({ key, dir: 'asc' });
+          }
+          setChildSortStack(mirrored);
+        }
+      } else if (mode === 'dealers' && onDealerSortChange) {
+        // In dealer mode, delegate sort to the server
+        const newStack = updateSortStack(groupSortStack, key, isMulti);
+        setGroupSortStack(newStack);
+        setLastSortTarget('groups');
+        // Use primary sort for server (multi-sort not supported server-side)
+        onDealerSortChange(newStack[0].key, newStack[0].dir);
       } else {
         setLastSortTarget('groups');
         setGroupSortStack((prev) => updateSortStack(prev, key, isMulti));
       }
     },
-    []
+    [mode, onDealerSortChange, groupSortStack]
   );
 
   // Filter groups
@@ -194,16 +227,15 @@ export function DealerTable({
     return sorted;
   }, [filteredGroups, groupSortStack]);
 
-  // Filter + sort small dealers (multi-column)
+  // In dealer mode, the server already sorted — just filter locally
   const filteredDealers = useMemo(() => {
     if (!searchQuery.trim()) return smallDealers;
     const q = searchQuery.toLowerCase();
     return smallDealers.filter((d) => d.dealerName.toLowerCase().includes(q));
   }, [smallDealers, searchQuery]);
 
-  const sortedDealers = useMemo(() => {
-    return multiSortLocations(filteredDealers, groupSortStack);
-  }, [filteredDealers, groupSortStack]);
+  // No client-side sort for dealers — server handles it
+  const sortedDealers = filteredDealers;
 
   // Which sort stack to show in headers
   const displayStack = lastSortTarget === 'children' ? childSortStack : groupSortStack;
@@ -282,6 +314,24 @@ export function DealerTable({
   const isEmpty = mode === 'groups' ? sortedGroups.length === 0 : sortedDealers.length === 0;
   const hasExpandedGroups = expandedSlugs.size > 0;
 
+  // Infinite scroll for dealer mode
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || mode !== 'dealers' || !hasMore || isLoadingMore) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      if (scrollHeight - scrollTop - clientHeight < 300 && onLoadMore) {
+        onLoadMore();
+      }
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [mode, hasMore, isLoadingMore, onLoadMore]);
+
   return (
     <div className={styles.tableWrapper} id="dealer-table">
       {/* Toolbar */}
@@ -342,7 +392,7 @@ export function DealerTable({
       </div>
 
       {/* Table */}
-      <div className={styles.tableScroll}>
+      <div className={styles.tableScroll} ref={scrollRef}>
         {isEmpty ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>📊</div>
@@ -412,6 +462,17 @@ export function DealerTable({
                       {renderChildCells(dealer.latestSnapshot)}
                     </tr>
                   ))}
+              {/* Loading more indicator */}
+              {isLoadingMore && (
+                <tr className={styles.loadingMoreRow}>
+                  <td colSpan={TABLE_COLUMNS.length}>
+                    <div className={styles.loadingMore}>
+                      <span className={styles.loadingSpinner} />
+                      Loading more dealers...
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}
