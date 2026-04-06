@@ -1,8 +1,7 @@
 /**
  * FilterBar — Rep and State filter dropdowns with budget + clickable stats.
- * 
- * Stats are clickable: clicking "Long Inactive" filters to only groups
- * that have at least one long-inactive location.
+ * Stats are ALWAYS visible. Clicking a stat filters the table.
+ * Budget/rep summary only shows when a rep or state is selected.
  */
 
 import { useMemo } from 'react';
@@ -56,11 +55,8 @@ export function FilterBar({
     return map;
   }, [budgets]);
 
-  // Compute stats from the groups BEFORE status filter is applied
-  // (so toggling off a filter still shows all counts)
+  // Always compute stats from groups (pre-status-filter)
   const groupStats = useMemo(() => {
-    if (!selectedRep && !selectedState) return null;
-
     let totalLocations = 0;
     let activeCount = 0;
     let inactive30 = 0;
@@ -93,8 +89,9 @@ export function FilterBar({
       longInactive,
       reactivated,
     };
-  }, [filteredGroups, selectedRep, selectedState]);
+  }, [filteredGroups]);
 
+  // Budget summary — only when rep/state selected
   const summary = useMemo(() => {
     if (selectedState) {
       const b = budgetByState[selectedState];
@@ -124,7 +121,7 @@ export function FilterBar({
 
   const handleRepChange = (rep: string) => {
     onRepChange(rep);
-    onStatusFilterChange(null); // Clear status filter on rep change
+    onStatusFilterChange(null);
     if (rep && selectedState && stateRepMap[selectedState] !== rep) {
       onStateChange('');
     }
@@ -132,7 +129,7 @@ export function FilterBar({
 
   const handleStateChange = (state: string) => {
     onStateChange(state);
-    onStatusFilterChange(null); // Clear status filter on state change
+    onStatusFilterChange(null);
   };
 
   const handleStatClick = (statKey: string) => {
@@ -185,6 +182,7 @@ export function FilterBar({
         )}
       </div>
 
+      {/* Budget summary — only when rep/state is selected */}
       {summary && (
         <div className={styles.summaryBanner}>
           <div className={styles.summaryRow}>
@@ -220,63 +218,52 @@ export function FilterBar({
               <span className={styles.budgetLabel}>annual budget</span>
             </div>
           </div>
-
-          {groupStats && (
-            <div className={styles.statsRow}>
-              <div className={styles.statItem}>
-                <span className={styles.statValue}>{groupStats.groups}</span>
-                <span className={styles.statLabel}>Groups</span>
-              </div>
-              <div className={styles.statItem}>
-                <span className={styles.statValue}>{groupStats.locations}</span>
-                <span className={styles.statLabel}>Locations</span>
-              </div>
-              <button
-                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'active' ? styles.statSelected : ''}`}
-                onClick={() => handleStatClick('active')}
-                title="Filter to groups with active locations"
-              >
-                <span className={`${styles.statValue} ${styles.statActive}`}>{groupStats.activeCount}</span>
-                <span className={styles.statLabel}>Active ({groupStats.activePercent}%)</span>
-              </button>
-              <button
-                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '30d_inactive' ? styles.statSelected : ''}`}
-                onClick={() => handleStatClick('30d_inactive')}
-                title="Filter to groups with 30d inactive"
-              >
-                <span className={styles.statValue}>{groupStats.inactive30}</span>
-                <span className={styles.statLabel}>30d Inactive</span>
-              </button>
-              <button
-                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '60d_inactive' ? styles.statSelected : ''}`}
-                onClick={() => handleStatClick('60d_inactive')}
-                title="Filter to groups with 60d inactive"
-              >
-                <span className={styles.statValue}>{groupStats.inactive60}</span>
-                <span className={styles.statLabel}>60d Inactive</span>
-              </button>
-              <button
-                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'long_inactive' ? styles.statSelected : ''}`}
-                onClick={() => handleStatClick('long_inactive')}
-                title="Filter to groups with long inactive"
-              >
-                <span className={`${styles.statValue} ${styles.statDanger}`}>{groupStats.longInactive}</span>
-                <span className={styles.statLabel}>Long Inactive</span>
-              </button>
-              {groupStats.reactivated > 0 && (
-                <button
-                  className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'reactivated' ? styles.statSelected : ''}`}
-                  onClick={() => handleStatClick('reactivated')}
-                  title="Filter to reactivated groups"
-                >
-                  <span className={`${styles.statValue} ${styles.statActive}`}>{groupStats.reactivated}</span>
-                  <span className={styles.statLabel}>Reactivated</span>
-                </button>
-              )}
-            </div>
-          )}
         </div>
       )}
+
+      {/* Stats row — ALWAYS visible, clickable buckets */}
+      <div className={`${styles.statsRow} ${!summary ? styles.statsRowStandalone : ''}`}>
+        <div className={styles.statItem}>
+          <span className={styles.statValue}>{groupStats.groups}</span>
+          <span className={styles.statLabel}>Groups</span>
+        </div>
+        <div className={styles.statItem}>
+          <span className={styles.statValue}>{groupStats.locations}</span>
+          <span className={styles.statLabel}>Locations</span>
+        </div>
+        <button
+          className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'active' ? styles.statSelected : ''}`}
+          onClick={() => handleStatClick('active')}
+          title="Filter to groups with active locations"
+        >
+          <span className={`${styles.statValue} ${styles.statActive}`}>{groupStats.activeCount}</span>
+          <span className={styles.statLabel}>Active ({groupStats.activePercent}%)</span>
+        </button>
+        <button
+          className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '30d_inactive' ? styles.statSelected : ''}`}
+          onClick={() => handleStatClick('30d_inactive')}
+          title="Filter to groups with 30d inactive"
+        >
+          <span className={styles.statValue}>{groupStats.inactive30}</span>
+          <span className={styles.statLabel}>30d Inactive</span>
+        </button>
+        <button
+          className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '60d_inactive' ? styles.statSelected : ''}`}
+          onClick={() => handleStatClick('60d_inactive')}
+          title="Filter to groups with 60d inactive"
+        >
+          <span className={styles.statValue}>{groupStats.inactive60}</span>
+          <span className={styles.statLabel}>60d Inactive</span>
+        </button>
+        <button
+          className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'long_inactive' ? styles.statSelected : ''}`}
+          onClick={() => handleStatClick('long_inactive')}
+          title="Filter to groups with long inactive"
+        >
+          <span className={`${styles.statValue} ${styles.statDanger}`}>{groupStats.longInactive}</span>
+          <span className={styles.statLabel}>Long Inactive</span>
+        </button>
+      </div>
     </div>
   );
 }

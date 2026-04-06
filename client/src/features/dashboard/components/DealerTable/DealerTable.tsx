@@ -34,6 +34,7 @@ interface DealerTableProps {
   isLoadingMore?: boolean;
   hasMore?: boolean;
   statusFilter?: string | null;
+  isPrefetching?: boolean;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
   onDealerSortChange?: (sortKey: string, sortDir: 'asc' | 'desc') => void;
@@ -135,6 +136,7 @@ export function DealerTable({
   isLoadingMore,
   hasMore,
   statusFilter,
+  isPrefetching,
   onExpandGroup,
   onLoadMore,
   onDealerSortChange,
@@ -454,6 +456,7 @@ export function DealerTable({
                         isExpanded={isExpanded}
                         locations={sortedLocs}
                         statusFilter={statusFilter}
+                        isPrefetching={isPrefetching}
                         onToggle={() => toggleGroup(group.slug)}
                         renderChildCells={renderChildCells}
                       />
@@ -544,9 +547,18 @@ function BestWorstCell({ data, forceSingle }: { data: BestWorst | undefined | nu
 
 // ── Active Count Badge ──
 
-function ActiveCountBadge({ summary }: { summary: DealerGroup['summary'] }) {
-  if (!summary) return <span className={styles.emptyValue}>—</span>;
-  const { activeCount, locationCount } = summary;
+function ActiveCountBadge({
+  summary,
+  overrideActive,
+  overrideTotal,
+}: {
+  summary: DealerGroup['summary'];
+  overrideActive?: number;
+  overrideTotal?: number;
+}) {
+  if (!summary && overrideActive == null) return <span className={styles.emptyValue}>—</span>;
+  const activeCount = overrideActive ?? summary?.activeCount ?? 0;
+  const locationCount = overrideTotal ?? summary?.locationCount ?? 0;
   const ratio = locationCount > 0 ? activeCount / locationCount : 0;
   let colorClass = styles.statusActive;
   if (ratio < 0.5) colorClass = styles.statusLong;
@@ -558,6 +570,12 @@ function ActiveCountBadge({ summary }: { summary: DealerGroup['summary'] }) {
   );
 }
 
+// ── Skeleton Cell ──
+
+function SkeletonCell() {
+  return <span className={styles.skeleton} />;
+}
+
 // ── Group Rows ──
 
 interface GroupRowsProps {
@@ -565,6 +583,7 @@ interface GroupRowsProps {
   isExpanded: boolean;
   locations: DealerLocation[];
   statusFilter?: string | null;
+  isPrefetching?: boolean;
   onToggle: () => void;
   renderChildCells: (snap: DealerLocation['latestSnapshot']) => React.JSX.Element;
 }
@@ -581,13 +600,27 @@ function getFilteredCount(summary: DealerGroup['summary'], statusFilter?: string
   }
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, onToggle, renderChildCells }: GroupRowsProps) {
+function computeBestWorstFromLocations(
+  locations: DealerLocation[],
+  field: 'daysSinceLastApplication' | 'daysSinceLastApproval' | 'daysSinceLastBooking'
+): BestWorst | null {
+  let best: number | null = null;
+  let worst: number | null = null;
+  for (const loc of locations) {
+    const val = loc.latestSnapshot?.[field];
+    if (val == null) continue;
+    if (best === null || val < best) best = val;
+    if (worst === null || val > worst) worst = val;
+  }
+  if (best === null && worst === null) return null;
+  return { best, worst };
+}
+
+function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells }: GroupRowsProps) {
   const s = group.summary;
   const stub = <span className={styles.emptyValue}>—</span>;
 
-  // Compute the displayed location count:
-  // - With status filter: use the matching count from summary
-  // - Without: use server-filtered locationCount (already filtered by state)
+  // Compute the displayed location count
   let displayCount = s?.locationCount ?? group.dealerCount;
   if (statusFilter && s) {
     switch (statusFilter) {
@@ -598,6 +631,33 @@ function GroupRows({ group, isExpanded, locations, statusFilter, onToggle, rende
       case 'reactivated': displayCount = s.reactivatedCount; break;
     }
   }
+
+  // When status filter is active + locations loaded, recompute from filtered children
+  const hasFilteredLocs = statusFilter && locations.length > 0;
+  const showSkeleton = statusFilter && !hasFilteredLocs && isPrefetching;
+
+  const daysSinceApp = hasFilteredLocs
+    ? computeBestWorstFromLocations(locations, 'daysSinceLastApplication')
+    : s?.daysSinceApp ?? null;
+  const daysSinceApproval = hasFilteredLocs
+    ? computeBestWorstFromLocations(locations, 'daysSinceLastApproval')
+    : s?.daysSinceApproval ?? null;
+  const daysSinceBooking = hasFilteredLocs
+    ? computeBestWorstFromLocations(locations, 'daysSinceLastBooking')
+    : s?.daysSinceBooking ?? null;
+
+  // Compute filtered active count for status badge
+  let filteredActive: number | undefined;
+  let filteredTotal: number | undefined;
+  if (hasFilteredLocs) {
+    filteredTotal = locations.length;
+    filteredActive = locations.filter((loc) => {
+      const status = loc.latestSnapshot?.activityStatus;
+      return status === 'active';
+    }).length;
+  }
+
+  const isSingle = displayCount === 1;
 
   return (
     <>
@@ -612,10 +672,18 @@ function GroupRows({ group, isExpanded, locations, statusFilter, onToggle, rende
             <span className={styles.locationCount}>({displayCount})</span>
           </span>
         </td>
-        <td><BestWorstCell data={s?.daysSinceApp} forceSingle={displayCount === 1} /></td>
-        <td><BestWorstCell data={s?.daysSinceApproval} forceSingle={displayCount === 1} /></td>
-        <td><BestWorstCell data={s?.daysSinceBooking} forceSingle={displayCount === 1} /></td>
-        <td style={{ textAlign: 'center' }}><ActiveCountBadge summary={s} /></td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
+        <td style={{ textAlign: 'center' }}>
+          {showSkeleton ? <SkeletonCell /> : (
+            <ActiveCountBadge
+              summary={s}
+              overrideActive={filteredActive}
+              overrideTotal={filteredTotal}
+            />
+          )}
+        </td>
         <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
         <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
       </tr>
@@ -628,4 +696,6 @@ function GroupRows({ group, isExpanded, locations, statusFilter, onToggle, rende
     </>
   );
 }
+
+
 

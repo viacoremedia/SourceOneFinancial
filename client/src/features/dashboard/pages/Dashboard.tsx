@@ -188,6 +188,35 @@ export function Dashboard() {
     [groupLocations]
   );
 
+  // When status filter is active, pre-fetch locations for all visible groups
+  const [prefetchingLocations, setPrefetchingLocations] = useState(false);
+  useEffect(() => {
+    if (!statusFilter) { setPrefetchingLocations(false); return; }
+    const missing = filteredGroups.filter((g) => !groupLocations[g.slug]);
+    if (missing.length === 0) { setPrefetchingLocations(false); return; }
+    setPrefetchingLocations(true);
+    Promise.all(
+      missing.map(async (g) => {
+        try {
+          const { locations } = await getGroupLocations(g.slug);
+          return { slug: g.slug, locations };
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      setGroupLocations((prev) => {
+        const updated = { ...prev };
+        for (const r of results) {
+          if (r) updated[r.slug] = r.locations;
+        }
+        return updated;
+      });
+      setPrefetchingLocations(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, filteredGroups]);
+
   // Filter child locations by rep/state + status
   const filteredGroupLocations = useMemo(() => {
     const hasStateFilter = selectedRep || selectedState;
@@ -264,6 +293,7 @@ export function Dashboard() {
         isLoadingMore={smallDealersLoadingMore}
         hasMore={hasMore}
         statusFilter={statusFilter}
+        isPrefetching={prefetchingLocations}
         onExpandGroup={handleExpandGroup}
         onLoadMore={handleLoadMore}
         onDealerSortChange={handleDealerSortChange}
