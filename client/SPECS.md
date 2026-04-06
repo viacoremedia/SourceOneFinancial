@@ -1,39 +1,28 @@
-# Client — SPECS.md
+# SPECS.md — Client
 
-> Source One Dealer Performance Dashboard — React Frontend
-
-## Tech Stack
-- Vite 8 + React 19 + TypeScript 6
-- Axios for API requests
-- CSS Modules for component-level styling
-- Google Fonts (Inter)
+> Frontend for Source One Dealer Performance Analytics.
+> Vite + React (TypeScript).
 
 ## Directory Structure
-```
-client/
-├── src/
-│   ├── core/                 # Shared primitives
-│   │   ├── components/       # AppShell
-│   │   ├── services/         # API client (axios)
-│   │   ├── styles/           # Design tokens, typography, global CSS
-│   │   └── utils/            # Trend calculator
-│   ├── features/
-│   │   └── dashboard/        # Main dashboard feature
-│   │       ├── components/   # TabBar, StatsBar, DealerTable
-│   │       ├── hooks/        # useOverview, useDealerGroups
-│   │       ├── pages/        # Dashboard page
-│   │       └── types.ts      # TypeScript interfaces
-│   ├── App.tsx               # Root component
-│   └── main.tsx              # Entry point
-├── vite.config.ts            # Dev server + API proxy
-└── package.json
-```
 
-## Module Index
-| Module | Purpose | Files |
-|--------|---------|-------|
-| `core/styles` | Design system | tokens.css, typography.css, global.css |
-| `core/components/AppShell` | App layout shell | AppShell.tsx, AppShell.module.css |
-| `core/services/api` | Typed HTTP client | api.ts |
-| `core/utils/trendCalculator` | Trend % change math | trendCalculator.ts |
-| `features/dashboard` | Dealer analytics view | types.ts, hooks/, components/, pages/ |
+| Path                | Purpose                                        |
+|---------------------|-------------------------------------------------|
+| `src/core/`         | Shared components, hooks, services, styles      |
+| `src/features/`     | Feature-sliced modules                          |
+| `src/App.tsx`       | Root component (renders Dashboard)              |
+| `src/main.tsx`      | Vite entry point                                |
+| `vite.config.ts`    | Vite configuration                              |
+
+## Environment Variables
+
+| Variable       | Description            | Example                    |
+|----------------|------------------------|----------------------------|
+| `VITE_API_URL` | Backend API base URL   | `http://localhost:3001`    |
+
+## Build & Dev
+
+```bash
+npm run dev      # Start dev server (port 5173)
+npm run build    # Production build → dist/
+npm run preview  # Preview production build
+```

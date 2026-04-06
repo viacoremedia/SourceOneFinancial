@@ -1,25 +1,37 @@
-# Core — SPECS.md
+# SPECS.md — Client Core
 
-> Shared frontend primitives: components, services, styles, utilities.
+> Shared primitives reused across all features.
 
-## Components
-| Component | Path | Purpose |
-|-----------|------|---------|
-| `AppShell` | `components/AppShell/` | Sticky header + full-height content layout |
+## Directories
 
-## Services
-| Service | Path | Purpose |
-|---------|------|---------|
-| `api` | `services/api.ts` | Axios instance + typed methods for all analytics endpoints |
+| Path           | Purpose                                          |
+|----------------|--------------------------------------------------|
+| `components/`  | Global UI components                              |
+| `hooks/`       | Shared React hooks                                |
+| `services/`    | API client and data-fetching utilities            |
+| `styles/`      | Global CSS variables, design tokens, base styles  |
+| `utils/`       | Pure utility functions                            |
 
-## Styles
-| File | Purpose |
-|------|---------|
-| `styles/tokens.css` | CSS custom properties: colors, spacing, shadows, transitions |
-| `styles/typography.css` | Inter font import, type scale, weights |
-| `styles/global.css` | Reset, body defaults, scrollbar, base elements |
+## Key Files
 
-## Utils
-| Utility | Path | Purpose |
-|---------|------|---------|
-| `trendCalculator` | `utils/trendCalculator.ts` | `computePercentChange()`, `formatTrend()`, `isTrendPositive()` |
+### `services/api.ts`
+Central API client. All backend calls go through this module.
+
+| Export                  | Type     | Endpoint                           | Description                         |
+|-------------------------|----------|------------------------------------|-------------------------------------|
+| `getGroups(states?)`    | Async    | `GET /analytics/groups`            | Fetch groups with summaries         |
+| `getGroupLocations(slug)` | Async | `GET /analytics/groups/:slug/locations` | Fetch locations in a group     |
+| `getSmallDealers(opts)` | Async    | `GET /analytics/small-dealers`     | Paginated independent dealers       |
+| `getOverview()`         | Async    | `GET /analytics/overview`          | Total counts                        |
+| `getStateRepMap()`      | Async    | `GET /analytics/state-rep-map`     | State → rep mapping                 |
+| `getStateBudgets()`     | Async    | `GET /analytics/budget/states`     | State budget data                   |
+
+**Types exported**:
+- `StateRepMap` — `Record<string, string>`
+- `StateBudget` — `{ state, rep, annualTotal, monthlyBudgets }`
+
+### `components/AppShell/`
+Layout wrapper providing consistent page structure (header, sidebar).
+
+### `styles/`
+CSS design tokens: `--bg-surface`, `--text-primary`, `--border-subtle`, `--radius-lg`, spacing scale, etc.
