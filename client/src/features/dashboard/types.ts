@@ -15,6 +15,7 @@ export interface GroupSummary {
   inactive30Count: number;
   inactive60Count: number;
   longInactiveCount: number;
+  reactivatedCount: number;
   daysSinceApp: BestWorst;
   daysSinceApproval: BestWorst;
   daysSinceBooking: BestWorst;

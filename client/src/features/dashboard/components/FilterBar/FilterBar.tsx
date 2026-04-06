@@ -1,21 +1,25 @@
 /**
- * FilterBar — Rep and State filter dropdowns with budget summary.
+ * FilterBar — Rep and State filter dropdowns with budget + clickable stats.
  * 
- * When a rep is selected: shows their states + total budget.
- * When a state is selected: shows the rep + state budget.
+ * Stats are clickable: clicking "Long Inactive" filters to only groups
+ * that have at least one long-inactive location.
  */
 
 import { useMemo } from 'react';
 import styles from './FilterBar.module.css';
 import type { StateRepMap, StateBudget } from '../../../../core/services/api';
+import type { DealerGroup } from '../../types';
 
 interface FilterBarProps {
   stateRepMap: StateRepMap;
   budgets: StateBudget[];
+  filteredGroups: DealerGroup[];
   selectedRep: string;
   selectedState: string;
+  statusFilter: string | null;
   onRepChange: (rep: string) => void;
   onStateChange: (state: string) => void;
+  onStatusFilterChange: (status: string | null) => void;
 }
 
 function formatDollar(n: number): string {
@@ -27,32 +31,70 @@ function formatDollar(n: number): string {
 export function FilterBar({
   stateRepMap,
   budgets,
+  filteredGroups,
   selectedRep,
   selectedState,
+  statusFilter,
   onRepChange,
   onStateChange,
+  onStatusFilterChange,
 }: FilterBarProps) {
-  // Derive unique reps from the map
   const reps = useMemo(() => {
     const repSet = new Set(Object.values(stateRepMap));
     return [...repSet].sort();
   }, [stateRepMap]);
 
-  // Derive states — filtered by selected rep
   const states = useMemo(() => {
     const allStates = Object.keys(stateRepMap).sort();
     if (!selectedRep) return allStates;
     return allStates.filter((s) => stateRepMap[s] === selectedRep);
   }, [stateRepMap, selectedRep]);
 
-  // Build budget lookup
   const budgetByState = useMemo(() => {
     const map: Record<string, StateBudget> = {};
     for (const b of budgets) map[b.state] = b;
     return map;
   }, [budgets]);
 
-  // Summary data
+  // Compute stats from the groups BEFORE status filter is applied
+  // (so toggling off a filter still shows all counts)
+  const groupStats = useMemo(() => {
+    if (!selectedRep && !selectedState) return null;
+
+    let totalLocations = 0;
+    let activeCount = 0;
+    let inactive30 = 0;
+    let inactive60 = 0;
+    let longInactive = 0;
+    let reactivated = 0;
+
+    for (const g of filteredGroups) {
+      if (g.summary) {
+        totalLocations += g.summary.locationCount;
+        activeCount += g.summary.activeCount;
+        inactive30 += g.summary.inactive30Count;
+        inactive60 += g.summary.inactive60Count;
+        longInactive += g.summary.longInactiveCount;
+        reactivated += g.summary.reactivatedCount || 0;
+      }
+    }
+
+    const activePercent = totalLocations > 0
+      ? Math.round((activeCount / totalLocations) * 100)
+      : 0;
+
+    return {
+      groups: filteredGroups.length,
+      locations: totalLocations,
+      activeCount,
+      activePercent,
+      inactive30,
+      inactive60,
+      longInactive,
+      reactivated,
+    };
+  }, [filteredGroups, selectedRep, selectedState]);
+
   const summary = useMemo(() => {
     if (selectedState) {
       const b = budgetByState[selectedState];
@@ -63,7 +105,6 @@ export function FilterBar({
         rep: b.rep,
         states: [selectedState],
         annualBudget: b.annualTotal,
-        growthTarget: b.growthTarget,
       };
     }
     if (selectedRep) {
@@ -76,7 +117,6 @@ export function FilterBar({
         rep: selectedRep,
         states: repStates,
         annualBudget,
-        growthTarget: null,
       };
     }
     return null;
@@ -84,9 +124,19 @@ export function FilterBar({
 
   const handleRepChange = (rep: string) => {
     onRepChange(rep);
+    onStatusFilterChange(null); // Clear status filter on rep change
     if (rep && selectedState && stateRepMap[selectedState] !== rep) {
       onStateChange('');
     }
+  };
+
+  const handleStateChange = (state: string) => {
+    onStateChange(state);
+    onStatusFilterChange(null); // Clear status filter on state change
+  };
+
+  const handleStatClick = (statKey: string) => {
+    onStatusFilterChange(statusFilter === statKey ? null : statKey);
   };
 
   const hasActiveFilters = selectedRep || selectedState;
@@ -114,7 +164,7 @@ export function FilterBar({
           <select
             className={`${styles.filterSelect} ${selectedState ? styles.filterActive : ''}`}
             value={selectedState}
-            onChange={(e) => onStateChange(e.target.value)}
+            onChange={(e) => handleStateChange(e.target.value)}
             id="filter-state"
           >
             <option value="">All States</option>
@@ -127,7 +177,7 @@ export function FilterBar({
         {hasActiveFilters && (
           <button
             className={styles.clearBtn}
-            onClick={() => { onRepChange(''); onStateChange(''); }}
+            onClick={() => { onRepChange(''); onStateChange(''); onStatusFilterChange(null); }}
             title="Clear all filters"
           >
             ✕
@@ -135,45 +185,96 @@ export function FilterBar({
         )}
       </div>
 
-      {/* Summary Banner */}
       {summary && (
         <div className={styles.summaryBanner}>
-          <div className={styles.summaryMain}>
-            {summary.type === 'rep' ? (
-              <>
-                <span className={styles.summaryLabel}>{summary.rep}</span>
-                <span className={styles.summaryDivider}>·</span>
-                <span className={styles.summaryStates}>
-                  {summary.states.map((s) => (
-                    <button
-                      key={s}
-                      className={`${styles.stateChip} ${selectedState === s ? styles.stateChipActive : ''}`}
-                      onClick={() => onStateChange(s === selectedState ? '' : s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className={styles.summaryLabel}>{summary.label}</span>
-                <span className={styles.summaryDivider}>·</span>
-                <span className={styles.summaryRep}>Rep: {summary.rep}</span>
-              </>
-            )}
-          </div>
-          <div className={styles.summaryBudget}>
-            <span className={styles.budgetAmount}>
-              {formatDollar(summary.annualBudget)}
-            </span>
-            <span className={styles.budgetLabel}>annual budget</span>
-            {summary.growthTarget != null && (
-              <span className={`${styles.growthBadge} ${summary.growthTarget >= 0 ? styles.growthPositive : styles.growthNegative}`}>
-                {summary.growthTarget >= 0 ? '+' : ''}{(summary.growthTarget * 100).toFixed(1)}%
+          <div className={styles.summaryRow}>
+            <div className={styles.summaryMain}>
+              {summary.type === 'rep' ? (
+                <>
+                  <span className={styles.summaryLabel}>{summary.rep}</span>
+                  <span className={styles.summaryDivider}>·</span>
+                  <span className={styles.summaryStates}>
+                    {summary.states.map((s) => (
+                      <button
+                        key={s}
+                        className={`${styles.stateChip} ${selectedState === s ? styles.stateChipActive : ''}`}
+                        onClick={() => handleStateChange(s === selectedState ? '' : s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className={styles.summaryLabel}>{summary.label}</span>
+                  <span className={styles.summaryDivider}>·</span>
+                  <span className={styles.summaryRep}>Rep: {summary.rep}</span>
+                </>
+              )}
+            </div>
+            <div className={styles.summaryBudget}>
+              <span className={styles.budgetAmount}>
+                {formatDollar(summary.annualBudget)}
               </span>
-            )}
+              <span className={styles.budgetLabel}>annual budget</span>
+            </div>
           </div>
+
+          {groupStats && (
+            <div className={styles.statsRow}>
+              <div className={styles.statItem}>
+                <span className={styles.statValue}>{groupStats.groups}</span>
+                <span className={styles.statLabel}>Groups</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statValue}>{groupStats.locations}</span>
+                <span className={styles.statLabel}>Locations</span>
+              </div>
+              <button
+                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'active' ? styles.statSelected : ''}`}
+                onClick={() => handleStatClick('active')}
+                title="Filter to groups with active locations"
+              >
+                <span className={`${styles.statValue} ${styles.statActive}`}>{groupStats.activeCount}</span>
+                <span className={styles.statLabel}>Active ({groupStats.activePercent}%)</span>
+              </button>
+              <button
+                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '30d_inactive' ? styles.statSelected : ''}`}
+                onClick={() => handleStatClick('30d_inactive')}
+                title="Filter to groups with 30d inactive"
+              >
+                <span className={styles.statValue}>{groupStats.inactive30}</span>
+                <span className={styles.statLabel}>30d Inactive</span>
+              </button>
+              <button
+                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '60d_inactive' ? styles.statSelected : ''}`}
+                onClick={() => handleStatClick('60d_inactive')}
+                title="Filter to groups with 60d inactive"
+              >
+                <span className={styles.statValue}>{groupStats.inactive60}</span>
+                <span className={styles.statLabel}>60d Inactive</span>
+              </button>
+              <button
+                className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'long_inactive' ? styles.statSelected : ''}`}
+                onClick={() => handleStatClick('long_inactive')}
+                title="Filter to groups with long inactive"
+              >
+                <span className={`${styles.statValue} ${styles.statDanger}`}>{groupStats.longInactive}</span>
+                <span className={styles.statLabel}>Long Inactive</span>
+              </button>
+              {groupStats.reactivated > 0 && (
+                <button
+                  className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'reactivated' ? styles.statSelected : ''}`}
+                  onClick={() => handleStatClick('reactivated')}
+                  title="Filter to reactivated groups"
+                >
+                  <span className={`${styles.statValue} ${styles.statActive}`}>{groupStats.reactivated}</span>
+                  <span className={styles.statLabel}>Reactivated</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

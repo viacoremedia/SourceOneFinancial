@@ -28,8 +28,10 @@ export async function getOverview(year?: number, month?: number): Promise<Overvi
 }
 
 // ── Dealer Groups ──
-export async function getGroups(): Promise<DealerGroup[]> {
-  const { data } = await api.get('/analytics/groups');
+export async function getGroups(states?: string[]): Promise<DealerGroup[]> {
+  const params: Record<string, string> = {};
+  if (states && states.length > 0) params.states = states.join(',');
+  const { data } = await api.get('/analytics/groups', { params });
   return data.groups;
 }
 

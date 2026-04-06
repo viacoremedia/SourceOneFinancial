@@ -33,6 +33,7 @@ interface DealerTableProps {
   isLoading: boolean;
   isLoadingMore?: boolean;
   hasMore?: boolean;
+  statusFilter?: string | null;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
   onDealerSortChange?: (sortKey: string, sortDir: 'asc' | 'desc') => void;
@@ -133,6 +134,7 @@ export function DealerTable({
   isLoading,
   isLoadingMore,
   hasMore,
+  statusFilter,
   onExpandGroup,
   onLoadMore,
   onDealerSortChange,
@@ -451,6 +453,7 @@ export function DealerTable({
                         group={group}
                         isExpanded={isExpanded}
                         locations={sortedLocs}
+                        statusFilter={statusFilter}
                         onToggle={() => toggleGroup(group.slug)}
                         renderChildCells={renderChildCells}
                       />
@@ -509,9 +512,20 @@ function updateSortStack(prev: SortColumn[], key: string, isMulti: boolean): Sor
 
 // ── Best / Worst Cell ──
 
-function BestWorstCell({ data }: { data: BestWorst | undefined | null }) {
+function BestWorstCell({ data, forceSingle }: { data: BestWorst | undefined | null; forceSingle?: boolean }) {
   if (!data || (data.best == null && data.worst == null)) {
     return <span className={styles.emptyValue}>—</span>;
+  }
+  // Single location — just show one value
+  if (forceSingle || data.best === data.worst || data.worst == null) {
+    const colors = getDaysSinceHeatmap(data.best);
+    return (
+      <span className={styles.bestWorstCell}>
+        <span className={styles.bestValue} style={colors ? { color: colors.text } : undefined}>
+          {data.best ?? '—'}
+        </span>
+      </span>
+    );
   }
   const bestColors = getDaysSinceHeatmap(data.best);
   const worstColors = getDaysSinceHeatmap(data.worst);
@@ -550,13 +564,40 @@ interface GroupRowsProps {
   group: DealerGroup;
   isExpanded: boolean;
   locations: DealerLocation[];
+  statusFilter?: string | null;
   onToggle: () => void;
   renderChildCells: (snap: DealerLocation['latestSnapshot']) => React.JSX.Element;
 }
 
-function GroupRows({ group, isExpanded, locations, onToggle, renderChildCells }: GroupRowsProps) {
+function getFilteredCount(summary: DealerGroup['summary'], statusFilter?: string | null): number | null {
+  if (!summary || !statusFilter) return null;
+  switch (statusFilter) {
+    case 'active': return summary.activeCount;
+    case '30d_inactive': return summary.inactive30Count;
+    case '60d_inactive': return summary.inactive60Count;
+    case 'long_inactive': return summary.longInactiveCount;
+    case 'reactivated': return summary.reactivatedCount;
+    default: return null;
+  }
+}
+
+function GroupRows({ group, isExpanded, locations, statusFilter, onToggle, renderChildCells }: GroupRowsProps) {
   const s = group.summary;
   const stub = <span className={styles.emptyValue}>—</span>;
+
+  // Compute the displayed location count:
+  // - With status filter: use the matching count from summary
+  // - Without: use server-filtered locationCount (already filtered by state)
+  let displayCount = s?.locationCount ?? group.dealerCount;
+  if (statusFilter && s) {
+    switch (statusFilter) {
+      case 'active': displayCount = s.activeCount; break;
+      case '30d_inactive': displayCount = s.inactive30Count; break;
+      case '60d_inactive': displayCount = s.inactive60Count; break;
+      case 'long_inactive': displayCount = s.longInactiveCount; break;
+      case 'reactivated': displayCount = s.reactivatedCount; break;
+    }
+  }
 
   return (
     <>
@@ -568,12 +609,12 @@ function GroupRows({ group, isExpanded, locations, onToggle, renderChildCells }:
           <span className={styles.groupName}>
             <span className={`${styles.expandIcon} ${isExpanded ? styles.expandIconOpen : ''}`}>▶</span>
             {group.name}
-            <span className={styles.locationCount}>({group.dealerCount})</span>
+            <span className={styles.locationCount}>({displayCount})</span>
           </span>
         </td>
-        <td><BestWorstCell data={s?.daysSinceApp} /></td>
-        <td><BestWorstCell data={s?.daysSinceApproval} /></td>
-        <td><BestWorstCell data={s?.daysSinceBooking} /></td>
+        <td><BestWorstCell data={s?.daysSinceApp} forceSingle={displayCount === 1} /></td>
+        <td><BestWorstCell data={s?.daysSinceApproval} forceSingle={displayCount === 1} /></td>
+        <td><BestWorstCell data={s?.daysSinceBooking} forceSingle={displayCount === 1} /></td>
         <td style={{ textAlign: 'center' }}><ActiveCountBadge summary={s} /></td>
         <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
         <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
@@ -587,3 +628,4 @@ function GroupRows({ group, isExpanded, locations, onToggle, renderChildCells }:
     </>
   );
 }
+

@@ -249,13 +249,27 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
-
 // ==========================================
 // GET /analytics/groups
 // List all dealer groups with summary stats
 // ==========================================
 router.get('/groups', async (req, res) => {
     try {
+        // Optional state filter: ?states=TX,FL
+        const statesParam = req.query.states;
+        const targetStates = statesParam
+            ? String(statesParam).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+            : null;
+
+        // If filtering by states, get matching location IDs
+        let filteredLocationIds = null;
+        if (targetStates && targetStates.length > 0) {
+            const matchingLocations = await DealerLocation.find(
+                { statePrefix: { $in: targetStates }, dealerGroup: { $ne: null } }
+            ).select('_id').lean();
+            filteredLocationIds = matchingLocations.map(l => l._id);
+        }
+
         const groups = await DealerGroup.find({})
             .sort({ dealerCount: -1 })
             .lean();
@@ -275,9 +289,15 @@ router.get('/groups', async (req, res) => {
 
         const latestDate = latestSnapshot.reportDate;
 
+        // Build match stage — optionally filter by location IDs
+        const matchStage = { reportDate: latestDate, dealerGroup: { $ne: null } };
+        if (filteredLocationIds) {
+            matchStage.dealerLocation = { $in: filteredLocationIds };
+        }
+
         // Aggregate latest snapshots per group
         const groupSummaries = await DailyDealerSnapshot.aggregate([
-            { $match: { reportDate: latestDate, dealerGroup: { $ne: null } } },
+            { $match: matchStage },
             {
                 $group: {
                     _id: '$dealerGroup',
@@ -293,6 +313,9 @@ router.get('/groups', async (req, res) => {
                     },
                     longInactiveCount: {
                         $sum: { $cond: [{ $eq: ['$activityStatus', 'long_inactive'] }, 1, 0] }
+                    },
+                    reactivatedCount: {
+                        $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] }
                     },
                     minDaysSinceApp: {
                         $min: { $cond: [{ $ne: ['$daysSinceLastApplication', null] }, '$daysSinceLastApplication', 99999] }
@@ -325,6 +348,7 @@ router.get('/groups', async (req, res) => {
                 inactive30Count: s.inactive30Count,
                 inactive60Count: s.inactive60Count,
                 longInactiveCount: s.longInactiveCount,
+                reactivatedCount: s.reactivatedCount,
                 daysSinceApp: {
                     best: s.minDaysSinceApp === 99999 ? null : s.minDaysSinceApp,
                     worst: s.maxDaysSinceApp,
