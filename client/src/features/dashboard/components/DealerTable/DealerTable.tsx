@@ -588,17 +588,6 @@ interface GroupRowsProps {
   renderChildCells: (snap: DealerLocation['latestSnapshot']) => React.JSX.Element;
 }
 
-function getFilteredCount(summary: DealerGroup['summary'], statusFilter?: string | null): number | null {
-  if (!summary || !statusFilter) return null;
-  switch (statusFilter) {
-    case 'active': return summary.activeCount;
-    case '30d_inactive': return summary.inactive30Count;
-    case '60d_inactive': return summary.inactive60Count;
-    case 'long_inactive': return summary.longInactiveCount;
-    case 'reactivated': return summary.reactivatedCount;
-    default: return null;
-  }
-}
 
 function computeBestWorstFromLocations(
   locations: DealerLocation[],

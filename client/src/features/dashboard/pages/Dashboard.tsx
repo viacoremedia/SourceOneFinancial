@@ -23,7 +23,7 @@ const SORT_KEY_MAP: Record<string, string> = {
 };
 
 export function Dashboard() {
-  const { data: overview, isLoading: overviewLoading } = useOverview();
+  const { data: overview } = useOverview();
 
   const [activeTab, setActiveTab] = useState<TabId>('groups');
   const [groupLocations, setGroupLocations] = useState<
