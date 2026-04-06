@@ -147,10 +147,8 @@ export function Dashboard() {
     [fetchSmallDealers]
   );
 
-  // Filter small dealers by rep/state (client-side since already loaded)
+  // Filter small dealers by rep/state + status (client-side since already loaded)
   const filteredSmallDealers = useMemo(() => {
-    if (!selectedRep && !selectedState) return smallDealers;
-
     const targetStates: Set<string> = new Set();
     if (selectedState) {
       targetStates.add(selectedState);

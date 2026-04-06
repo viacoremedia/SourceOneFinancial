@@ -56,8 +56,22 @@ function extractGroupName(dealerName, dealerId) {
         .replace(/\s+(LLC|INC\.?|CORP\.?|LTD\.?|CO\.?)\s*$/i, '')
         .trim();
 
-    return name;
+    // 6. Apply known group aliases to prevent re-creating merged duplicates
+    return GROUP_ALIASES[name] || name;
 }
+
+/**
+ * Known duplicate group names mapped to their canonical name.
+ * Prevents the detector from re-creating groups we've already merged.
+ */
+const GROUP_ALIASES = {
+    'BLUE COMPASS': 'BLUE COMPASS RV',
+    'BOBBY COMBS RV CENTER': 'BOBBY COMBS RV',
+    'CAMPERS INN RV': 'CAMPERS INN',
+    'GENERAL RV CENTER': 'GENERAL RV',
+    'INTERNATIONAL RV,': 'INTERNATIONAL RV WORLD',
+    'RV COUNTRY WASHINGTON,': 'RV COUNTRY ARIZONA,',
+};
 
 /**
  * Normalize a group name for display (title case).
