@@ -193,25 +193,37 @@ export function Dashboard() {
     const missing = filteredGroups.filter((g) => !groupLocations[g.slug]);
     if (missing.length === 0) { setPrefetchingLocations(false); return; }
     setPrefetchingLocations(true);
-    Promise.all(
-      missing.map(async (g) => {
-        try {
-          const { locations } = await getGroupLocations(g.slug);
-          return { slug: g.slug, locations };
-        } catch {
-          return null;
-        }
-      })
-    ).then((results) => {
-      setGroupLocations((prev) => {
-        const updated = { ...prev };
-        for (const r of results) {
-          if (r) updated[r.slug] = r.locations;
-        }
-        return updated;
-      });
+
+    // Throttle: fetch in batches of 5 to avoid overwhelming Vercel serverless
+    let cancelled = false;
+    (async () => {
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+        if (cancelled) return;
+        const batch = missing.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(
+          batch.map(async (g) => {
+            try {
+              const { locations } = await getGroupLocations(g.slug);
+              return { slug: g.slug, locations };
+            } catch {
+              return null;
+            }
+          })
+        );
+        if (cancelled) return;
+        setGroupLocations((prev) => {
+          const updated = { ...prev };
+          for (const r of results) {
+            if (r) updated[r.slug] = r.locations;
+          }
+          return updated;
+        });
+      }
       setPrefetchingLocations(false);
-    });
+    })();
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, filteredGroups]);
 

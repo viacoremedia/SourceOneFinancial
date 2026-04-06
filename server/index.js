@@ -43,23 +43,21 @@ async function dbConnect() {
 
     if (!cached.promise) {
         const opts = {
-            bufferCommands: false, // Disable buffering to avoid timeouts; force explicit connect
-            serverSelectionTimeoutMS: 30000, // Increase for cold starts/network latency
-            socketTimeoutMS: 300000, // Prevent long hangs (5 mins for reports)
-            minPoolSize: 1, // Minimal pool for serverless (avoids connection storms)
-            maxPoolSize: 5, // Keep it small; each invocation is independent
+            bufferCommands: false,
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 300000,
+            minPoolSize: 1,
+            maxPoolSize: 5,
         };
 
-        cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then(async (mongooseInstance) => {
+        cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongooseInstance) => {
             console.log("DATABASE CONNECTED");
-            // Ensure indexes AFTER connection
-            // const ZipCode = require('./models/ZipSchema');
-            // await ZipCode.collection.createIndex({ city: 1, state_name: 1 });
-            // await ZipCode.collection.createIndex({ zip: 1 });
             return mongooseInstance;
         }).catch((e) => {
+            // Clear cached promise so next request retries instead of using failed promise
+            cached.promise = null;
             console.error("DB Connection Error:", e.message);
-            throw e; // Rethrow to handle in middleware/routes
+            throw e;
         });
     }
 
