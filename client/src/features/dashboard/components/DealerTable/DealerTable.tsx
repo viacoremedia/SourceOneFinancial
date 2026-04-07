@@ -49,7 +49,7 @@ interface SortColumn {
 
 // ── Sort Helpers ──
 
-function getGroupSortValue(group: DealerGroup, key: string): number {
+function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: string | null): number {
   const s = group.summary;
   switch (key) {
     case 'daysSinceLastApplication':
@@ -62,8 +62,18 @@ function getGroupSortValue(group: DealerGroup, key: string): number {
       if (!s || s.locationCount === 0) return -1;
       return s.activeCount / s.locationCount;
     }
-    case 'locationCount':
-      return s?.locationCount ?? 0;
+    case 'locationCount': {
+      if (!s) return 0;
+      if (!statusFilter) return s.locationCount;
+      switch (statusFilter) {
+        case 'active': return s.activeCount;
+        case '30d_inactive': return s.inactive30Count;
+        case '60d_inactive': return s.inactive60Count;
+        case 'long_inactive': return s.longInactiveCount;
+        case 'reactivated': return s.reactivatedCount;
+        default: return s.locationCount;
+      }
+    }
     default:
       return 0;
   }
@@ -88,13 +98,13 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
 }
 
 /** Multi-column sort comparator for groups */
-function compareGroups(a: DealerGroup, b: DealerGroup, sortStack: SortColumn[]): number {
+function compareGroups(a: DealerGroup, b: DealerGroup, sortStack: SortColumn[], statusFilter?: string | null): number {
   for (const { key, dir } of sortStack) {
     let cmp = 0;
     if (key === 'name') {
       cmp = a.name.localeCompare(b.name);
     } else {
-      cmp = getGroupSortValue(a, key) - getGroupSortValue(b, key);
+      cmp = getGroupSortValue(a, key, statusFilter) - getGroupSortValue(b, key, statusFilter);
     }
     if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
   }
@@ -226,9 +236,9 @@ export function DealerTable({
   // Sort groups (multi-column)
   const sortedGroups = useMemo(() => {
     const sorted = [...filteredGroups];
-    sorted.sort((a, b) => compareGroups(a, b, groupSortStack));
+    sorted.sort((a, b) => compareGroups(a, b, groupSortStack, statusFilter));
     return sorted;
-  }, [filteredGroups, groupSortStack]);
+  }, [filteredGroups, groupSortStack, statusFilter]);
 
   // In dealer mode, the server already sorted — just filter locally
   const filteredDealers = useMemo(() => {
