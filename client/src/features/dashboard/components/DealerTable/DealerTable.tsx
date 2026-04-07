@@ -37,7 +37,7 @@ interface DealerTableProps {
   isPrefetching?: boolean;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
-  onDealerSortChange?: (sortKey: string, sortDir: 'asc' | 'desc') => void;
+  onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -170,16 +170,12 @@ export function DealerTable({
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
 
-  // Multi-column sort stacks
-  const [groupSortStack, setGroupSortStack] = useState<SortColumn[]>([
-    { key: 'locationCount', dir: 'desc' },
-  ]);
-  const [childSortStack, setChildSortStack] = useState<SortColumn[]>([
-    { key: 'name', dir: 'asc' },
-  ]);
-
-  // Track which sort layer was last acted on for header display
-  const [lastSortTarget, setLastSortTarget] = useState<'groups' | 'children'>('groups');
+  // Multi-column sort stacks (groups tab)
+  const [groupSortStack, setGroupSortStack] = useState<SortColumn[]>([{ key: 'locationCount', dir: 'desc' }]);
+  const [childSortStack, setChildSortStack] = useState<SortColumn[]>([{ key: 'name', dir: 'asc' }]);
+  const [sortTarget, setSortTarget] = useState<'groups' | 'locations'>('groups');
+  // Single/multi-column sort for dealer/all tabs (server-side)
+  const [dealerSort, setDealerSort] = useState<SortColumn[]>([{ key: 'dealerName', dir: 'asc' }]);
 
   // Toggle expand
   const toggleGroup = useCallback(
@@ -200,46 +196,81 @@ export function DealerTable({
     [groupLocations, onExpandGroup]
   );
 
-  // Sort handler with multi-column support
-  const handleSort = useCallback(
-    (key: string, e: React.MouseEvent) => {
-      const isMulti = e.ctrlKey || e.metaKey; // Ctrl/Cmd = add column
-      const isChildSort = e.shiftKey; // Shift = sort children only
+  // Track if user has explicitly sorted (vs default)
+  const groupSortExplicit = useRef(false);
+  const childSortExplicit = useRef(false);
+  const dealerSortExplicit = useRef(false);
 
-      if (isChildSort) {
-        setLastSortTarget('children');
-        if (isMulti) {
-          // Shift+Ctrl: add to existing child sort stack
-          setChildSortStack((prev) => updateSortStack(prev, key, true));
-        } else {
-          // Shift only: mirror group sort to children, then apply clicked column
-          // This ensures multi-sort from groups carries over
-          const mirrored = [...groupSortStack];
-          const exists = mirrored.findIndex((s) => s.key === key);
-          if (exists !== -1) {
-            // Toggle direction of existing column in mirrored stack
-            mirrored[exists] = {
-              ...mirrored[exists],
-              dir: mirrored[exists].dir === 'asc' ? 'desc' : 'asc',
-            };
-          } else {
-            mirrored.push({ key, dir: 'asc' });
-          }
-          setChildSortStack(mirrored);
-        }
-      } else if (mode !== 'groups' && onDealerSortChange) {
-        // In dealer mode, delegate sort to the server
-        const newStack = updateSortStack(groupSortStack, key, isMulti);
-        setGroupSortStack(newStack);
-        setLastSortTarget('groups');
-        // Use primary sort for server (multi-sort not supported server-side)
-        onDealerSortChange(newStack[0].key, newStack[0].dir);
+  // Multi-column stack helper:
+  // - If column exists in stack, toggle direction
+  // - If stack is still the default (not explicit), REPLACE with new column
+  // - If user already sorted explicitly, APPEND new column
+  const updateStack = (stack: SortColumn[], key: string, isExplicit: boolean): SortColumn[] => {
+    const idx = stack.findIndex((s) => s.key === key);
+    if (idx !== -1) {
+      // Already in stack → toggle direction
+      const updated = [...stack];
+      updated[idx] = { ...updated[idx], dir: updated[idx].dir === 'asc' ? 'desc' : 'asc' };
+      return updated;
+    }
+    if (!isExplicit) {
+      // First explicit sort → replace default entirely
+      return [{ key, dir: 'asc' }];
+    }
+    // Already sorted explicitly → append for multi-sort
+    return [...stack, { key, dir: 'asc' }];
+  };
+
+  // Sort handler
+  const handleSort = useCallback(
+    (key: string, _e: React.MouseEvent) => {
+      if (mode !== 'groups' && onDealerSortChange) {
+        // Dealer/all mode: multi-column server-side sort
+        setDealerSort((prev) => {
+          const stack = updateStack(prev, key, dealerSortExplicit.current);
+          dealerSortExplicit.current = true;
+          onDealerSortChange(
+            stack.map(s => s.key),
+            stack.map(s => s.dir)
+          );
+          return stack;
+        });
       } else {
-        setLastSortTarget('groups');
-        setGroupSortStack((prev) => updateSortStack(prev, key, isMulti));
+        if (sortTarget === 'locations') {
+          setChildSortStack((prev) => updateStack(prev, key, childSortExplicit.current));
+          childSortExplicit.current = true;
+        } else {
+          setGroupSortStack((prev) => updateStack(prev, key, groupSortExplicit.current));
+          groupSortExplicit.current = true;
+        }
       }
     },
-    [mode, onDealerSortChange, groupSortStack]
+    [mode, onDealerSortChange, sortTarget]
+  );
+
+  // Remove a single column from the active sort stack
+  const removeFromSort = useCallback(
+    (key: string) => {
+      if (mode !== 'groups' && onDealerSortChange) {
+        setDealerSort((prev) => {
+          const next = prev.filter(s => s.key !== key);
+          if (next.length === 0) return prev; // can't remove last
+          onDealerSortChange(next.map(s => s.key), next.map(s => s.dir));
+          return next;
+        });
+      } else if (sortTarget === 'locations') {
+        setChildSortStack((prev) => {
+          const next = prev.filter(s => s.key !== key);
+          return next.length === 0 ? prev : next;
+        });
+      } else {
+        setGroupSortStack((prev) => {
+          const next = prev.filter(s => s.key !== key);
+          return next.length === 0 ? prev : next;
+        });
+      }
+    },
+    [mode, onDealerSortChange, sortTarget]
   );
 
   // Filter groups
@@ -263,11 +294,12 @@ export function DealerTable({
     return smallDealers.filter((d) => d.dealerName.toLowerCase().includes(q));
   }, [smallDealers, searchQuery]);
 
-  // No client-side sort for dealers — server handles it
   const sortedDealers = filteredDealers;
 
-  // Which sort stack to show in headers
-  const displayStack = lastSortTarget === 'children' ? childSortStack : groupSortStack;
+  // Which sort to display in the headers
+  const displayStack: SortColumn[] = mode !== 'groups'
+    ? dealerSort
+    : sortTarget === 'locations' ? childSortStack : groupSortStack;
 
   // Filter columns based on mode (hide groupOnly columns in dealer mode)
   const visibleColumns = useMemo(() =>
@@ -390,7 +422,6 @@ export function DealerTable({
   }
 
   const isEmpty = mode === 'groups' ? sortedGroups.length === 0 : sortedDealers.length === 0;
-  const hasExpandedGroups = expandedSlugs.size > 0;
 
   return (
     <div className={styles.tableWrapper} id="dealer-table">
@@ -410,29 +441,44 @@ export function DealerTable({
           )}
         </div>
         <div className={styles.toolbarRight}>
-          {/* Sort stack indicator */}
+          {/* Sort target toggle — groups tab only */}
+          {mode === 'groups' && (
+            <div className={styles.sortToggle}>
+              <span className={styles.sortToggleLabel}>Sort:</span>
+              <button
+                className={`${styles.sortToggleBtn} ${sortTarget === 'groups' ? styles.sortToggleActive : ''}`}
+                onClick={() => setSortTarget('groups')}
+              >
+                Groups
+              </button>
+              <button
+                className={`${styles.sortToggleBtn} ${sortTarget === 'locations' ? styles.sortToggleActive : ''}`}
+                onClick={() => setSortTarget('locations')}
+              >
+                Locations
+              </button>
+            </div>
+          )}
           {displayStack.length > 1 && (
             <button
-              className={styles.sortStackReset}
+              className={styles.sortClearBtn}
               onClick={() => {
-                if (lastSortTarget === 'children') {
+                if (mode !== 'groups' && onDealerSortChange) {
+                  setDealerSort([dealerSort[0]]);
+                  dealerSortExplicit.current = true;
+                  onDealerSortChange([dealerSort[0].key], [dealerSort[0].dir]);
+                } else if (sortTarget === 'locations') {
                   setChildSortStack([childSortStack[0]]);
+                  childSortExplicit.current = true;
                 } else {
                   setGroupSortStack([groupSortStack[0]]);
+                  groupSortExplicit.current = true;
                 }
               }}
-              title="Clear multi-sort, keep primary"
+              title="Reset to primary sort only"
             >
-              ✕ {displayStack.length} sorts
+              ✕ {displayStack.length}
             </button>
-          )}
-          {mode === 'groups' && hasExpandedGroups && (
-            <div className={styles.sortHint}>
-              <span className={styles.sortHintKey}>Shift</span>
-              <span className={styles.sortHintText}>locations</span>
-              <span className={styles.sortHintKey}>Ctrl</span>
-              <span className={styles.sortHintText}>multi-sort</span>
-            </div>
           )}
           <div className={styles.trendSelect}>
             <span className={styles.trendLabel}>Trend</span>
@@ -470,26 +516,35 @@ export function DealerTable({
             <thead>
               <tr>
                 {visibleColumns.map((col) => {
-                  const stackIndex = displayStack.findIndex((s) => s.key === col.key);
-                  const isInStack = stackIndex !== -1;
-                  const sortItem = isInStack ? displayStack[stackIndex] : null;
-                  const showNumber = displayStack.length > 1 && isInStack;
+                  const stackIdx = displayStack.findIndex((s) => s.key === col.key);
+                  const isSorted = stackIdx !== -1;
+                  const sortItem = isSorted ? displayStack[stackIdx] : null;
+                  const showNum = displayStack.length > 1 && isSorted;
 
                   return (
                     <th
                       key={col.key}
                       style={{ textAlign: col.align, width: col.width, minWidth: col.minWidth }}
-                      className={isInStack ? styles.thSorted : ''}
+                      className={isSorted ? styles.thSorted : ''}
                       onClick={(e) => col.sortable && handleSort(col.key, e)}
-                      title={col.sortable ? 'Click: sort · Ctrl+Click: multi-sort · Shift+Click: sort locations' : undefined}
+                      title={col.sortable ? 'Click to add/toggle sort' : undefined}
                     >
                       {col.label}
-                      {isInStack && (
+                      {isSorted && (
                         <span className={styles.sortIndicator}>
-                          {showNumber && <span className={styles.sortNumber}>{stackIndex + 1}</span>}
+                          {showNum && <span className={styles.sortNumber}>{stackIdx + 1}</span>}
                           <span className={styles.sortArrow}>
                             {sortItem!.dir === 'asc' ? '▲' : '▼'}
                           </span>
+                          {showNum && (
+                            <span
+                              className={styles.sortRemove}
+                              onClick={(e) => { e.stopPropagation(); removeFromSort(col.key); }}
+                              title="Remove this sort"
+                            >
+                              ✕
+                            </span>
+                          )}
                         </span>
                       )}
                     </th>
@@ -543,31 +598,6 @@ export function DealerTable({
   );
 }
 
-// ── Sort Stack Updater ──
-
-function updateSortStack(prev: SortColumn[], key: string, isMulti: boolean): SortColumn[] {
-  const existing = prev.findIndex((s) => s.key === key);
-
-  if (isMulti) {
-    // Multi-sort: toggle direction if already in stack, or add new
-    if (existing !== -1) {
-      const updated = [...prev];
-      updated[existing] = {
-        ...updated[existing],
-        dir: updated[existing].dir === 'asc' ? 'desc' : 'asc',
-      };
-      return updated;
-    }
-    return [...prev, { key, dir: 'asc' }];
-  }
-
-  // Single-sort: replace stack
-  if (existing !== -1 && prev.length === 1) {
-    // Same column, single sort — toggle direction
-    return [{ key, dir: prev[0].dir === 'asc' ? 'desc' : 'asc' }];
-  }
-  return [{ key, dir: 'asc' }];
-}
 
 // ── Best / Worst Cell ──
 

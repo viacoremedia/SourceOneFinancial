@@ -204,21 +204,85 @@
   font-size: var(--font-micro);
 }
 
-.sortStackReset {
-  font-size: var(--font-micro);
+.sortRemove {
+  font-size: 9px;
   color: var(--text-muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.4;
+  margin-left: 2px;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  line-height: 1;
+}
+
+.sortRemove:hover {
+  opacity: 1;
+  color: var(--color-red-400, #f87171);
+}
+
+/* ── Sort Target Toggle ── */
+.sortToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.sortToggleLabel {
+  font-size: var(--font-micro);
+  color: var(--text-muted);
+  padding: 0 var(--space-2);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sortToggleBtn {
+  font-size: var(--font-micro);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.sortToggleBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+.sortToggleActive {
+  background: var(--accent-primary);
+  color: var(--color-navy-950);
+  font-weight: var(--weight-semibold);
+}
+
+.sortToggleActive:hover {
+  background: var(--accent-primary);
+  color: var(--color-navy-950);
+}
+
+.sortClearBtn {
+  font-size: var(--font-micro);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
-.sortStackReset:hover {
+.sortClearBtn:hover {
   color: var(--text-primary);
-  border-color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Body Rows ── */

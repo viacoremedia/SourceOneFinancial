@@ -422,8 +422,9 @@ router.get('/dealers/small', async (req, res) => {
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
         const skip = (page - 1) * limit;
-        const sortField = req.query.sort || 'dealerName';
-        const sortDir = req.query.dir === 'desc' ? -1 : 1;
+        // Multi-column sort: sort=col1,col2&dir=asc,desc
+        const sortFields = (req.query.sort || 'dealerName').split(',').map(s => s.trim());
+        const sortDirs = (req.query.dir || 'asc').split(',').map(s => s.trim());
 
         // Get latest report date
         const latestSnapshot = await DailyDealerSnapshot.findOne({})
@@ -442,7 +443,12 @@ router.get('/dealers/small', async (req, res) => {
             'visitToApp': 'latestSnapshot.daysFromVisitToNextApp',
         };
 
-        const resolvedSort = SORT_FIELD_MAP[sortField] || 'dealerName';
+        // Build resolved sort columns
+        const sortColumns = sortFields.map((field, i) => {
+            const resolved = SORT_FIELD_MAP[field] || 'dealerName';
+            const dir = (sortDirs[i] || sortDirs[0] || 'asc') === 'desc' ? -1 : 1;
+            return { resolved, dir, key: `_sv${i}` };
+        });
         const statusParam = req.query.status || null;
         const scope = req.query.scope || 'ungrouped'; // 'ungrouped' or 'all'
         const statesParam = req.query.states ? req.query.states.split(',').map(s => s.trim().toUpperCase()) : null;
@@ -514,16 +520,19 @@ router.get('/dealers/small', async (req, res) => {
                 }
             },
 
-            // 4. Sort with null handling (nulls go to end)
+            // 4. Multi-column sort with null handling (nulls go to end)
             {
-                $addFields: {
-                    _sortValue: resolvedSort.startsWith('latestSnapshot.') || resolvedSort === '_commDaysNum'
-                        ? { $ifNull: [`$${resolvedSort}`, sortDir === 1 ? 99999 : -1] }
-                        : `$${resolvedSort}`
-                }
+                $addFields: Object.fromEntries(
+                    sortColumns.map(sc => [
+                        sc.key,
+                        (sc.resolved.startsWith('latestSnapshot.') || sc.resolved === '_commDaysNum')
+                            ? { $ifNull: [`$${sc.resolved}`, sc.dir === 1 ? 99999 : -1] }
+                            : `$${sc.resolved}`
+                    ])
+                )
             },
-            { $sort: { _sortValue: sortDir } },
-            { $project: { _sortValue: 0, _commDaysNum: 0 } },
+            { $sort: Object.fromEntries(sortColumns.map(sc => [sc.key, sc.dir])) },
+            { $project: { ...Object.fromEntries(sortColumns.map(sc => [sc.key, 0])), _commDaysNum: 0 } },
         ];
 
         // Get filtered total count via the same pipeline (without skip/limit)

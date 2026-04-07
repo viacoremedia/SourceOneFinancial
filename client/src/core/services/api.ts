@@ -66,7 +66,7 @@ export async function getGroupMonthly(
 // ── Independent Dealers (no group) — server-side sort + pagination ──
 export interface SmallDealerParams {
   sort?: string;
-  dir?: 'asc' | 'desc';
+  dir?: string; // 'asc', 'desc', or comma-separated for multi-sort (e.g. 'asc,desc')
   page?: number;
   limit?: number;
   status?: string | null;

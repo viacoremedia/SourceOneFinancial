@@ -97,7 +97,7 @@ export function Dashboard() {
   const [totalAllDealers, setTotalAllDealers] = useState(0);
   const [dealerStatusBreakdown, setDealerStatusBreakdown] = useState<DealerStatusBreakdown | null>(null);
   const pageRef = useRef(1);
-  const sortStateRef = useRef({ sort: 'dealerName', dir: 'asc' as 'asc' | 'desc' });
+  const sortStateRef = useRef({ sorts: ['dealerName'], dirs: ['asc'] as ('asc' | 'desc')[] });
   const statusRef = useRef<string | null>(null);
   const statesRef = useRef<string[] | undefined>(undefined);
 
@@ -107,7 +107,7 @@ export function Dashboard() {
   // Fetch a page of dealers (works for both 'dealers' and 'all' tabs)
   const fetchDealers = useCallback(
     async (
-      page: number, sort: string, dir: 'asc' | 'desc',
+      page: number, sorts: string[], dirs: ('asc' | 'desc')[],
       append: boolean, status: string | null,
       scope: 'ungrouped' | 'all', states?: string[]
     ) => {
@@ -117,7 +117,10 @@ export function Dashboard() {
         setSmallDealersLoadingMore(true);
       }
       try {
-        const result = await getSmallDealers({ sort, dir, page, limit: 50, status, scope, states });
+        const result = await getSmallDealers({
+          sort: sorts.join(','), dir: dirs.join(',') as any,
+          page, limit: 50, status, scope, states
+        });
         const setDealers = scope === 'all' ? setAllDealers : setSmallDealers;
         const setTotal = scope === 'all' ? setTotalAllDealers : setTotalSmallDealers;
         if (append) {
@@ -149,7 +152,7 @@ export function Dashboard() {
     if (!scope) return;
     if (loadedTabs.current.has(activeTab) || smallDealersLoading) return;
     loadedTabs.current.add(activeTab);
-    fetchDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, null, scope, statesRef.current);
+    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, null, scope, statesRef.current);
   }, [activeTab, smallDealersLoading, fetchDealers]);
 
   // Re-fetch flat tabs when target server params change
@@ -157,7 +160,7 @@ export function Dashboard() {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
     pageRef.current = 1;
-    fetchDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, statusRef.current, scope, statesRef.current);
+    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusRef.current, scope, statesRef.current);
   }, [activeTab, fetchDealers]);
 
   // Status filter change
@@ -191,8 +194,8 @@ export function Dashboard() {
     const scope = scopeForTab(tab);
     if (scope) {
       pageRef.current = 1;
-      sortStateRef.current = { sort: 'dealerName', dir: 'asc' };
-      fetchDealers(1, 'dealerName', 'asc', false, null, scope, statesRef.current);
+      sortStateRef.current = { sorts: ['dealerName'], dirs: ['asc'] };
+      fetchDealers(1, ['dealerName'], ['asc'], false, null, scope, statesRef.current);
     }
   }, [fetchDealers]);
 
@@ -202,18 +205,18 @@ export function Dashboard() {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
     const nextPage = pageRef.current + 1;
-    fetchDealers(nextPage, sortStateRef.current.sort, sortStateRef.current.dir, true, statusRef.current, scope, statesRef.current);
+    fetchDealers(nextPage, sortStateRef.current.sorts, sortStateRef.current.dirs, true, statusRef.current, scope, statesRef.current);
   }, [smallDealersLoadingMore, hasMore, fetchDealers, activeTab]);
 
   // Sort change from DealerTable — re-fetch from page 1
   const handleDealerSortChange = useCallback(
-    (sortKey: string, sortDir: 'asc' | 'desc') => {
+    (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => {
       const scope = scopeForTab(activeTab);
       if (!scope) return;
-      const serverKey = SORT_KEY_MAP[sortKey] || 'dealerName';
-      sortStateRef.current = { sort: serverKey, dir: sortDir };
+      const serverKeys = sortKeys.map(k => SORT_KEY_MAP[k] || 'dealerName');
+      sortStateRef.current = { sorts: serverKeys, dirs: sortDirs };
       pageRef.current = 1;
-      fetchDealers(1, serverKey, sortDir, false, statusRef.current, scope, statesRef.current);
+      fetchDealers(1, serverKeys, sortDirs, false, statusRef.current, scope, statesRef.current);
     },
     [fetchDealers, activeTab]
   );
