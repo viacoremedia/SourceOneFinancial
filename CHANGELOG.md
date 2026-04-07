@@ -5,6 +5,63 @@ Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
 ---
 
+## [2026-04-07] — Invite-Only Auth System
+
+### Added
+- **Invite-only authentication**: No public registration — users invited by admins via email
+  - `POST /auth/login` — email + password → JWT (90-day expiry)
+  - `POST /auth/accept-invite` — set password from invite link
+  - `POST /auth/invite` — admin+ sends invite email via Nodemailer (Gmail SMTP)
+  - `GET /auth/users` — admin+ lists all system users
+  - `DELETE /auth/users/:id` — admin+ removes users (role-scoped, double confirmation)
+  - `POST /auth/change-password` — any authenticated user
+  - `GET /auth/me` — return current user profile
+- **User model** (`models/User.js`): email, passwordHash, name, role (employee/admin/super_admin), status (invited/active/disabled), inviteToken
+- **Auth middleware** (`middleware/authMiddleware.js`): `requireAuth` (JWT verify) + `requireRole(minRole)` role hierarchy
+- **Email service** (`services/emailService.js`): Nodemailer transport, styled invite email
+- **Route protection**: All `/analytics` routes now require valid JWT; `/webhook` and `/auth` remain open
+- **Login page** — dark-themed, matches dashboard aesthetic
+- **Accept invite page** — `/invite?token=xxx`, set name + password
+- **Settings panel** — slide-out from ⚙ gear icon in header: profile, change password, invite users, manage team
+- **Double confirmation modal** for user removal (type email to confirm)
+- **Seed script** (`scripts/seedAdmin.js`): creates initial super_admin account
+- **Axios interceptors**: auto-attach JWT to all requests, auto-redirect to login on 401
+
+### Changed
+- **`index.js`**: Auth gate middleware inserted between webhook/auth and analytics routes
+- **`vite.config.ts`**: Added `/auth` proxy to dev server
+- **`App.tsx`**: Wrapped with `BrowserRouter` + `AuthProvider`, route-based login/invite/dashboard
+- **`AppShell.tsx`**: Added ⚙ settings gear icon to header
+- **`api.ts`**: Request interceptor attaches Bearer token; response interceptor handles 401
+
+### Dependencies Added
+- Server: `bcryptjs`, `jsonwebtoken`, `nodemailer`
+- Client: `react-router-dom`
+
+---
+
+## [2026-04-07] — Dynamic Activity Mode & Dashboard Enhancements
+
+### Added
+- **Status By dropdown** (Application / Approval / Booking): dynamically derives dealer activity status from different metrics
+  - Server-side: `/analytics/groups` and `/analytics/dealers/small` accept `activityMode` parameter
+  - Client-side: `deriveStatus()` function computes status from `daysSinceLastApproval` or `daysSinceLastBooking`
+- **Server-side search** for independent/all dealers: debounced regex matching on dealerName
+- **Infinite scroll** parity for Independent Dealers and All Dealers tabs
+- **Multi-column sort** with per-column removal (✕ button)
+- **Orphan analysis script** (`scripts/analyzeOrphans.js`): finds ungrouped dealers that should belong to existing groups
+- **Orphan reassignment script** (`scripts/reassignOrphans.js`): reassigns orphaned dealers with `--commit` flag
+
+### Fixed
+- **Status badge mismatch**: Individual location status badges now correctly reflect selected activity mode
+- **Status filter leak**: Clicking "Active" with booking mode no longer shows non-active-by-booking locations
+- **Group active count**: `GroupRows` `filteredActive` computation now uses `deriveStatusFn` for mode-aware counting
+
+### Tests Run
+- Manual browser verification: status badges, status filters, search, infinite scroll, sort removal, auth login/logout
+
+---
+
 ## [2026-04-06] — Dealer Performance Dashboard v2
 
 ### Added

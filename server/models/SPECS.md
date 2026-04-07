@@ -118,3 +118,20 @@ Raw webhook payload storage (for debugging/replay).
 | `files`      | Array    | Array of { originalName, mimeType, content } |
 | `headers`    | Mixed    | Raw request headers                  |
 | `receivedAt` | Date     | Timestamp of receipt                 |
+
+---
+
+### `User.js`
+System user for invite-only authentication.
+
+| Field             | Type     | Description                                  |
+|-------------------|----------|----------------------------------------------|
+| `email`           | String   | Unique, lowercase, trimmed                   |
+| `passwordHash`    | String   | bcrypt hash (null until invite accepted)     |
+| `name`            | String   | Display name                                 |
+| `role`            | String   | Enum: employee, admin, super_admin           |
+| `status`          | String   | Enum: invited, active, disabled              |
+| `inviteToken`     | String   | Random token for invite link (cleared on accept) |
+| `inviteExpiresAt` | Date     | Invite expiry (7 days from creation)         |
+
+**Indexes**: `{ email: 1 }` (unique), `{ inviteToken: 1 }`

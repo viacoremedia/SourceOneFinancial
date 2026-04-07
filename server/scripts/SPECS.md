@@ -63,3 +63,34 @@ Merges confirmed duplicate dealer groups. Migrates locations + snapshots to the 
 | General RV             | General RV Center         |
 | International RV World | International RV,         |
 | RV Country Arizona,    | RV Country Washington,    |
+
+---
+
+### `analyzeOrphans.js`
+Finds ungrouped DealerLocations that should belong to existing groups (exact + fuzzy name matching).
+
+**Usage**: `node scripts/analyzeOrphans.js`
+**Output**: Lists orphaned dealers grouped by matched group name, with summary counts.
+
+---
+
+### `reassignOrphans.js`
+Reassigns orphaned independent dealers to their correct groups using fuzzy name matching.
+
+**Usage**: `node scripts/reassignOrphans.js` (dry-run) / `node scripts/reassignOrphans.js --commit`
+**What it does**: Updates `DealerLocation.dealerGroup`, all `DailyDealerSnapshot.dealerGroup`, and recalculates `DealerGroup.dealerCount`.
+
+---
+
+### `seedAdmin.js`
+Creates the initial super_admin account for the auth system.
+
+**Usage**: `node scripts/seedAdmin.js`
+**What it does**: Creates `joshua@viacoremedia.com` as super_admin with a random password (printed to console). Generates `JWT_SECRET` if not in env. Idempotent — skips if user exists.
+
+---
+
+### `reingest.js`
+Re-ingests a specific webhook payload by ID.
+
+**Usage**: `node scripts/reingest.js <payloadId>`
