@@ -667,7 +667,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             <span className={styles.locationCount}>({displayCount})</span>
           </span>
         </td>
-        <td style={{ textAlign: 'center' }}>{showSkeleton ? <SkeletonCell /> : (s?.locationCount ?? group.dealerCount)}</td>
+        <td style={{ textAlign: 'center' }}>{showSkeleton ? <SkeletonCell /> : (filteredTotal ?? displayCount)}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
