@@ -72,3 +72,47 @@ export function getDaysSinceHeatmap(days: number | null | undefined): HeatmapCol
 
   return { background: bg, text };
 }
+
+/**
+ * Heatmap for communication recency (days since last contact).
+ * Lower = green (recently contacted), higher = red (stale).
+ * Thresholds: 0-14d green, 15-30d yellow, 31-60d orange, 61+d red.
+ */
+export function getCommDaysHeatmap(days: number | null | undefined): HeatmapColor | null {
+  if (days == null) return null;
+  const d = Math.max(0, days);
+
+  let hue: number;
+  let saturation: number;
+  let lightness: number;
+  let bgAlpha: number;
+
+  if (d <= 14) {
+    hue = 142;
+    saturation = 70;
+    lightness = 45;
+    bgAlpha = 0.15;
+  } else if (d <= 30) {
+    const t = (d - 14) / 16;
+    hue = 142 - t * 62;
+    saturation = 70 - t * 10;
+    lightness = 45 + t * 5;
+    bgAlpha = 0.15 - t * 0.03;
+  } else if (d <= 60) {
+    const t = (d - 30) / 30;
+    hue = 80 - t * 35;
+    saturation = 60 + t * 20;
+    lightness = 50;
+    bgAlpha = 0.12 + t * 0.04;
+  } else {
+    const t = Math.min((d - 60) / 120, 1);
+    hue = 45 - t * 45;
+    saturation = 80 + t * 10;
+    lightness = 50 - t * 15;
+    bgAlpha = 0.16 + t * 0.14;
+  }
+
+  const bg = `hsla(${hue}, ${saturation}%, ${lightness}%, ${bgAlpha})`;
+  const text = `hsl(${hue}, ${saturation}%, ${Math.min(lightness + 15, 70)}%)`;
+  return { background: bg, text };
+}

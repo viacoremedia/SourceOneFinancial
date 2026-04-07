@@ -413,6 +413,13 @@
   color: var(--text-muted);
 }
 
+.unitSuffix {
+  font-size: 0.7em;
+  opacity: 0.55;
+  margin-left: 1px;
+  font-weight: var(--weight-regular);
+}
+
 /* ── Loading Skeleton Rows ── */
 .skeletonRow td {
   padding: var(--space-3);

@@ -335,6 +335,17 @@ router.get('/groups', async (req, res) => {
                     maxDaysSinceBooking: {
                         $max: { $cond: [{ $ne: ['$daysSinceLastBooking', null] }, '$daysSinceLastBooking', null] }
                     },
+                    // Visit-to-app response
+                    minVisitToApp: {
+                        $min: { $cond: [{ $ne: ['$daysFromVisitToNextApp', null] }, '$daysFromVisitToNextApp', 99999] }
+                    },
+                    maxVisitToApp: {
+                        $max: { $cond: [{ $ne: ['$daysFromVisitToNextApp', null] }, '$daysFromVisitToNextApp', null] }
+                    },
+                    avgVisitToApp: { $avg: '$daysFromVisitToNextApp' },
+                    // Communication recency (dates — client computes days)
+                    latestComm: { $max: '$latestCommunicationDatetime' },
+                    oldestComm: { $min: { $cond: [{ $ne: ['$latestCommunicationDatetime', null] }, '$latestCommunicationDatetime', null] } },
                 }
             }
         ]);
@@ -361,6 +372,13 @@ router.get('/groups', async (req, res) => {
                     best: s.minDaysSinceBooking === 99999 ? null : s.minDaysSinceBooking,
                     worst: s.maxDaysSinceBooking,
                 },
+                visitToApp: {
+                    best: s.minVisitToApp === 99999 ? null : s.minVisitToApp,
+                    worst: s.maxVisitToApp,
+                },
+                avgVisitToApp: s.avgVisitToApp != null ? Math.round(s.avgVisitToApp * 10) / 10 : null,
+                latestComm: s.latestComm || null,
+                oldestComm: s.oldestComm || null,
             };
         }
 

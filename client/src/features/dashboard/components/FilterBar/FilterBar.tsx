@@ -263,6 +263,16 @@ export function FilterBar({
           <span className={`${styles.statValue} ${styles.statDanger}`}>{groupStats.longInactive}</span>
           <span className={styles.statLabel}>Long Inactive</span>
         </button>
+        {groupStats.reactivated > 0 && (
+          <button
+            className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'reactivated' ? styles.statSelected : ''}`}
+            onClick={() => handleStatClick('reactivated')}
+            title="Filter to groups with reactivated dealers"
+          >
+            <span className={`${styles.statValue} ${styles.statReactivated}`}>{groupStats.reactivated}</span>
+            <span className={styles.statLabel}>Reactivated</span>
+          </button>
+        )}
       </div>
     </div>
   );

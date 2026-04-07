@@ -19,6 +19,10 @@ export interface GroupSummary {
   daysSinceApp: BestWorst;
   daysSinceApproval: BestWorst;
   daysSinceBooking: BestWorst;
+  visitToApp: BestWorst;
+  avgVisitToApp: number | null;
+  latestComm: string | null;
+  oldestComm: string | null;
 }
 
 // ── Dealer Group ──

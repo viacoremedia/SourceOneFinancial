@@ -14,7 +14,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import styles from './DealerTable.module.css';
 import { TABLE_COLUMNS } from './columns';
 import { StatusBadge } from './StatusBadge';
-import { getDaysSinceHeatmap } from '../../../../core/utils/heatmap';
+import { getDaysSinceHeatmap, getCommDaysHeatmap } from '../../../../core/utils/heatmap';
 import type {
   DealerGroup,
   DealerLocation,
@@ -49,6 +49,14 @@ interface SortColumn {
 
 // ── Sort Helpers ──
 
+/** Compute days since a date string, relative to now */
+function daysSinceDate(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: string | null): number {
   const s = group.summary;
   switch (key) {
@@ -74,6 +82,10 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
         default: return s.locationCount;
       }
     }
+    case 'commDays':
+      return daysSinceDate(s?.latestComm) ?? 99999;  // best = most recent
+    case 'visitToApp':
+      return s?.visitToApp?.best ?? 99999;
     default:
       return 0;
   }
@@ -92,6 +104,10 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
       return snap?.daysSinceLastBooking ?? 99999;
     case 'activityStatus':
       return snap?.activityStatus || 'zzz';
+    case 'commDays':
+      return daysSinceDate(snap?.latestCommunicationDatetime as string | null) ?? 99999;
+    case 'visitToApp':
+      return snap?.daysFromVisitToNextApp ?? 99999;
     default:
       return 0;
   }
@@ -277,20 +293,44 @@ export function DealerTable({
     );
   };
 
+  const renderCommCell = (dateStr: string | null | undefined) => {
+    const days = daysSinceDate(dateStr as string | null);
+    if (days == null) return <span className={styles.emptyValue}>—</span>;
+    const colors = getCommDaysHeatmap(days);
+    if (!colors) return <>{days}<span className={styles.unitSuffix}>d</span></>;
+    return (
+      <span className={styles.heatmapCell} style={{ background: colors.background, color: colors.text }}>
+        {days}<span className={styles.unitSuffix}>d</span>
+      </span>
+    );
+  };
+
+  const renderVisitCell = (value: number | null | undefined) => {
+    if (value == null) return <span className={styles.emptyValue}>—</span>;
+    const colors = getDaysSinceHeatmap(value);
+    if (!colors) return <>{value}<span className={styles.unitSuffix}>d</span></>;
+    return (
+      <span className={styles.heatmapCell} style={{ background: colors.background, color: colors.text }}>
+        {value}<span className={styles.unitSuffix}>d</span>
+      </span>
+    );
+  };
+
   const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true) => (
     <>
       {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
-      <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
-      <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
-      <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
       <td style={{ textAlign: 'center' }}>
         <StatusBadge status={snap?.activityStatus as ActivityStatus} />
       </td>
+      <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
+      <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
+      <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
+      <td>{renderCommCell(snap?.latestCommunicationDatetime as string | null)}</td>
+      <td>{renderVisitCell(snap?.daysFromVisitToNextApp)}</td>
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
-      <td>{renderStubbed()}</td>
     </>
   );
 
@@ -531,31 +571,33 @@ function updateSortStack(prev: SortColumn[], key: string, isMulti: boolean): Sor
 
 // ── Best / Worst Cell ──
 
-function BestWorstCell({ data, forceSingle }: { data: BestWorst | undefined | null; forceSingle?: boolean }) {
+function BestWorstCell({ data, forceSingle, useCommHeatmap, unit }: { data: BestWorst | undefined | null; forceSingle?: boolean; useCommHeatmap?: boolean; unit?: string }) {
   if (!data || (data.best == null && data.worst == null)) {
     return <span className={styles.emptyValue}>—</span>;
   }
+  const heatmapFn = useCommHeatmap ? getCommDaysHeatmap : getDaysSinceHeatmap;
+  const suffix = unit ? <span className={styles.unitSuffix}>{unit}</span> : null;
   // Single location — just show one value
   if (forceSingle || data.best === data.worst || data.worst == null) {
-    const colors = getDaysSinceHeatmap(data.best);
+    const colors = heatmapFn(data.best);
     return (
       <span className={styles.bestWorstCell}>
         <span className={styles.bestValue} style={colors ? { color: colors.text } : undefined}>
-          {data.best ?? '—'}
+          {data.best ?? '—'}{suffix}
         </span>
       </span>
     );
   }
-  const bestColors = getDaysSinceHeatmap(data.best);
-  const worstColors = getDaysSinceHeatmap(data.worst);
+  const bestColors = heatmapFn(data.best);
+  const worstColors = heatmapFn(data.worst);
   return (
     <span className={styles.bestWorstCell}>
       <span className={styles.bestValue} style={bestColors ? { color: bestColors.text } : undefined}>
-        {data.best ?? '—'}
+        {data.best ?? '—'}{suffix}
       </span>
       <span className={styles.bestWorstSep}>/</span>
       <span className={styles.worstValue} style={worstColors ? { color: worstColors.text } : undefined}>
-        {data.worst ?? '—'}
+        {data.worst ?? '—'}{suffix}
       </span>
     </span>
   );
@@ -607,7 +649,7 @@ interface GroupRowsProps {
 
 function computeBestWorstFromLocations(
   locations: DealerLocation[],
-  field: 'daysSinceLastApplication' | 'daysSinceLastApproval' | 'daysSinceLastBooking'
+  field: 'daysSinceLastApplication' | 'daysSinceLastApproval' | 'daysSinceLastBooking' | 'daysFromVisitToNextApp'
 ): BestWorst | null {
   let best: number | null = null;
   let worst: number | null = null;
@@ -616,6 +658,20 @@ function computeBestWorstFromLocations(
     if (val == null) continue;
     if (best === null || val < best) best = val;
     if (worst === null || val > worst) worst = val;
+  }
+  if (best === null && worst === null) return null;
+  return { best, worst };
+}
+
+/** Compute best/worst days-since-contact from filtered locations */
+function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null {
+  let best: number | null = null;
+  let worst: number | null = null;
+  for (const loc of locations) {
+    const d = daysSinceDate(loc.latestSnapshot?.latestCommunicationDatetime as string | null);
+    if (d == null) continue;
+    if (best === null || d < best) best = d;
+    if (worst === null || d > worst) worst = d;
   }
   if (best === null && worst === null) return null;
   return { best, worst };
@@ -650,6 +706,17 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
   const daysSinceBooking = hasFilteredLocs
     ? computeBestWorstFromLocations(locations, 'daysSinceLastBooking')
     : s?.daysSinceBooking ?? null;
+  const visitToApp = hasFilteredLocs
+    ? computeBestWorstFromLocations(locations, 'daysFromVisitToNextApp')
+    : s?.visitToApp ?? null;
+  const commDays = hasFilteredLocs
+    ? computeCommDaysBestWorst(locations)
+    : (() => {
+        const best = daysSinceDate(s?.latestComm);
+        const worst = daysSinceDate(s?.oldestComm);
+        if (best == null && worst == null) return null;
+        return { best, worst } as BestWorst;
+      })();
 
   // Compute filtered active count for status badge
   let filteredActive: number | undefined;
@@ -678,9 +745,6 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
           </span>
         </td>
         <td style={{ textAlign: 'center' }}>{showSkeleton ? <SkeletonCell /> : (filteredTotal ?? displayCount)}</td>
-        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
-        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
-        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
         <td style={{ textAlign: 'center' }}>
           {showSkeleton ? <SkeletonCell /> : (
             <ActiveCountBadge
@@ -690,8 +754,13 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             />
           )}
         </td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={commDays} forceSingle={isSingle} useCommHeatmap unit="d" />}</td>
+        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={visitToApp} forceSingle={isSingle} unit="d" />}</td>
         <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
-        <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
+        <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
       </tr>
       {isExpanded && locations.map((loc) => (
         <tr key={loc._id} className={styles.childRow}>

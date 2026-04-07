@@ -283,3 +283,7 @@
 .statDanger {
   color: var(--status-red);
 }
+
+.statReactivated {
+  color: var(--color-amber-400, #fbbf24);
+}
