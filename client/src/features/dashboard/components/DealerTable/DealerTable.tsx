@@ -35,9 +35,11 @@ interface DealerTableProps {
   hasMore?: boolean;
   statusFilter?: string | null;
   isPrefetching?: boolean;
+  activityMode?: 'application' | 'approval' | 'booking';
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
   onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
+  onDealerSearch?: (query: string) => void;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -165,10 +167,27 @@ export function DealerTable({
   onExpandGroup,
   onLoadMore,
   onDealerSortChange,
+  onDealerSearch,
+  activityMode = 'application',
 }: DealerTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced search for server-side mode
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+      if (mode !== 'groups' && onDealerSearch) {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+          onDealerSearch(value);
+        }, 350);
+      }
+    },
+    [mode, onDealerSearch]
+  );
 
   // Multi-column sort stacks (groups tab)
   const [groupSortStack, setGroupSortStack] = useState<SortColumn[]>([{ key: 'locationCount', dir: 'desc' }]);
@@ -287,14 +306,8 @@ export function DealerTable({
     return sorted;
   }, [filteredGroups, groupSortStack, statusFilter]);
 
-  // In dealer mode, the server already sorted — just filter locally
-  const filteredDealers = useMemo(() => {
-    if (!searchQuery.trim()) return smallDealers;
-    const q = searchQuery.toLowerCase();
-    return smallDealers.filter((d) => d.dealerName.toLowerCase().includes(q));
-  }, [smallDealers, searchQuery]);
-
-  const sortedDealers = filteredDealers;
+  // In dealer mode, server handles search — no client-side filtering needed
+  const sortedDealers = smallDealers;
 
   // Which sort to display in the headers
   const displayStack: SortColumn[] = mode !== 'groups'
@@ -348,11 +361,23 @@ export function DealerTable({
     );
   };
 
+  // Derive status from the appropriate daysSince field based on activityMode
+  const deriveStatus = (snap: DealerLocation['latestSnapshot']): ActivityStatus => {
+    if (!snap) return 'long_inactive';
+    if (activityMode === 'application') return snap.activityStatus;
+    const days = activityMode === 'approval' ? snap.daysSinceLastApproval : snap.daysSinceLastBooking;
+    if (days == null) return 'long_inactive';
+    if (days <= 30) return 'active';
+    if (days <= 60) return '30d_inactive';
+    if (days <= 90) return '60d_inactive';
+    return 'long_inactive';
+  };
+
   const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true) => (
     <>
       {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
       <td style={{ textAlign: 'center' }}>
-        <StatusBadge status={snap?.activityStatus as ActivityStatus} />
+        <StatusBadge status={deriveStatus(snap)} />
       </td>
       <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
       <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
@@ -371,7 +396,7 @@ export function DealerTable({
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || mode !== 'dealers' || !hasMore || isLoadingMore) return;
+    if (!el || mode === 'groups' || !hasMore || isLoadingMore) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el;
@@ -433,11 +458,11 @@ export function DealerTable({
             className={styles.searchInput}
             placeholder={mode === 'groups' ? 'Search dealer groups...' : 'Search dealers...'}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             id="dealer-search"
           />
           {searchQuery && (
-            <button className={styles.searchClear} onClick={() => setSearchQuery('')} aria-label="Clear search">✕</button>
+            <button className={styles.searchClear} onClick={() => handleSearchChange('')} aria-label="Clear search">✕</button>
           )}
         </div>
         <div className={styles.toolbarRight}>
@@ -570,6 +595,7 @@ export function DealerTable({
                         isPrefetching={isPrefetching}
                         onToggle={() => toggleGroup(group.slug)}
                         renderChildCells={renderChildCells}
+                        deriveStatusFn={deriveStatus}
                       />
                     );
                   })
@@ -674,6 +700,7 @@ interface GroupRowsProps {
   isPrefetching?: boolean;
   onToggle: () => void;
   renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean) => React.JSX.Element;
+  deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
 }
 
 
@@ -707,7 +734,7 @@ function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null
   return { best, worst };
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells }: GroupRowsProps) {
+function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn }: GroupRowsProps) {
   const s = group.summary;
   const stub = <span className={styles.emptyValue}>—</span>;
 
@@ -754,7 +781,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
   if (hasFilteredLocs) {
     filteredTotal = locations.length;
     filteredActive = locations.filter((loc) => {
-      const status = loc.latestSnapshot?.activityStatus;
+      const status = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
       return status === 'active';
     }).length;
   }

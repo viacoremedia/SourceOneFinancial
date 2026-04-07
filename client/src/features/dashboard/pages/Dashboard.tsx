@@ -38,6 +38,8 @@ export function Dashboard() {
   const [selectedRep, setSelectedRep] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
+  const activityModeRef = useRef<'application' | 'approval' | 'booking'>('application');
 
   // Fetch state-rep map + budgets on mount
   useEffect(() => {
@@ -63,7 +65,7 @@ export function Dashboard() {
   }, [selectedRep, selectedState, repStatesMap]);
 
   // Fetch groups — re-fetches when targetStates changes (server recalculates summaries)
-  const { groups, isLoading: groupsLoading } = useDealerGroups(targetStates);
+  const { groups, isLoading: groupsLoading } = useDealerGroups(targetStates, activityMode);
 
   // Groups filtered by state only — used for stats computation (stable numbers)
   const stateFilteredGroups = useMemo(() => {
@@ -100,6 +102,7 @@ export function Dashboard() {
   const sortStateRef = useRef({ sorts: ['dealerName'], dirs: ['asc'] as ('asc' | 'desc')[] });
   const statusRef = useRef<string | null>(null);
   const statesRef = useRef<string[] | undefined>(undefined);
+  const searchRef = useRef('');
 
   const scopeForTab = (tab: TabId): 'ungrouped' | 'all' | undefined =>
     tab === 'all' ? 'all' : tab === 'dealers' ? 'ungrouped' : undefined;
@@ -119,7 +122,9 @@ export function Dashboard() {
       try {
         const result = await getSmallDealers({
           sort: sorts.join(','), dir: dirs.join(',') as any,
-          page, limit: 50, status, scope, states
+          page, limit: 50, status, scope, states,
+          activityMode: activityModeRef.current,
+          search: searchRef.current || undefined,
         });
         const setDealers = scope === 'all' ? setAllDealers : setSmallDealers;
         const setTotal = scope === 'all' ? setTotalAllDealers : setTotalSmallDealers;
@@ -186,6 +191,16 @@ export function Dashboard() {
     refetchFlatTab();
   }, [selectedRep, repStatesMap, refetchFlatTab]);
 
+  // Activity mode change — re-fetch with new status derivation
+  const handleActivityModeChange = useCallback((mode: 'application' | 'approval' | 'booking') => {
+    setActivityMode(mode);
+    activityModeRef.current = mode;
+    // Clear status filter when changing mode
+    setStatusFilter(null);
+    statusRef.current = null;
+    refetchFlatTab();
+  }, [refetchFlatTab]);
+
   // Reset filters when switching tabs
   const handleTabChange = useCallback((tab: TabId) => {
     setStatusFilter(null);
@@ -217,6 +232,18 @@ export function Dashboard() {
       sortStateRef.current = { sorts: serverKeys, dirs: sortDirs };
       pageRef.current = 1;
       fetchDealers(1, serverKeys, sortDirs, false, statusRef.current, scope, statesRef.current);
+    },
+    [fetchDealers, activeTab]
+  );
+
+  // Search change from DealerTable — server-side search, re-fetch from page 1
+  const handleDealerSearch = useCallback(
+    (query: string) => {
+      const scope = scopeForTab(activeTab);
+      if (!scope) return;
+      searchRef.current = query;
+      pageRef.current = 1;
+      fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusRef.current, scope, statesRef.current);
     },
     [fetchDealers, activeTab]
   );
@@ -291,6 +318,19 @@ export function Dashboard() {
       repStatesMap[selectedRep].forEach((s) => targetStates.add(s));
     }
 
+    // Derive status from the correct daysSince field based on activityMode
+    const deriveLocStatus = (loc: DealerLocation): string => {
+      const snap = loc.latestSnapshot;
+      if (!snap) return 'long_inactive';
+      if (activityMode === 'application') return snap.activityStatus;
+      const days = activityMode === 'approval' ? snap.daysSinceLastApproval : snap.daysSinceLastBooking;
+      if (days == null) return 'long_inactive';
+      if (days <= 30) return 'active';
+      if (days <= 60) return '30d_inactive';
+      if (days <= 90) return '60d_inactive';
+      return 'long_inactive';
+    };
+
     const filtered: Record<string, DealerLocation[]> = {};
     for (const [slug, locs] of Object.entries(groupLocations)) {
       let result = locs;
@@ -301,13 +341,13 @@ export function Dashboard() {
         result = result.filter((loc) => {
           if (!loc.latestSnapshot) return false;
           if (statusFilter === 'reactivated') return loc.latestSnapshot.reactivatedAfterVisit;
-          return loc.latestSnapshot.activityStatus === statusFilter;
+          return deriveLocStatus(loc) === statusFilter;
         });
       }
       filtered[slug] = result;
     }
     return filtered;
-  }, [groupLocations, selectedRep, selectedState, repStatesMap, statusFilter]);
+  }, [groupLocations, selectedRep, selectedState, repStatesMap, statusFilter, activityMode]);
 
   const smallDealerCount = totalSmallDealers || (overview
     ? overview.totalDealers - groups.reduce((sum, g) => sum + g.dealerCount, 0)
@@ -342,9 +382,11 @@ export function Dashboard() {
             selectedRep={selectedRep}
             selectedState={selectedState}
             statusFilter={statusFilter}
+            activityMode={activityMode}
             onRepChange={handleRepChange}
             onStateChange={handleStateChange}
             onStatusFilterChange={handleStatusFilterChange}
+            onActivityModeChange={handleActivityModeChange}
           />
         )}
       </div>
@@ -359,9 +401,11 @@ export function Dashboard() {
         hasMore={hasMore}
         statusFilter={statusFilter}
         isPrefetching={prefetchingLocations}
+        activityMode={activityMode}
         onExpandGroup={handleExpandGroup}
         onLoadMore={handleLoadMore}
         onDealerSortChange={handleDealerSortChange}
+        onDealerSearch={handleDealerSearch}
       />
     </AppShell>
   );

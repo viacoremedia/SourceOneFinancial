@@ -2,19 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { getGroups, getGroupLocations } from '../../../core/services/api';
 import type { DealerGroup, DealerLocation } from '../types';
 
-export function useDealerGroups(states?: string[]) {
+export function useDealerGroups(states?: string[], activityMode?: string) {
   const [groups, setGroups] = useState<DealerGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Serialize states for stable dependency tracking
+  // Serialize for stable dependency tracking
   const statesKey = states ? states.sort().join(',') : '';
+  const modeKey = activityMode || 'application';
 
   const fetch = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getGroups(states && states.length > 0 ? states : undefined);
+      const data = await getGroups(states && states.length > 0 ? states : undefined, activityMode);
       setGroups(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dealer groups');
@@ -22,7 +23,7 @@ export function useDealerGroups(states?: string[]) {
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statesKey]);
+  }, [statesKey, modeKey]);
 
   useEffect(() => {
     fetch();

@@ -260,6 +260,8 @@ router.get('/groups', async (req, res) => {
         const targetStates = statesParam
             ? String(statesParam).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
             : null;
+        const activityMode = req.query.activityMode || 'application'; // 'application' | 'approval' | 'booking'
+        const useCustomMode = activityMode !== 'application';
 
         // If filtering by states, get matching location IDs
         let filteredLocationIds = null;
@@ -295,6 +297,29 @@ router.get('/groups', async (req, res) => {
             matchStage.dealerLocation = { $in: filteredLocationIds };
         }
 
+        // Build status field expressions based on activityMode
+        const DAYS_MAP = {
+            'application': '$daysSinceLastApplication',
+            'approval': '$daysSinceLastApproval',
+            'booking': '$daysSinceLastBooking',
+        };
+        const daysField = DAYS_MAP[activityMode] || DAYS_MAP['application'];
+
+        // For custom modes, derive status inline; for default, use existing field
+        const statusExpr = useCustomMode
+            ? {
+                $switch: {
+                    branches: [
+                        { case: { $eq: [daysField, null] }, then: 'never_active' },
+                        { case: { $lte: [daysField, 30] }, then: 'active' },
+                        { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
+                        { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+                    ],
+                    default: 'long_inactive'
+                }
+            }
+            : '$activityStatus';
+
         // Aggregate latest snapshots per group
         const groupSummaries = await DailyDealerSnapshot.aggregate([
             { $match: matchStage },
@@ -303,16 +328,16 @@ router.get('/groups', async (req, res) => {
                     _id: '$dealerGroup',
                     locationCount: { $sum: 1 },
                     activeCount: {
-                        $sum: { $cond: [{ $eq: ['$activityStatus', 'active'] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: [statusExpr, 'active'] }, 1, 0] }
                     },
                     inactive30Count: {
-                        $sum: { $cond: [{ $eq: ['$activityStatus', '30d_inactive'] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: [statusExpr, '30d_inactive'] }, 1, 0] }
                     },
                     inactive60Count: {
-                        $sum: { $cond: [{ $eq: ['$activityStatus', '60d_inactive'] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: [statusExpr, '60d_inactive'] }, 1, 0] }
                     },
                     longInactiveCount: {
-                        $sum: { $cond: [{ $eq: ['$activityStatus', 'long_inactive'] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: [statusExpr, 'long_inactive'] }, 1, 0] }
                     },
                     reactivatedCount: {
                         $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] }
@@ -452,11 +477,25 @@ router.get('/dealers/small', async (req, res) => {
         const statusParam = req.query.status || null;
         const scope = req.query.scope || 'ungrouped'; // 'ungrouped' or 'all'
         const statesParam = req.query.states ? req.query.states.split(',').map(s => s.trim().toUpperCase()) : null;
+        const activityMode = req.query.activityMode || 'application'; // 'application' | 'approval' | 'booking'
+        const searchQuery = req.query.search ? String(req.query.search).trim() : '';
 
         const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
         if (statesParam && statesParam.length > 0) {
             baseMatch.statePrefix = { $in: statesParam };
         }
+        if (searchQuery) {
+            baseMatch.dealerName = { $regex: searchQuery, $options: 'i' };
+        }
+
+        // Map activityMode to the daysSince field for derived status
+        const DAYS_FIELD_MAP = {
+            'application': '$latestSnapshot.daysSinceLastApplication',
+            'approval': '$latestSnapshot.daysSinceLastApproval',
+            'booking': '$latestSnapshot.daysSinceLastBooking',
+        };
+        const daysField = DAYS_FIELD_MAP[activityMode] || DAYS_FIELD_MAP['application'];
+        const useCustomMode = activityMode !== 'application';
 
         // Build aggregation pipeline
         const pipeline = [
@@ -495,11 +534,28 @@ router.get('/dealers/small', async (req, res) => {
             },
             { $project: { snapshotArr: 0 } },
 
-            // 3b. Status filter (server-side)
+            // 3b. Derive activity status when using custom mode (approval/booking)
+            ...(useCustomMode ? [{
+                $addFields: {
+                    'latestSnapshot._derivedStatus': {
+                        $switch: {
+                            branches: [
+                                { case: { $eq: [daysField, null] }, then: 'never_active' },
+                                { case: { $lte: [daysField, 30] }, then: 'active' },
+                                { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
+                                { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+                            ],
+                            default: 'long_inactive'
+                        }
+                    }
+                }
+            }] : []),
+
+            // 3c. Status filter (server-side) — uses derived status when custom mode
             ...(statusParam ? [
                 statusParam === 'reactivated'
                     ? { $match: { 'latestSnapshot.reactivatedAfterVisit': true } }
-                    : { $match: { 'latestSnapshot.activityStatus': statusParam } }
+                    : { $match: { [useCustomMode ? 'latestSnapshot._derivedStatus' : 'latestSnapshot.activityStatus']: statusParam } }
             ] : []),
 
             // 3c. Compute days-since-contact as a numeric value
@@ -560,20 +616,51 @@ router.get('/dealers/small', async (req, res) => {
                 breakdownMatch.dealerLocation = { $in: scopedIds.map(l => l._id) };
             }
 
-            const breakdown = await DailyDealerSnapshot.aggregate([
+            // For custom activity modes, derive status from days field in breakdown too
+            const BREAKDOWN_DAYS_MAP = {
+                'application': '$daysSinceLastApplication',
+                'approval': '$daysSinceLastApproval',
+                'booking': '$daysSinceLastBooking',
+            };
+            const brkDaysField = BREAKDOWN_DAYS_MAP[activityMode] || BREAKDOWN_DAYS_MAP['application'];
+
+            const breakdownPipeline = [
                 { $match: breakdownMatch },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: 1 },
-                        active: { $sum: { $cond: [{ $eq: ['$activityStatus', 'active'] }, 1, 0] } },
-                        inactive30: { $sum: { $cond: [{ $eq: ['$activityStatus', '30d_inactive'] }, 1, 0] } },
-                        inactive60: { $sum: { $cond: [{ $eq: ['$activityStatus', '60d_inactive'] }, 1, 0] } },
-                        longInactive: { $sum: { $cond: [{ $eq: ['$activityStatus', 'long_inactive'] }, 1, 0] } },
-                        reactivated: { $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] } },
+            ];
+
+            if (useCustomMode) {
+                // Derive status from the days field
+                breakdownPipeline.push({
+                    $addFields: {
+                        _derivedStatus: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: [brkDaysField, null] }, then: 'never_active' },
+                                    { case: { $lte: [brkDaysField, 30] }, then: 'active' },
+                                    { case: { $lte: [brkDaysField, 60] }, then: '30d_inactive' },
+                                    { case: { $lte: [brkDaysField, 90] }, then: '60d_inactive' },
+                                ],
+                                default: 'long_inactive'
+                            }
+                        }
                     }
+                });
+            }
+
+            const statusField = useCustomMode ? '$_derivedStatus' : '$activityStatus';
+            breakdownPipeline.push({
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    active: { $sum: { $cond: [{ $eq: [statusField, 'active'] }, 1, 0] } },
+                    inactive30: { $sum: { $cond: [{ $eq: [statusField, '30d_inactive'] }, 1, 0] } },
+                    inactive60: { $sum: { $cond: [{ $eq: [statusField, '60d_inactive'] }, 1, 0] } },
+                    longInactive: { $sum: { $cond: [{ $eq: [statusField, 'long_inactive'] }, 1, 0] } },
+                    reactivated: { $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] } },
                 }
-            ]);
+            });
+
+            const breakdown = await DailyDealerSnapshot.aggregate(breakdownPipeline);
 
             if (breakdown.length > 0) {
                 const b = breakdown[0];

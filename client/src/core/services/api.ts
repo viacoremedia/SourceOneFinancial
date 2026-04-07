@@ -18,6 +18,30 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// ── Auth interceptors ──
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('sourceone_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid — clear and redirect to login
+      localStorage.removeItem('sourceone_token');
+      localStorage.removeItem('sourceone_user');
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/invite') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ── Overview ──
 export async function getOverview(year?: number, month?: number): Promise<OverviewStats> {
   const params: Record<string, number> = {};
@@ -28,9 +52,10 @@ export async function getOverview(year?: number, month?: number): Promise<Overvi
 }
 
 // ── Dealer Groups ──
-export async function getGroups(states?: string[]): Promise<DealerGroup[]> {
+export async function getGroups(states?: string[], activityMode?: string): Promise<DealerGroup[]> {
   const params: Record<string, string> = {};
   if (states && states.length > 0) params.states = states.join(',');
+  if (activityMode && activityMode !== 'application') params.activityMode = activityMode;
   const { data } = await api.get('/analytics/groups', { params });
   return data.groups;
 }
@@ -72,6 +97,8 @@ export interface SmallDealerParams {
   status?: string | null;
   scope?: 'ungrouped' | 'all';
   states?: string[];
+  activityMode?: 'application' | 'approval' | 'booking';
+  search?: string;
 }
 
 export interface DealerStatusBreakdown {
@@ -105,6 +132,8 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.status) queryParams.status = params.status;
   if (params.scope) queryParams.scope = params.scope;
   if (params.states && params.states.length > 0) queryParams.states = params.states.join(',');
+  if (params.activityMode && params.activityMode !== 'application') queryParams.activityMode = params.activityMode;
+  if (params.search) queryParams.search = params.search;
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
   return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, pagination: data.pagination };
 }

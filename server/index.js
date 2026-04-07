@@ -4,6 +4,8 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const webhookRoutes = require('./webhook/routes');
 const analyticsRoutes = require('./routes/analytics');
+const authRoutes = require('./routes/auth');
+const { requireAuth } = require('./middleware/authMiddleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -96,10 +98,16 @@ app.get("/ping-db", async (req, res) => {
 
 app.use(ensureDbConnected)
 
-// Use webhook routes
+// Use webhook routes (NO auth required)
 app.use('/webhook', webhookRoutes);
 
-// Use analytics routes
+// Use auth routes (NO auth required — login/invite endpoints)
+app.use('/auth', authRoutes);
+
+// ── Auth gate — everything below requires a valid JWT ──
+app.use(requireAuth);
+
+// Use analytics routes (PROTECTED)
 app.use('/analytics', analyticsRoutes);
 
 // 404 handler for undefined routes

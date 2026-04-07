@@ -18,9 +18,11 @@ interface FilterBarProps {
   selectedRep: string;
   selectedState: string;
   statusFilter: string | null;
+  activityMode?: 'application' | 'approval' | 'booking';
   onRepChange: (rep: string) => void;
   onStateChange: (state: string) => void;
   onStatusFilterChange: (status: string | null) => void;
+  onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
 }
 
 function formatDollar(n: number): string {
@@ -38,9 +40,11 @@ export function FilterBar({
   selectedRep,
   selectedState,
   statusFilter,
+  activityMode = 'application',
   onRepChange,
   onStateChange,
   onStatusFilterChange,
+  onActivityModeChange,
 }: FilterBarProps) {
   const reps = useMemo(() => {
     const repSet = new Set(Object.values(stateRepMap));
@@ -251,6 +255,22 @@ export function FilterBar({
 
       {/* Stats row — ALWAYS visible, clickable buckets */}
       <div className={`${styles.statsRow} ${!summary ? styles.statsRowStandalone : ''}`}>
+        {/* Status By dropdown — all tabs */}
+        {onActivityModeChange && (
+          <div className={styles.statusByGroup}>
+            <label className={styles.statusByLabel}>Status by</label>
+            <select
+              className={styles.statusBySelect}
+              value={activityMode}
+              onChange={(e) => onActivityModeChange(e.target.value as 'application' | 'approval' | 'booking')}
+              id="status-by-select"
+            >
+              <option value="application">Application</option>
+              <option value="approval">Approval</option>
+              <option value="booking">Booking</option>
+            </select>
+          </div>
+        )}
         {mode === 'groups' && (
           <div className={styles.statItem}>
             <span className={styles.statValue}>{stats.groups}</span>

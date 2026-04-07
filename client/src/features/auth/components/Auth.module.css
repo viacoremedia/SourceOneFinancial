@@ -1,0 +1,126 @@
+.authPage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-app, #0b1120);
+  padding: 24px;
+}
+
+.authCard {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-surface, #111827);
+  border: 1px solid var(--border-subtle, #1e293b);
+  border-radius: 16px;
+  padding: 40px 32px;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.brandMark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #14b8a6, #0d9488);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: white;
+}
+
+.brandName {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.brandTag {
+  font-size: 11px;
+  color: var(--text-tertiary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0 0 24px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.input {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #1e293b);
+  background: var(--bg-app, #0b1120);
+  color: var(--text-primary, #f1f5f9);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: #3b82f6;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary, #475569);
+}
+
+.error {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.submitBtn {
+  padding: 11px 0;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.submitBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.submitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
