@@ -436,9 +436,12 @@ router.get('/dealers/small', async (req, res) => {
             'daysSinceLastApproval': 'latestSnapshot.daysSinceLastApproval',
             'daysSinceLastBooking': 'latestSnapshot.daysSinceLastBooking',
             'activityStatus': 'latestSnapshot.activityStatus',
+            'commDays': '_commDaysNum',
+            'visitToApp': 'latestSnapshot.daysFromVisitToNextApp',
         };
 
         const resolvedSort = SORT_FIELD_MAP[sortField] || 'dealerName';
+        const statusParam = req.query.status || null; // e.g. 'active', '30d_inactive', 'reactivated'
 
         // Build aggregation pipeline
         const pipeline = [
@@ -477,20 +480,49 @@ router.get('/dealers/small', async (req, res) => {
             },
             { $project: { snapshotArr: 0 } },
 
+            // 3b. Status filter (server-side)
+            ...(statusParam ? [
+                statusParam === 'reactivated'
+                    ? { $match: { 'latestSnapshot.reactivatedAfterVisit': true } }
+                    : { $match: { 'latestSnapshot.activityStatus': statusParam } }
+            ] : []),
+
+            // 3c. Compute days-since-contact as a numeric value
+            {
+                $addFields: {
+                    _commDaysNum: {
+                        $cond: {
+                            if: { $ne: ['$latestSnapshot.latestCommunicationDatetime', null] },
+                            then: {
+                                $divide: [
+                                    { $subtract: [new Date(), '$latestSnapshot.latestCommunicationDatetime'] },
+                                    1000 * 60 * 60 * 24
+                                ]
+                            },
+                            else: null
+                        }
+                    }
+                }
+            },
+
             // 4. Sort with null handling (nulls go to end)
             {
                 $addFields: {
-                    _sortValue: resolvedSort.startsWith('latestSnapshot.')
+                    _sortValue: resolvedSort.startsWith('latestSnapshot.') || resolvedSort === '_commDaysNum'
                         ? { $ifNull: [`$${resolvedSort}`, sortDir === 1 ? 99999 : -1] }
                         : `$${resolvedSort}`
                 }
             },
             { $sort: { _sortValue: sortDir } },
-            { $project: { _sortValue: 0 } },
+            { $project: { _sortValue: 0, _commDaysNum: 0 } },
         ];
 
-        // Get total count (separate lightweight query)
-        const totalCount = await DealerLocation.countDocuments({ dealerGroup: null });
+        // Get filtered total count via the same pipeline (without skip/limit)
+        const countResult = await DealerLocation.aggregate([
+            ...pipeline,
+            { $count: 'total' },
+        ]);
+        const totalCount = countResult.length > 0 ? countResult[0].total : 0;
 
         // Execute with pagination
         const dealers = await DealerLocation.aggregate([
@@ -499,9 +531,45 @@ router.get('/dealers/small', async (req, res) => {
             { $limit: limit },
         ]);
 
+        // Status breakdown for ALL ungrouped dealers (not just this page)
+        let statusBreakdown = null;
+        if (latestDate) {
+            // Get IDs of all ungrouped locations
+            const ungroupedIds = await DealerLocation.find({ dealerGroup: null }).select('_id').lean();
+            const ungroupedIdList = ungroupedIds.map(l => l._id);
+
+            const breakdown = await DailyDealerSnapshot.aggregate([
+                { $match: { reportDate: latestDate, dealerLocation: { $in: ungroupedIdList } } },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        active: { $sum: { $cond: [{ $eq: ['$activityStatus', 'active'] }, 1, 0] } },
+                        inactive30: { $sum: { $cond: [{ $eq: ['$activityStatus', '30d_inactive'] }, 1, 0] } },
+                        inactive60: { $sum: { $cond: [{ $eq: ['$activityStatus', '60d_inactive'] }, 1, 0] } },
+                        longInactive: { $sum: { $cond: [{ $eq: ['$activityStatus', 'long_inactive'] }, 1, 0] } },
+                        reactivated: { $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] } },
+                    }
+                }
+            ]);
+
+            if (breakdown.length > 0) {
+                const b = breakdown[0];
+                statusBreakdown = {
+                    total: b.total,
+                    active: b.active,
+                    inactive30: b.inactive30,
+                    inactive60: b.inactive60,
+                    longInactive: b.longInactive,
+                    reactivated: b.reactivated,
+                };
+            }
+        }
+
         res.status(200).json({
             success: true,
             dealers,
+            statusBreakdown,
             pagination: {
                 page,
                 limit,

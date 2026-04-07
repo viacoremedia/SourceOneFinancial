@@ -10,7 +10,7 @@ import { FilterBar } from '../components/FilterBar';
 import { DealerTable } from '../components/DealerTable';
 import { useOverview, useDealerGroups } from '../hooks';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState } from '../../../core/services/api';
-import type { StateRepMap, StateBudget } from '../../../core/services/api';
+import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../core/services/api';
 import type { DealerLocation } from '../types';
 
 // Map frontend sort keys to server sort keys
@@ -20,6 +20,8 @@ const SORT_KEY_MAP: Record<string, string> = {
   daysSinceLastApproval: 'daysSinceLastApproval',
   daysSinceLastBooking: 'daysSinceLastBooking',
   activityStatus: 'activityStatus',
+  commDays: 'commDays',
+  visitToApp: 'visitToApp',
 };
 
 export function Dashboard() {
@@ -91,23 +93,28 @@ export function Dashboard() {
   const [smallDealersLoadingMore, setSmallDealersLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [totalSmallDealers, setTotalSmallDealers] = useState(0);
+  const [dealerStatusBreakdown, setDealerStatusBreakdown] = useState<DealerStatusBreakdown | null>(null);
   const pageRef = useRef(1);
   const sortStateRef = useRef({ sort: 'dealerName', dir: 'asc' as 'asc' | 'desc' });
 
   // Fetch a page of small dealers
+  const statusRef = useRef<string | null>(null);
   const fetchSmallDealers = useCallback(
-    async (page: number, sort: string, dir: 'asc' | 'desc', append: boolean) => {
+    async (page: number, sort: string, dir: 'asc' | 'desc', append: boolean, status?: string | null) => {
       if (page === 1) {
         setSmallDealersLoading(true);
       } else {
         setSmallDealersLoadingMore(true);
       }
       try {
-        const result = await getSmallDealers({ sort, dir, page, limit: 50 });
+        const result = await getSmallDealers({ sort, dir, page, limit: 50, status });
         if (append) {
           setSmallDealers((prev) => [...prev, ...result.dealers]);
         } else {
           setSmallDealers(result.dealers);
+        }
+        if (result.statusBreakdown) {
+          setDealerStatusBreakdown(result.statusBreakdown);
         }
         setHasMore(result.pagination.hasMore);
         setTotalSmallDealers(result.pagination.totalCount);
@@ -125,15 +132,31 @@ export function Dashboard() {
   // Load first page when tab activates
   useEffect(() => {
     if (activeTab === 'dealers' && smallDealers.length === 0 && !smallDealersLoading) {
-      fetchSmallDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false);
+      fetchSmallDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, statusRef.current);
     }
   }, [activeTab, smallDealers.length, smallDealersLoading, fetchSmallDealers]);
+
+  // Status filter change — direct handler, no effects
+  const handleStatusFilterChange = useCallback((newStatus: string | null) => {
+    setStatusFilter(newStatus);
+    statusRef.current = newStatus;
+    if (activeTab === 'dealers') {
+      pageRef.current = 1;
+      fetchSmallDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, newStatus);
+    }
+  }, [activeTab, fetchSmallDealers]);
+
+  // Reset status filter when switching tabs
+  const handleTabChange = useCallback((tab: TabId) => {
+    handleStatusFilterChange(null);
+    setActiveTab(tab);
+  }, [handleStatusFilterChange]);
 
   // Load more (infinite scroll)
   const handleLoadMore = useCallback(() => {
     if (smallDealersLoadingMore || !hasMore) return;
     const nextPage = pageRef.current + 1;
-    fetchSmallDealers(nextPage, sortStateRef.current.sort, sortStateRef.current.dir, true);
+    fetchSmallDealers(nextPage, sortStateRef.current.sort, sortStateRef.current.dir, true, statusRef.current);
   }, [smallDealersLoadingMore, hasMore, fetchSmallDealers]);
 
   // Sort change from DealerTable — re-fetch from page 1
@@ -142,12 +165,12 @@ export function Dashboard() {
       const serverKey = SORT_KEY_MAP[sortKey] || 'dealerName';
       sortStateRef.current = { sort: serverKey, dir: sortDir };
       pageRef.current = 1;
-      fetchSmallDealers(1, serverKey, sortDir, false);
+      fetchSmallDealers(1, serverKey, sortDir, false, statusRef.current);
     },
     [fetchSmallDealers]
   );
 
-  // Filter small dealers by rep/state + status (client-side since already loaded)
+  // Filter small dealers by rep/state only (status is now server-side)
   const filteredSmallDealers = useMemo(() => {
     const targetStates: Set<string> = new Set();
     if (selectedState) {
@@ -156,21 +179,10 @@ export function Dashboard() {
       repStatesMap[selectedRep].forEach((s) => targetStates.add(s));
     }
 
-    if (targetStates.size === 0 && !statusFilter) return smallDealers;
+    if (targetStates.size === 0) return smallDealers;
 
-    let result = smallDealers;
-    if (targetStates.size > 0) {
-      result = result.filter((d) => d.statePrefix && targetStates.has(d.statePrefix));
-    }
-    if (statusFilter) {
-      result = result.filter((d) => {
-        if (!d.latestSnapshot) return false;
-        if (statusFilter === 'reactivated') return d.latestSnapshot.reactivatedAfterVisit;
-        return d.latestSnapshot.activityStatus === statusFilter;
-      });
-    }
-    return result;
-  }, [smallDealers, selectedRep, selectedState, repStatesMap, statusFilter]);
+    return smallDealers.filter((d) => d.statePrefix && targetStates.has(d.statePrefix));
+  }, [smallDealers, selectedRep, selectedState, repStatesMap]);
 
   // Load locations for a group when expanded
   const handleExpandGroup = useCallback(
@@ -275,7 +287,7 @@ export function Dashboard() {
       >
         <TabBar
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           groupCount={groups.length || undefined}
           dealerCount={smallDealerCount}
         />
@@ -284,12 +296,14 @@ export function Dashboard() {
             stateRepMap={stateRepMap}
             budgets={budgets}
             filteredGroups={stateFilteredGroups}
+            mode={activeTab}
+            dealerStatusBreakdown={dealerStatusBreakdown}
             selectedRep={selectedRep}
             selectedState={selectedState}
             statusFilter={statusFilter}
             onRepChange={setSelectedRep}
             onStateChange={setSelectedState}
-            onStatusFilterChange={setStatusFilter}
+            onStatusFilterChange={handleStatusFilterChange}
           />
         )}
       </div>

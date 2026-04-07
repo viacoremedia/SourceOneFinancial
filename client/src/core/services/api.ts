@@ -69,10 +69,21 @@ export interface SmallDealerParams {
   dir?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  status?: string | null;
+}
+
+export interface DealerStatusBreakdown {
+  total: number;
+  active: number;
+  inactive30: number;
+  inactive60: number;
+  longInactive: number;
+  reactivated: number;
 }
 
 export interface PaginatedDealers {
   dealers: DealerLocation[];
+  statusBreakdown: DealerStatusBreakdown | null;
   pagination: {
     page: number;
     limit: number;
@@ -83,15 +94,15 @@ export interface PaginatedDealers {
 }
 
 export async function getSmallDealers(params: SmallDealerParams = {}): Promise<PaginatedDealers> {
-  const { data } = await api.get('/analytics/dealers/small', {
-    params: {
-      sort: params.sort || 'dealerName',
-      dir: params.dir || 'asc',
-      page: params.page || 1,
-      limit: params.limit || 50,
-    },
-  });
-  return { dealers: data.dealers, pagination: data.pagination };
+  const queryParams: Record<string, string | number> = {
+    sort: params.sort || 'dealerName',
+    dir: params.dir || 'asc',
+    page: params.page || 1,
+    limit: params.limit || 50,
+  };
+  if (params.status) queryParams.status = params.status;
+  const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
+  return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, pagination: data.pagination };
 }
 
 // ── Single Dealer Trend ──
