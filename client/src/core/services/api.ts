@@ -70,6 +70,8 @@ export interface SmallDealerParams {
   page?: number;
   limit?: number;
   status?: string | null;
+  scope?: 'ungrouped' | 'all';
+  states?: string[];
 }
 
 export interface DealerStatusBreakdown {
@@ -101,6 +103,8 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
     limit: params.limit || 50,
   };
   if (params.status) queryParams.status = params.status;
+  if (params.scope) queryParams.scope = params.scope;
+  if (params.states && params.states.length > 0) queryParams.states = params.states.join(',');
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
   return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, pagination: data.pagination };
 }

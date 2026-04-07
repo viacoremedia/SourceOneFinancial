@@ -87,40 +87,52 @@ export function Dashboard() {
     });
   }, [stateFilteredGroups, statusFilter]);
 
-  // ── Independent dealers state (paginated) ──
+  // ── Flat dealer state (shared for 'dealers' and 'all' tabs) ──
   const [smallDealers, setSmallDealers] = useState<DealerLocation[]>([]);
+  const [allDealers, setAllDealers] = useState<DealerLocation[]>([]);
   const [smallDealersLoading, setSmallDealersLoading] = useState(false);
   const [smallDealersLoadingMore, setSmallDealersLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [totalSmallDealers, setTotalSmallDealers] = useState(0);
+  const [totalAllDealers, setTotalAllDealers] = useState(0);
   const [dealerStatusBreakdown, setDealerStatusBreakdown] = useState<DealerStatusBreakdown | null>(null);
   const pageRef = useRef(1);
   const sortStateRef = useRef({ sort: 'dealerName', dir: 'asc' as 'asc' | 'desc' });
-
-  // Fetch a page of small dealers
   const statusRef = useRef<string | null>(null);
-  const fetchSmallDealers = useCallback(
-    async (page: number, sort: string, dir: 'asc' | 'desc', append: boolean, status?: string | null) => {
+  const statesRef = useRef<string[] | undefined>(undefined);
+
+  const scopeForTab = (tab: TabId): 'ungrouped' | 'all' | undefined =>
+    tab === 'all' ? 'all' : tab === 'dealers' ? 'ungrouped' : undefined;
+
+  // Fetch a page of dealers (works for both 'dealers' and 'all' tabs)
+  const fetchDealers = useCallback(
+    async (
+      page: number, sort: string, dir: 'asc' | 'desc',
+      append: boolean, status: string | null,
+      scope: 'ungrouped' | 'all', states?: string[]
+    ) => {
       if (page === 1) {
         setSmallDealersLoading(true);
       } else {
         setSmallDealersLoadingMore(true);
       }
       try {
-        const result = await getSmallDealers({ sort, dir, page, limit: 50, status });
+        const result = await getSmallDealers({ sort, dir, page, limit: 50, status, scope, states });
+        const setDealers = scope === 'all' ? setAllDealers : setSmallDealers;
+        const setTotal = scope === 'all' ? setTotalAllDealers : setTotalSmallDealers;
         if (append) {
-          setSmallDealers((prev) => [...prev, ...result.dealers]);
+          setDealers((prev) => [...prev, ...result.dealers]);
         } else {
-          setSmallDealers(result.dealers);
+          setDealers(result.dealers);
         }
         if (result.statusBreakdown) {
           setDealerStatusBreakdown(result.statusBreakdown);
         }
         setHasMore(result.pagination.hasMore);
-        setTotalSmallDealers(result.pagination.totalCount);
+        setTotal(result.pagination.totalCount);
         pageRef.current = page;
       } catch (err) {
-        console.error('Failed to load small dealers:', err);
+        console.error('Failed to load dealers:', err);
       } finally {
         setSmallDealersLoading(false);
         setSmallDealersLoadingMore(false);
@@ -129,60 +141,85 @@ export function Dashboard() {
     []
   );
 
-  // Load first page when tab activates
-  useEffect(() => {
-    if (activeTab === 'dealers' && smallDealers.length === 0 && !smallDealersLoading) {
-      fetchSmallDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, statusRef.current);
-    }
-  }, [activeTab, smallDealers.length, smallDealersLoading, fetchSmallDealers]);
 
-  // Status filter change — direct handler, no effects
+  // Load first page when a flat-dealer tab activates
+  const loadedTabs = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const scope = scopeForTab(activeTab);
+    if (!scope) return;
+    if (loadedTabs.current.has(activeTab) || smallDealersLoading) return;
+    loadedTabs.current.add(activeTab);
+    fetchDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, null, scope, statesRef.current);
+  }, [activeTab, smallDealersLoading, fetchDealers]);
+
+  // Re-fetch flat tabs when target server params change
+  const refetchFlatTab = useCallback(() => {
+    const scope = scopeForTab(activeTab);
+    if (!scope) return;
+    pageRef.current = 1;
+    fetchDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, statusRef.current, scope, statesRef.current);
+  }, [activeTab, fetchDealers]);
+
+  // Status filter change
   const handleStatusFilterChange = useCallback((newStatus: string | null) => {
     setStatusFilter(newStatus);
     statusRef.current = newStatus;
-    if (activeTab === 'dealers') {
-      pageRef.current = 1;
-      fetchSmallDealers(1, sortStateRef.current.sort, sortStateRef.current.dir, false, newStatus);
-    }
-  }, [activeTab, fetchSmallDealers]);
+    refetchFlatTab();
+  }, [refetchFlatTab]);
 
-  // Reset status filter when switching tabs
+  // Rep change — update state and re-fetch for flat tabs
+  const handleRepChange = useCallback((rep: string) => {
+    setSelectedRep(rep);
+    if (!selectedState) {
+      statesRef.current = rep && repStatesMap[rep] ? repStatesMap[rep] : undefined;
+      refetchFlatTab();
+    }
+  }, [selectedState, repStatesMap, refetchFlatTab]);
+
+  // State change — update state and re-fetch for flat tabs
+  const handleStateChange = useCallback((state: string) => {
+    setSelectedState(state);
+    statesRef.current = state ? [state] : (selectedRep && repStatesMap[selectedRep] ? repStatesMap[selectedRep] : undefined);
+    refetchFlatTab();
+  }, [selectedRep, repStatesMap, refetchFlatTab]);
+
+  // Reset filters when switching tabs
   const handleTabChange = useCallback((tab: TabId) => {
-    handleStatusFilterChange(null);
+    setStatusFilter(null);
+    statusRef.current = null;
     setActiveTab(tab);
-  }, [handleStatusFilterChange]);
+    const scope = scopeForTab(tab);
+    if (scope) {
+      pageRef.current = 1;
+      sortStateRef.current = { sort: 'dealerName', dir: 'asc' };
+      fetchDealers(1, 'dealerName', 'asc', false, null, scope, statesRef.current);
+    }
+  }, [fetchDealers]);
 
   // Load more (infinite scroll)
   const handleLoadMore = useCallback(() => {
     if (smallDealersLoadingMore || !hasMore) return;
+    const scope = scopeForTab(activeTab);
+    if (!scope) return;
     const nextPage = pageRef.current + 1;
-    fetchSmallDealers(nextPage, sortStateRef.current.sort, sortStateRef.current.dir, true, statusRef.current);
-  }, [smallDealersLoadingMore, hasMore, fetchSmallDealers]);
+    fetchDealers(nextPage, sortStateRef.current.sort, sortStateRef.current.dir, true, statusRef.current, scope, statesRef.current);
+  }, [smallDealersLoadingMore, hasMore, fetchDealers, activeTab]);
 
   // Sort change from DealerTable — re-fetch from page 1
   const handleDealerSortChange = useCallback(
     (sortKey: string, sortDir: 'asc' | 'desc') => {
+      const scope = scopeForTab(activeTab);
+      if (!scope) return;
       const serverKey = SORT_KEY_MAP[sortKey] || 'dealerName';
       sortStateRef.current = { sort: serverKey, dir: sortDir };
       pageRef.current = 1;
-      fetchSmallDealers(1, serverKey, sortDir, false, statusRef.current);
+      fetchDealers(1, serverKey, sortDir, false, statusRef.current, scope, statesRef.current);
     },
-    [fetchSmallDealers]
+    [fetchDealers, activeTab]
   );
 
-  // Filter small dealers by rep/state only (status is now server-side)
-  const filteredSmallDealers = useMemo(() => {
-    const targetStates: Set<string> = new Set();
-    if (selectedState) {
-      targetStates.add(selectedState);
-    } else if (selectedRep && repStatesMap[selectedRep]) {
-      repStatesMap[selectedRep].forEach((s) => targetStates.add(s));
-    }
-
-    if (targetStates.size === 0) return smallDealers;
-
-    return smallDealers.filter((d) => d.statePrefix && targetStates.has(d.statePrefix));
-  }, [smallDealers, selectedRep, selectedState, repStatesMap]);
+  // Active dealer list (no more client-side filtering needed)
+  const filteredSmallDealers = activeTab === 'all' ? allDealers : smallDealers;
 
   // Load locations for a group when expanded
   const handleExpandGroup = useCallback(
@@ -290,6 +327,7 @@ export function Dashboard() {
           onTabChange={handleTabChange}
           groupCount={groups.length || undefined}
           dealerCount={smallDealerCount}
+          allDealerCount={totalAllDealers || overview?.totalDealers}
         />
         {Object.keys(stateRepMap).length > 0 && (
           <FilterBar
@@ -301,8 +339,8 @@ export function Dashboard() {
             selectedRep={selectedRep}
             selectedState={selectedState}
             statusFilter={statusFilter}
-            onRepChange={setSelectedRep}
-            onStateChange={setSelectedState}
+            onRepChange={handleRepChange}
+            onStateChange={handleStateChange}
             onStatusFilterChange={handleStatusFilterChange}
           />
         )}

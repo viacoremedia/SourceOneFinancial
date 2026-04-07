@@ -412,8 +412,10 @@ router.get('/groups', async (req, res) => {
 
 // ==========================================
 // GET /analytics/dealers/small
-// Independent dealers (no group) with server-side sort + pagination
-// Query: ?sort=daysSinceLastApplication&dir=asc&page=1&limit=50
+// Dealer locations with server-side sort + pagination
+// Query: ?sort=daysSinceLastApplication&dir=asc&page=1&limit=50&scope=ungrouped|all
+// scope=ungrouped (default) → independent dealers only
+// scope=all → every dealer location
 // ==========================================
 router.get('/dealers/small', async (req, res) => {
     try {
@@ -441,12 +443,19 @@ router.get('/dealers/small', async (req, res) => {
         };
 
         const resolvedSort = SORT_FIELD_MAP[sortField] || 'dealerName';
-        const statusParam = req.query.status || null; // e.g. 'active', '30d_inactive', 'reactivated'
+        const statusParam = req.query.status || null;
+        const scope = req.query.scope || 'ungrouped'; // 'ungrouped' or 'all'
+        const statesParam = req.query.states ? req.query.states.split(',').map(s => s.trim().toUpperCase()) : null;
+
+        const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
+        if (statesParam && statesParam.length > 0) {
+            baseMatch.statePrefix = { $in: statesParam };
+        }
 
         // Build aggregation pipeline
         const pipeline = [
-            // 1. Match only ungrouped locations
-            { $match: { dealerGroup: null } },
+            // 1. Match locations by scope + state
+            { $match: baseMatch },
 
             // 2. Lookup latest snapshot (single doc per location)
             ...(latestDate ? [{
@@ -531,15 +540,19 @@ router.get('/dealers/small', async (req, res) => {
             { $limit: limit },
         ]);
 
-        // Status breakdown for ALL ungrouped dealers (not just this page)
+        // Status breakdown for dealers in this scope (not just this page)
         let statusBreakdown = null;
         if (latestDate) {
-            // Get IDs of all ungrouped locations
-            const ungroupedIds = await DealerLocation.find({ dealerGroup: null }).select('_id').lean();
-            const ungroupedIdList = ungroupedIds.map(l => l._id);
+            // Always scope breakdown by baseMatch (respects state filter + scope)
+            const hasFilters = Object.keys(baseMatch).length > 0;
+            let breakdownMatch = { reportDate: latestDate };
+            if (hasFilters) {
+                const scopedIds = await DealerLocation.find(baseMatch).select('_id').lean();
+                breakdownMatch.dealerLocation = { $in: scopedIds.map(l => l._id) };
+            }
 
             const breakdown = await DailyDealerSnapshot.aggregate([
-                { $match: { reportDate: latestDate, dealerLocation: { $in: ungroupedIdList } } },
+                { $match: breakdownMatch },
                 {
                     $group: {
                         _id: null,

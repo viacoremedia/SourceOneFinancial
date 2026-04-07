@@ -26,7 +26,7 @@ import type {
 // ── Types ──
 
 interface DealerTableProps {
-  mode: 'groups' | 'dealers';
+  mode: 'groups' | 'dealers' | 'all';
   groups: DealerGroup[];
   groupLocations: Record<string, DealerLocation[]>;
   smallDealers: DealerLocation[];
@@ -227,7 +227,7 @@ export function DealerTable({
           }
           setChildSortStack(mirrored);
         }
-      } else if (mode === 'dealers' && onDealerSortChange) {
+      } else if (mode !== 'groups' && onDealerSortChange) {
         // In dealer mode, delegate sort to the server
         const newStack = updateSortStack(groupSortStack, key, isMulti);
         setGroupSortStack(newStack);
@@ -271,7 +271,7 @@ export function DealerTable({
 
   // Filter columns based on mode (hide groupOnly columns in dealer mode)
   const visibleColumns = useMemo(() =>
-    mode === 'dealers' ? TABLE_COLUMNS.filter((c) => !c.groupOnly) : TABLE_COLUMNS,
+    mode !== 'groups' ? TABLE_COLUMNS.filter((c) => !c.groupOnly) : TABLE_COLUMNS,
     [mode]
   );
 

@@ -13,7 +13,7 @@ interface FilterBarProps {
   stateRepMap: StateRepMap;
   budgets: StateBudget[];
   filteredGroups: DealerGroup[];
-  mode?: 'groups' | 'dealers';
+  mode?: 'groups' | 'dealers' | 'all';
   dealerStatusBreakdown?: DealerStatusBreakdown | null;
   selectedRep: string;
   selectedState: string;
@@ -117,7 +117,7 @@ export function FilterBar({
     };
   }, [dealerStatusBreakdown]);
 
-  const stats = mode === 'dealers' ? dealerStats : groupStats;
+  const stats = mode !== 'groups' ? dealerStats : groupStats;
 
   // Budget summary — only when rep/state selected
   const summary = useMemo(() => {
@@ -259,7 +259,7 @@ export function FilterBar({
         )}
         <div className={styles.statItem}>
           <span className={styles.statValue}>{stats.locations}</span>
-          <span className={styles.statLabel}>{mode === 'dealers' ? 'Dealers' : 'Locations'}</span>
+          <span className={styles.statLabel}>{mode !== 'groups' ? 'Dealers' : 'Locations'}</span>
         </div>
         <button
           className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'active' ? styles.statSelected : ''}`}

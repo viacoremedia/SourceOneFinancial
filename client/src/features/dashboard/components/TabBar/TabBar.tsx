@@ -1,6 +1,6 @@
 import styles from './TabBar.module.css';
 
-export type TabId = 'groups' | 'dealers';
+export type TabId = 'groups' | 'dealers' | 'all';
 
 interface Tab {
   id: TabId;
@@ -13,12 +13,14 @@ interface TabBarProps {
   onTabChange: (tab: TabId) => void;
   groupCount?: number;
   dealerCount?: number;
+  allDealerCount?: number;
 }
 
-export function TabBar({ activeTab, onTabChange, groupCount, dealerCount }: TabBarProps) {
+export function TabBar({ activeTab, onTabChange, groupCount, dealerCount, allDealerCount }: TabBarProps) {
   const tabs: Tab[] = [
     { id: 'groups', label: 'Dealer Groups', count: groupCount },
     { id: 'dealers', label: 'Independent Dealers', count: dealerCount },
+    { id: 'all', label: 'All Dealers', count: allDealerCount },
   ];
 
   return (
