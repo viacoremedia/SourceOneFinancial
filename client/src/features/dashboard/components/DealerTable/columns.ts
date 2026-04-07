@@ -16,6 +16,15 @@ export const TABLE_COLUMNS: TableColumn[] = [
     hasData: true,
   },
   {
+    key: 'locationCount',
+    label: 'Locs',
+    align: 'center',
+    width: '55px',
+    sortable: true,
+    hasData: true,
+    groupOnly: true,
+  },
+  {
     key: 'daysSinceLastApplication',
     label: 'Days Since App',
     shortLabel: 'DS App',

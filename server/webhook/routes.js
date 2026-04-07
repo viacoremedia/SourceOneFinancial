@@ -188,6 +188,7 @@ router.post('/', async (req, res) => {
 
         // Detect if any files are CSVs that we know how to process
         let processingTriggered = false;
+        const ingestionResults = [];
         const csvFiles = processedFiles.filter(f =>
             f.originalName.endsWith('.csv') ||
             (f.mimeType && f.mimeType.includes('csv'))
@@ -196,6 +197,8 @@ router.post('/', async (req, res) => {
         if (csvFiles.length > 0) {
             // Check if the CSV headers match a known parser
             const { parseCSV, detectParser } = require('../services/csvParserService');
+            const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
+
             for (const csvFile of csvFiles) {
                 try {
                     const firstLine = csvFile.content.split('\n')[0];
@@ -206,20 +209,30 @@ router.post('/', async (req, res) => {
                         processingTriggered = true;
                         console.log(`  CSV detected as "${parserName}" format — triggering ingestion`);
 
-                        // Fire-and-forget: process after sending response
-                        const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
-                        setImmediate(async () => {
-                            try {
-                                const result = await ingestDealerMetricsCSV(
-                                    csvFile.content,
-                                    payload._id,
-                                    csvFile.originalName
-                                );
-                                console.log(`  Ingestion complete for "${csvFile.originalName}":`, JSON.stringify(result));
-                            } catch (ingestionError) {
-                                console.error(`  Ingestion FAILED for "${csvFile.originalName}":`, ingestionError.message);
-                            }
-                        });
+                        // Await inline — Vercel serverless kills the process after
+                        // res.send(), so setImmediate/fire-and-forget never completes.
+                        try {
+                            const result = await ingestDealerMetricsCSV(
+                                csvFile.content,
+                                payload._id,
+                                csvFile.originalName
+                            );
+                            console.log(`  Ingestion complete for "${csvFile.originalName}":`, JSON.stringify(result));
+                            ingestionResults.push({
+                                file: csvFile.originalName,
+                                status: 'completed',
+                                reportDate: result.reportDate,
+                                dealersProcessed: result.dealersProcessed,
+                                processingTimeMs: result.processingTimeMs
+                            });
+                        } catch (ingestionError) {
+                            console.error(`  Ingestion FAILED for "${csvFile.originalName}":`, ingestionError.message);
+                            ingestionResults.push({
+                                file: csvFile.originalName,
+                                status: 'failed',
+                                error: ingestionError.message
+                            });
+                        }
                     }
                 } catch (detectError) {
                     console.warn(`  Could not detect CSV format: ${detectError.message}`);
@@ -233,7 +246,8 @@ router.post('/', async (req, res) => {
             dataReceived: bodyData,
             filesReceived: processedFiles.length,
             fileNames: processedFiles.map(f => f.originalName),
-            processing: processingTriggered
+            processing: processingTriggered,
+            ingestion: ingestionResults.length > 0 ? ingestionResults : undefined
         });
     } catch (error) {
         console.error('Error processing webhook:', error);
@@ -320,6 +334,65 @@ router.get('/ingestion-log', async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+});
+
+// ==========================================
+// POST /webhook/reingest/:id — Re-trigger ingestion for a specific payload
+// Use this to manually re-process payloads that failed or were missed.
+// ==========================================
+router.post('/reingest/:id', async (req, res) => {
+    try {
+        const WebhookPayload = require('../models/WebhookPayload');
+        const FileIngestionLog = require('../models/FileIngestionLog');
+        const { detectParser } = require('../services/csvParserService');
+        const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
+
+        const payload = await WebhookPayload.findById(req.params.id).lean();
+        if (!payload) {
+            return res.status(404).json({ success: false, error: 'Payload not found' });
+        }
+
+        // Clear any stuck/failed ingestion log for this payload so it can be reprocessed
+        await FileIngestionLog.deleteMany({ sourcePayload: payload._id });
+
+        const results = [];
+        for (const file of (payload.files || [])) {
+            const isCSV = file.originalName.endsWith('.csv') ||
+                (file.mimeType && file.mimeType.includes('csv'));
+            if (!isCSV) continue;
+
+            try {
+                const firstLine = file.content.split('\n')[0];
+                const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                const parserName = detectParser(headers);
+
+                if (!parserName) {
+                    results.push({ file: file.originalName, status: 'skipped', reason: 'Unknown format' });
+                    continue;
+                }
+
+                const result = await ingestDealerMetricsCSV(
+                    file.content,
+                    payload._id,
+                    file.originalName
+                );
+                results.push({
+                    file: file.originalName,
+                    status: 'completed',
+                    reportDate: result.reportDate,
+                    dealersProcessed: result.dealersProcessed,
+                    processingTimeMs: result.processingTimeMs
+                });
+            } catch (err) {
+                results.push({ file: file.originalName, status: 'failed', error: err.message });
+            }
+        }
+
+        res.status(200).json({ success: true, payloadId: req.params.id, results });
+    } catch (error) {
+        console.error('Error re-ingesting:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

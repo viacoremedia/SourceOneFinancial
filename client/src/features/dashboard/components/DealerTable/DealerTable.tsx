@@ -49,11 +49,6 @@ interface SortColumn {
 
 // ── Sort Helpers ──
 
-function getActiveRatio(group: DealerGroup): number {
-  if (!group.summary || group.summary.locationCount === 0) return -1;
-  return group.summary.activeCount / group.summary.locationCount;
-}
-
 function getGroupSortValue(group: DealerGroup, key: string): number {
   const s = group.summary;
   switch (key) {
@@ -63,8 +58,12 @@ function getGroupSortValue(group: DealerGroup, key: string): number {
       return s?.daysSinceApproval?.best ?? 99999;
     case 'daysSinceLastBooking':
       return s?.daysSinceBooking?.best ?? 99999;
-    case 'activityStatus':
-      return getActiveRatio(group);
+    case 'activityStatus': {
+      if (!s || s.locationCount === 0) return -1;
+      return s.activeCount / s.locationCount;
+    }
+    case 'locationCount':
+      return s?.locationCount ?? 0;
     default:
       return 0;
   }
@@ -147,7 +146,7 @@ export function DealerTable({
 
   // Multi-column sort stacks
   const [groupSortStack, setGroupSortStack] = useState<SortColumn[]>([
-    { key: 'name', dir: 'asc' },
+    { key: 'locationCount', dir: 'desc' },
   ]);
   const [childSortStack, setChildSortStack] = useState<SortColumn[]>([
     { key: 'name', dir: 'asc' },
@@ -244,6 +243,12 @@ export function DealerTable({
   // Which sort stack to show in headers
   const displayStack = lastSortTarget === 'children' ? childSortStack : groupSortStack;
 
+  // Filter columns based on mode (hide groupOnly columns in dealer mode)
+  const visibleColumns = useMemo(() =>
+    mode === 'dealers' ? TABLE_COLUMNS.filter((c) => !c.groupOnly) : TABLE_COLUMNS,
+    [mode]
+  );
+
   // ── Render Helpers ──
 
   const renderStubbed = () => <span className={styles.emptyValue}>—</span>;
@@ -262,8 +267,9 @@ export function DealerTable({
     );
   };
 
-  const renderChildCells = (snap: DealerLocation['latestSnapshot']) => (
+  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true) => (
     <>
+      {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
       <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
       <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
       <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
@@ -310,7 +316,7 @@ export function DealerTable({
           <table className={styles.table}>
             <thead>
               <tr>
-                {TABLE_COLUMNS.map((col) => (
+                {visibleColumns.map((col) => (
                   <th key={col.key} style={{ textAlign: col.align, width: col.width }}>
                     {col.label}
                   </th>
@@ -321,7 +327,7 @@ export function DealerTable({
               {[...Array(12)].map((_, i) => (
                 <tr key={i} className={styles.skeletonRow}>
                   <td><div className={`${styles.skeletonCell} ${styles.skeletonName}`} /></td>
-                  {TABLE_COLUMNS.slice(1).map((col) => (
+                  {visibleColumns.slice(1).map((col) => (
                     <td key={col.key}><div className={`${styles.skeletonCell} ${styles.skeletonNum}`} /></td>
                   ))}
                 </tr>
@@ -413,7 +419,7 @@ export function DealerTable({
           <table className={styles.table}>
             <thead>
               <tr>
-                {TABLE_COLUMNS.map((col) => {
+                {visibleColumns.map((col) => {
                   const stackIndex = displayStack.findIndex((s) => s.key === col.key);
                   const isInStack = stackIndex !== -1;
                   const sortItem = isInStack ? displayStack[stackIndex] : null;
@@ -465,13 +471,13 @@ export function DealerTable({
                 : sortedDealers.map((dealer) => (
                     <tr key={dealer._id} className={styles.dealerRow}>
                       <td><span>{dealer.dealerName}</span></td>
-                      {renderChildCells(dealer.latestSnapshot)}
+                      {renderChildCells(dealer.latestSnapshot, false)}
                     </tr>
                   ))}
               {/* Loading more indicator */}
               {isLoadingMore && (
                 <tr className={styles.loadingMoreRow}>
-                  <td colSpan={TABLE_COLUMNS.length}>
+                  <td colSpan={visibleColumns.length}>
                     <div className={styles.loadingMore}>
                       <span className={styles.loadingSpinner} />
                       Loading more dealers...
@@ -585,7 +591,7 @@ interface GroupRowsProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   onToggle: () => void;
-  renderChildCells: (snap: DealerLocation['latestSnapshot']) => React.JSX.Element;
+  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean) => React.JSX.Element;
 }
 
 
@@ -661,6 +667,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             <span className={styles.locationCount}>({displayCount})</span>
           </span>
         </td>
+        <td style={{ textAlign: 'center' }}>{showSkeleton ? <SkeletonCell /> : (s?.locationCount ?? group.dealerCount)}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
@@ -679,7 +686,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
       {isExpanded && locations.map((loc) => (
         <tr key={loc._id} className={styles.childRow}>
           <td>{loc.dealerName}</td>
-          {renderChildCells(loc.latestSnapshot)}
+          {renderChildCells(loc.latestSnapshot, true)}
         </tr>
       ))}
     </>

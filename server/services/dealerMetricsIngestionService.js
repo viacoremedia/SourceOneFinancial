@@ -58,35 +58,33 @@ function parseFlag(value) {
 /**
  * Determine the report date for a CSV file.
  * 
- * The report date is inferred from the most common LAST APPLICATION DATE in the file.
- * Most dealers' "last application date" will be the day the report was generated.
+ * Uses the **maximum** LAST APPLICATION DATE found in the file.
+ * Source One sends a daily report where the data lags by 1 day — e.g.,
+ * a file uploaded on April 7th contains data through April 6th.
+ * The max application date reliably identifies that boundary.
+ * 
+ * The old "most common" approach failed because many long-inactive dealers
+ * share stale application dates, skewing the mode toward older dates.
  * 
  * @param {Object[]} rows - Parsed CSV rows
  * @returns {Date} The report date
  */
 function inferReportDate(rows) {
-    const dateCounts = {};
+    let maxDate = null;
+
     for (const row of rows) {
-        const dateStr = row['LAST APPLICATION DATE'];
-        if (dateStr) {
-            dateCounts[dateStr] = (dateCounts[dateStr] || 0) + 1;
+        const dateStr = (row['LAST APPLICATION DATE'] || '').trim();
+        if (!dateStr) continue;
+
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) continue;
+
+        if (!maxDate || d > maxDate) {
+            maxDate = d;
         }
     }
 
-    // Find the most frequent date
-    let maxCount = 0;
-    let mostCommonDate = null;
-    for (const [dateStr, count] of Object.entries(dateCounts)) {
-        if (count > maxCount) {
-            maxCount = count;
-            mostCommonDate = dateStr;
-        }
-    }
-
-    if (mostCommonDate) {
-        const d = new Date(mostCommonDate);
-        if (!isNaN(d.getTime())) return d;
-    }
+    if (maxDate) return maxDate;
 
     // Fallback: use today's date
     return new Date();

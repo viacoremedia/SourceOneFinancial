@@ -140,6 +140,7 @@ export interface TableColumn {
   minWidth?: string;
   sortable?: boolean;
   hasData: boolean; // false = stubbed for future
+  groupOnly?: boolean; // only shown in group mode
   format?: (value: unknown) => string;
 }
 

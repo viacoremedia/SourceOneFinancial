@@ -8,11 +8,16 @@ interface AppShellProps {
 
 export function AppShell({ children, latestReportDate }: AppShellProps) {
   const formattedDate = latestReportDate
-    ? new Date(latestReportDate).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
+    ? (() => {
+        // Parse as UTC to avoid timezone shift (API sends midnight UTC)
+        const d = new Date(latestReportDate);
+        return d.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'UTC',
+        });
+      })()
     : null;
 
   return (
