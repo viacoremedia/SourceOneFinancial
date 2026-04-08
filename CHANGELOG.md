@@ -5,6 +5,51 @@ Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
 ---
 
+## [2026-04-08] — Automated Reports (Daily Digest + Health Monitor)
+
+### Added
+- **Daily Activity Digest** — automated email sent after each CSV ingestion:
+  - Network status breakdown (active/30d/60d/long inactive) with day-over-day changes
+  - New applications, approvals, bookings detected (via date-change comparison)
+  - Reactivation event count
+  - Top 5 at-risk dealers (active but approaching inactivity)
+  - Active rate progress bar
+  - Dark-themed HTML email matching dashboard aesthetic
+- **System Health Monitor** — alert-only email when ingestion issues are detected:
+  - Row count anomaly (±20% from 7-day rolling average)
+  - Processing time spike (>3x rolling average)
+  - New dealer spike (>20 in one ingestion)
+  - Report date gaps (>2 days between ingestions)
+  - Parse error reporting
+  - Severity levels: 🔴 CRITICAL / 🟡 WARNING
+  - No email sent when all checks pass (zero inbox noise)
+- **Report Recipient management** — admin-configurable via Settings panel:
+  - `ReportRecipient` model for storing email addresses
+  - Add/remove recipients from Settings → "Report Recipients" section
+  - Default seeded: `joshua@viacoremedia.com`
+- **Report API** (admin+, JWT-protected):
+  - `GET /reports/recipients` — list all recipients
+  - `POST /reports/recipients` — add a recipient
+  - `DELETE /reports/recipients/:id` — remove a recipient
+  - `POST /reports/daily-digest` — manually trigger digest for any date
+  - `POST /reports/health-check` — manually trigger health check
+  - `GET /reports/preview/daily-digest` — preview digest HTML in browser
+- **Report Service** (`services/reportService.js`) — central orchestrator
+- **Post-ingestion hook** — reports fire automatically after CSV ingestion (Step 9, non-fatal)
+- **Generic `sendEmail()`** added to `emailService.js` for reusable email sending
+
+### Changed
+- **`dealerMetricsIngestionService.js`**: Added non-fatal Step 9 after rollup rebuild to trigger automated reports
+- **`index.js`**: Mounted `/reports` routes behind auth gate
+- **`vite.config.ts`**: Added `/reports` proxy for dev server
+- **`SettingsPanel.tsx`**: Added "Report Recipients" section with add/remove functionality
+
+### Tests Run
+- All modules verified loading cleanly via `require()` test
+- Seed script confirmed: default recipient created in DB
+
+---
+
 ## [2026-04-07] — Invite-Only Auth System
 
 ### Added

@@ -40,4 +40,22 @@ async function sendInviteEmail(toEmail, inviteToken, inviterName, role) {
     });
 }
 
-module.exports = { sendInviteEmail };
+/**
+ * Send a generic email via the shared SMTP transport.
+ * Used by automated reports, alerts, etc.
+ *
+ * @param {string|string[]} to - Recipient email(s)
+ * @param {string} subject - Email subject line
+ * @param {string} html - HTML email body
+ */
+async function sendEmail(to, subject, html) {
+    const recipients = Array.isArray(to) ? to.join(', ') : to;
+    await transporter.sendMail({
+        from: `"Source One" <${process.env.SMTP_USER}>`,
+        to: recipients,
+        subject,
+        html,
+    });
+}
+
+module.exports = { sendInviteEmail, sendEmail };

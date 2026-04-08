@@ -4,6 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const webhookRoutes = require('./webhook/routes');
 const analyticsRoutes = require('./routes/analytics');
+const reportRoutes = require('./routes/reports');
 const authRoutes = require('./routes/auth');
 const { requireAuth } = require('./middleware/authMiddleware');
 
@@ -109,6 +110,9 @@ app.use(requireAuth);
 
 // Use analytics routes (PROTECTED)
 app.use('/analytics', analyticsRoutes);
+
+// Use report routes (PROTECTED)
+app.use('/reports', reportRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

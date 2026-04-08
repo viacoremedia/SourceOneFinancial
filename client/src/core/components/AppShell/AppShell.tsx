@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '../../../features/auth/hooks/useAuth';
 import { SettingsPanel } from '../../../features/auth/components/SettingsPanel';
+import { DigestPanel } from '../../../features/auth/components/DigestPanel';
 import styles from './AppShell.module.css';
 
 interface AppShellProps {
@@ -11,6 +12,7 @@ interface AppShellProps {
 export function AppShell({ children, latestReportDate }: AppShellProps) {
   const { user } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
 
   const formattedDate = latestReportDate
     ? (() => {
@@ -43,20 +45,31 @@ export function AppShell({ children, latestReportDate }: AppShellProps) {
             </div>
           )}
           {user && (
-            <button
-              className={styles.settingsBtn}
-              onClick={() => setSettingsOpen(true)}
-              title="Settings"
-              id="settings-btn"
-            >
-              ⚙
-            </button>
+            <>
+              <button
+                className={styles.settingsBtn}
+                onClick={() => setDigestOpen(true)}
+                title="Daily Digest"
+                id="digest-btn"
+              >
+                📊
+              </button>
+              <button
+                className={styles.settingsBtn}
+                onClick={() => setSettingsOpen(true)}
+                title="Settings"
+                id="settings-btn"
+              >
+                ⚙
+              </button>
+            </>
           )}
         </div>
       </header>
       <main className={styles.content}>{children}</main>
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <DigestPanel open={digestOpen} onClose={() => setDigestOpen(false)} latestReportDate={latestReportDate} />
     </div>
   );
 }

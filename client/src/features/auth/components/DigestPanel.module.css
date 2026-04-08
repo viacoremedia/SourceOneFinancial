@@ -1,0 +1,399 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 900;
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 620px;
+  max-width: 100vw;
+  background: var(--bg-surface, #111827);
+  border-left: 1px solid var(--border-subtle, #1e293b);
+  z-index: 901;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* ── Header ── */
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.panelHeader h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.dateSubtitle {
+  font-size: 13px;
+  color: var(--text-tertiary, #64748b);
+  margin-top: 2px;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary, #64748b);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.closeBtn:hover {
+  color: var(--text-primary, #f1f5f9);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Date Picker ── */
+.datePicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle, #1e293b);
+}
+
+.dateSelect {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #1e293b);
+  background: var(--bg-card, #0f172a);
+  color: var(--text-primary, #f1f5f9);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dateNav {
+  display: flex;
+  gap: 4px;
+}
+
+.navBtn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, #1e293b);
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.navBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary, #f1f5f9);
+}
+
+.navBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Loading ── */
+.loadingMsg {
+  text-align: center;
+  color: var(--text-tertiary, #64748b);
+  font-size: 14px;
+  padding: 40px 0;
+}
+
+/* ── Digest Content ── */
+.digestContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Status Grid ── */
+.statusGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.statusCard {
+  background: var(--bg-card, #162031);
+  border: 1px solid var(--border-subtle, #1e293b);
+  border-radius: 10px;
+  padding: 14px 8px;
+  text-align: center;
+}
+
+.statusValue {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.statusLabel {
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+
+.statusFlow {
+  margin-top: 4px;
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.flowIn { color: #34d399; font-weight: 600; }
+.flowOut { color: #f87171; font-weight: 600; }
+.flowNone { color: #475569; }
+
+/* ── Rate Card ── */
+.rateCard {
+  background: var(--bg-card, #162031);
+  border: 1px solid var(--border-subtle, #1e293b);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.rateHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.rateLabel {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.rateValue {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.rateBar {
+  background: var(--bg-surface, #0f172a);
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.rateFill {
+  background: linear-gradient(90deg, #34d399, #3b82f6);
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s;
+}
+
+.rateSubtext {
+  font-size: 11px;
+  color: var(--text-tertiary, #475569);
+  margin-top: 6px;
+}
+
+/* ── Events Grid ── */
+.eventsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.eventCard {
+  background: var(--bg-card, #0f172a);
+  border-radius: 8px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.eventValue {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.eventLabel {
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
+  margin-top: 4px;
+}
+
+/* ── Flow Summary ── */
+.flowSummary {
+  background: var(--bg-card, #162031);
+  border: 1px solid var(--border-subtle, #1e293b);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.sectionTitle {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.flowPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.flowPill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface, #0f172a);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.flowPill:hover {
+  border-color: var(--border-subtle, #334155);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.flowPillActive {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.2);
+}
+
+.flowArrow {
+  color: var(--text-tertiary, #475569);
+}
+
+.flowCount {
+  color: var(--text-primary, #e2e8f0);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.statusBadge {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* ── Tables ── */
+.tableSection {
+  background: var(--bg-card, #162031);
+  border: 1px solid var(--border-subtle, #1e293b);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.tableSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.repFilter {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, #1e293b);
+  background: var(--bg-surface, #0f172a);
+  color: var(--text-primary, #f1f5f9);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin-top: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 10px;
+  color: var(--text-tertiary, #475569);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-subtle, #334155);
+  font-weight: 600;
+}
+
+.table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dealerName {
+  color: var(--text-primary, #e2e8f0) !important;
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dealerIdCell {
+  color: var(--text-tertiary, #64748b) !important;
+  font-size: 12px;
+}
+
+.repCell {
+  color: #818cf8 !important;
+  font-weight: 600;
+  text-align: center;
+}
+
+.arrowCell {
+  text-align: center;
+  color: var(--text-tertiary, #475569) !important;
+}
+
+.daysCell {
+  text-align: center;
+  color: #f87171 !important;
+  font-weight: 700;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .panel {
+    width: 100vw;
+  }
+  .statusGrid, .eventsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -38,9 +38,16 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const [deleteTarget, setDeleteTarget] = useState<AuthUser | null>(null);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
 
+  // Report recipients
+  const [recipients, setRecipients] = useState<{ _id: string; email: string; createdAt: string }[]>([]);
+  const [newRecipientEmail, setNewRecipientEmail] = useState('');
+  const [recipientMsg, setRecipientMsg] = useState('');
+  const [recipientLoading, setRecipientLoading] = useState(false);
+
   useEffect(() => {
     if (open && isAdmin) {
       api.get('/auth/users').then(({ data }) => setUsers(data.users)).catch(() => {});
+      api.get('/reports/recipients').then(({ data }) => setRecipients(data.recipients)).catch(() => {});
     }
   }, [open, isAdmin]);
 
@@ -213,6 +220,74 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {/* Admin: Report Recipients */}
+        {isAdmin && (
+          <section className={styles.section}>
+            <h3>Report Recipients</h3>
+            <p className={styles.recipientHint}>Emails that receive automated daily digests and health alerts.</p>
+            <form
+              className={styles.recipientForm}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newRecipientEmail.trim()) return;
+                setRecipientMsg('');
+                setRecipientLoading(true);
+                try {
+                  await api.post('/reports/recipients', { email: newRecipientEmail.trim() });
+                  setRecipientMsg(`✅ Added ${newRecipientEmail.trim()}`);
+                  setNewRecipientEmail('');
+                  const { data } = await api.get('/reports/recipients');
+                  setRecipients(data.recipients);
+                } catch (err: any) {
+                  setRecipientMsg(`❌ ${err.response?.data?.message || 'Failed to add'}`);
+                } finally {
+                  setRecipientLoading(false);
+                }
+              }}
+            >
+              <div className={styles.recipientInputRow}>
+                <input
+                  className={styles.input}
+                  type="email"
+                  placeholder="email@example.com"
+                  value={newRecipientEmail}
+                  onChange={(e) => setNewRecipientEmail(e.target.value)}
+                  required
+                />
+                <button className={styles.btn} type="submit" disabled={recipientLoading}>
+                  {recipientLoading ? 'Adding...' : 'Add'}
+                </button>
+              </div>
+              {recipientMsg && <div className={styles.msg}>{recipientMsg}</div>}
+            </form>
+            {recipients.length > 0 && (
+              <div className={styles.recipientList}>
+                {recipients.map((r) => (
+                  <div key={r._id} className={styles.recipientRow}>
+                    <span className={styles.recipientEmail}>{r.email}</span>
+                    <button
+                      className={styles.removeBtn}
+                      onClick={async () => {
+                        try {
+                          await api.delete(`/reports/recipients/${r._id}`);
+                          setRecipients((prev) => prev.filter((x) => x._id !== r._id));
+                        } catch (err: any) {
+                          alert(err.response?.data?.message || 'Failed to remove');
+                        }
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {recipients.length === 0 && (
+              <div className={styles.recipientEmpty}>No recipients configured. Reports won't be emailed.</div>
+            )}
           </section>
         )}
 

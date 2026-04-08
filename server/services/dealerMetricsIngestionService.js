@@ -263,6 +263,14 @@ async function ingestDealerMetricsCSV(csvContent, webhookPayloadId, fileName = '
             console.error(`  ingestion: rollup rebuild failed (non-fatal): ${rollupErr.message}`);
         }
 
+        // Step 9: Run automated reports (non-fatal)
+        try {
+            const { runPostIngestionReports } = require('./reportService');
+            await runPostIngestionReports(summary, reportDate);
+        } catch (reportErr) {
+            console.error(`  ingestion: report generation failed (non-fatal): ${reportErr.message}`);
+        }
+
         return summary;
 
     } catch (err) {
