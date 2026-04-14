@@ -1,0 +1,302 @@
+# Source One Financial — Code Audit Report
+
+> **Audited**: April 10, 2026
+> **Auditor**: Antigravity (automated deep audit)
+> **Scope**: Full-stack codebase — `client/` + `server/`
+
+---
+
+## 1. Data Freshness — What's In The Database
+
+Data comes from the **production API** at `source-one-data-transfer.vercel.app`.
+
+### Latest Ingestion Logs (Production)
+
+| Date Ingested | Report Date | Dealers | Rows | Processing Time | Status |
+|--|--|--|--|--|--|
+| **Apr 8, 2026** 11:42 AM | **Apr 7, 2026** | 2,500 | 2,501 | 13.1s | ✅ Completed |
+| Apr 7, 2026 1:09 PM | Apr 6, 2026 | 2,499 | 2,500 | 11.9s | ✅ Completed |
+| Apr 7, 2026 1:09 PM | Apr 5, 2026 | 2,499 | 2,500 | 12.5s | ✅ Completed |
+| Apr 7, 2026 1:09 PM | Apr 4, 2026 | 2,499 | 2,500 | 13.2s | ✅ Completed |
+| Apr 7, 2026 1:09 PM | Mar 29, 2026 | 2,488 | 2,489 | 13.5s | ✅ Completed |
+
+> [!IMPORTANT]
+> **Latest data is from April 7, 2026** (3 days stale as of today, April 10). The last CSV was received on April 8. No new ingestions since then — either the Source One automated delivery stopped, or the daily CSV upload was paused/skipped.
+
+### Data Scale
+- **~2,500 dealer locations** tracked per report
+- **1 new dealer** detected in the latest ingestion
+- All 5 recent ingestions completed successfully in ~12-13 seconds
+- Consistent minor error: `No dealer info resolved for ""` — an empty row in the CSV (cosmetic, 1 row per file)
+
+---
+
+## 2. Code Quality Scorecard
+
+| Category | Score | Notes |
+|----------|-------|-------|
+| **Documentation** | 🟢 A | SPECS.md at every level, JSDoc on all services, CHANGELOG maintained |
+| **Code Structure** | 🟢 A | Feature-sliced frontend, service-layer backend, clear separation |
+| **Type Safety** | 🟡 B | Frontend is TypeScript, backend is JavaScript (no types) |
+| **Error Handling** | 🟢 A | Try/catch everywhere, non-fatal steps for rollup/reports, ingestion logs |
+| **Idempotency** | 🟢 A | Bulk upserts, duplicate-key handling, safe to re-run CSVs |
+| **Test Coverage** | 🔴 F | **Zero automated tests** — no test framework, no test files |
+| **Code Debt** | 🟢 A | No TODOs, no HACKs, no commented-out code |
+| **Dead Code** | 🟢 A | `multer` in package.json is unused (only busboy is used), otherwise clean |
+
+---
+
+## 3. Security Audit
+
+### ✅ What's Done Right
+- **JWT auth** with 90-day expiry, bcrypt (12 rounds) for passwords
+- **Role hierarchy** enforced: `employee < admin < super_admin`
+- **Invite tokens** are 32-byte `crypto.randomBytes`, 7-day expiry, cleared on accept
+- **Sensitive fields excluded** from API responses (passwordHash, inviteToken stripped via `.select()`)
+- **401 interceptor** on frontend clears token + redirects on expiry
+- **`.env` gitignored** — no secrets in git history (verified)
+- **Client `.env.production`** only contains the public API URL (safe to commit)
+
+### 🔴 Critical Security Issues
+
+| Issue | Severity | Details |
+|-------|----------|---------|
+| **Webhook has NO authentication** | 🔴 HIGH | `POST /webhook` is entirely open. Anyone who knows the URL can POST a CSV and inject dealer data into the production database. |
+| **Webhook debug endpoints open** | 🔴 HIGH | `GET /webhook`, `GET /webhook/:id`, `GET /webhook/ingestion-log` are all unauthenticated — expose ingestion history, raw payloads, and header dumps to the public. |
+| **Webhook reingest is open** | 🔴 HIGH | `POST /webhook/reingest/:id` allows anyone to re-trigger processing of any stored payload — no auth required. |
+| **JWT fallback secret** | 🟡 MEDIUM | `authMiddleware.js` line 4: `'dev-secret-change-me'` fallback if `JWT_SECRET` env var is missing. If production ever loses the env var, all tokens would be signed with a known secret. |
+| **CORS wildcard** | 🟡 MEDIUM | `app.use(cors())` — allows requests from any origin. Fine for an internal tool, risky if exposed publicly. |
+| **No rate limiting** | 🟡 MEDIUM | No rate limiting on login, webhook, or any endpoint. Brute-force attacks on `/auth/login` are possible. |
+| **No input sanitization on search** | 🟡 MEDIUM | `dealerName: { $regex: searchQuery }` uses raw user input as a regex. A crafted input like `(.*){10000}` could cause ReDoS (regex denial of service). |
+| **50MB body limit** | 🟢 LOW | Generous but intentional for CSV files. Could be used for memory exhaustion if webhook is abused. |
+
+### Recommendations
+1. **Add webhook authentication**: API key in header (`X-API-Key`), or IP whitelist for Source One's servers
+2. **Move debug endpoints behind auth**: `GET /webhook/*` should require `requireAuth` at minimum
+3. **Remove JWT fallback**: Force `JWT_SECRET` to be set or fail startup
+4. **Escape regex input**: Use `searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')` before passing to `$regex`
+5. **Add rate limiting**: `express-rate-limit` on `/auth/login` (5 attempts / 15 min)
+
+---
+
+## 4. Architecture Review
+
+### Backend (Express + Mongoose)
+
+```
+POST /webhook (OPEN)
+├── csvParserService.parseCSV()
+├── dealerGroupDetector.resolveDealerBatch()
+├── dealerMetricsIngestionService.ingestDealerMetricsCSV()
+│   ├── DailyDealerSnapshot.bulkWrite() [batch 500]
+│   ├── rollupService.rebuildRollupsForDate()
+│   └── reportService.runPostIngestionReports()
+└── FileIngestionLog (audit trail)
+
+GET /analytics/* (JWT PROTECTED)
+├── /overview — high-level stats
+├── /groups — dealer groups with aggregated summaries
+├── /groups/:slug/locations — locations within a group
+├── /groups/:slug/monthly — monthly rollups
+├── /dealers/small — paginated dealer list (server-side sort)
+├── /dealers/:id/trend — daily trend snapshots
+├── /dealers/:id/monthly — dealer monthly rollups
+└── /budget/* — budget data by state/rep
+
+POST /auth/* (MIXED)
+├── /login — open
+├── /accept-invite — open
+├── /me — protected
+├── /change-password — protected
+├── /invite — admin+
+├── /users — admin+
+└── DELETE /users/:id — admin+ (role-scoped)
+
+POST /reports/* (JWT PROTECTED, admin+)
+├── /recipients — manage email recipients
+├── /daily-digest — manual trigger
+├── /health-check — manual trigger
+└── /preview/daily-digest — HTML preview
+```
+
+### Frontend (React 19 + Vite 8)
+
+```
+App.tsx
+├── AuthProvider (context)
+├── /login → LoginPage
+├── /invite → AcceptInvitePage
+└── /* → ProtectedRoute → Dashboard
+    ├── AppShell (header, settings, digest buttons)
+    ├── TabBar (Groups / Dealers / All)
+    ├── FilterBar (Rep, State, Status, Activity Mode)
+    └── DealerTable (32KB — largest component)
+        ├── GroupRows (expandable, lazy-loaded locations)
+        ├── DealerRows (infinite scroll, server-side pagination)
+        ├── Multi-column sort with remove
+        ├── Heatmap-colored cells
+        └── Skeleton shimmer loading
+```
+
+### Potential Architecture Concerns
+
+| Concern | Details |
+|---------|---------|
+| **N+1 query in group locations** | `GET /groups/:slug/locations` does `Promise.all(locations.map(loc => findOne snapshot))` — one DB query per location. For a 77-location group like Blue Compass RV, that's 77 sequential queries. Should use `$lookup` aggregation or a batch query. |
+| **Full group fetch on every filter change** | `DealerGroup.find({}).lean()` loads ALL groups (potentially hundreds) on every `/analytics/groups` call, then filters in pipeline. Could use `$match` to filter groups server-side. |
+| **Serverless cold start risk** | 60-second `maxDuration` in `vercel.json` is generous. The 13-second ingestion time is fine, but heavy aggregation queries on cold starts may approach limits. |
+| **Single-file analytics route** | `routes/analytics/index.js` is **784 lines** — a monolith. Should be split into sub-modules (groups, dealers, overview). |
+| **DealerTable component** | At **32KB / 800+ lines**, this is a complex monolith. Should be decomposed into GroupTable and DealerTable sub-components. |
+
+---
+
+## 5. Dependency Analysis
+
+### Server Dependencies
+
+| Package | Version | Status | Notes |
+|---------|---------|--------|-------|
+| express | ^5.2.1 | 🟡 Express 5 | Express 5 was recently released — verify Vercel compatibility |
+| mongoose | ^9.3.2 | ✅ Current | Latest major |
+| bcryptjs | ^3.0.3 | ✅ Good | Correct choice (pure JS, no native deps for Vercel) |
+| jsonwebtoken | ^9.0.3 | ✅ Good | Standard |
+| nodemailer | ^8.0.5 | ✅ Good | Latest |
+| busboy | ^1.6.0 | ✅ Good | Lightweight multipart parser |
+| cors | ^2.8.6 | ✅ Good | Standard |
+| dotenv | ^17.3.1 | ✅ Good | Latest |
+| mongodb | ^7.1.1 | 🟡 Check | Direct dependency alongside Mongoose — may be unnecessary |
+| **multer** | ^2.1.1 | 🔴 Unused | Installed but never imported anywhere. Dead dependency. |
+| **nodemon** | ^3.1.14 | 🟡 Wrong section | Should be in `devDependencies`, not `dependencies` |
+
+### Client Dependencies
+
+| Package | Version | Status | Notes |
+|---------|---------|--------|-------|
+| react | ^19.2.4 | ✅ Current | React 19 |
+| react-dom | ^19.2.4 | ✅ Current | |
+| react-router-dom | ^7.14.0 | ✅ Current | v7 |
+| axios | ^1.14.0 | ✅ Good | Standard HTTP client |
+| vite | ^8.0.4 | ✅ Current | Latest |
+| typescript | ~6.0.2 | ✅ Current | Latest |
+
+### Missing Dependencies (Recommended)
+- `express-rate-limit` — for login brute-force protection
+- `helmet` — HTTP security headers
+- A test framework (vitest for client, jest for server)
+
+---
+
+## 6. File Inventory
+
+### By File Count
+
+| Directory | Files | Lines (approx) | Notes |
+|-----------|-------|----------------|-------|
+| `server/services/` | 7 + 2 reports | ~1,300 | Core business logic |
+| `server/routes/` | 5 | ~1,050 | API endpoints |
+| `server/models/` | 10 | ~450 | Mongoose schemas |
+| `server/scripts/` | 15 | ~900 | Maintenance utilities |
+| `server/webhook/` | 1 | 422 | Webhook receiver |
+| `client/src/features/dashboard/` | ~15 | ~2,500 | Main feature |
+| `client/src/features/auth/` | ~8 | ~800 | Auth pages + settings |
+| `client/src/core/` | ~4 | ~300 | Shared components/services |
+
+### Total Codebase Size
+- **~50 source files** (excluding node_modules, configs, docs)
+- **~7,000 lines of code** (estimated)
+- **Lean and focused** — no bloat, no unnecessary abstractions
+
+---
+
+## 7. What You Need To Run It Locally
+
+### Prerequisites
+- **Node.js 18+** (v20+ recommended)
+- **MongoDB** — you need either:
+  - A MongoDB Atlas cloud URI (the production one), or
+  - A local MongoDB instance running on `mongodb://localhost:27017`
+- **Git** (already have it)
+
+### Environment Files
+
+#### `server/.env` (CREATE THIS — not in git)
+```env
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/<dbname>
+JWT_SECRET=<any-random-string-at-least-32-chars>
+SMTP_USER=<gmail-address>
+PASSWORD=<gmail-app-password>
+CLIENT_URL=http://localhost:5173
+```
+
+#### `client/.env.development` (ALREADY EXISTS)
+```env
+VITE_API_URL=
+```
+> Empty `VITE_API_URL` is correct for local dev — the Vite proxy handles routing to `localhost:3000`.
+
+### Setup Steps
+
+```powershell
+# 1. Install server dependencies
+cd c:\Users\Harma\OneDrive\Documents\GitRepos\_ViacoreMedia\SourceOneFinancial\server
+npm install
+
+# 2. Install client dependencies
+cd ..\client
+npm install
+
+# 3. Create server/.env (see above)
+
+# 4. Seed the admin account (first time only)
+cd ..\server
+node scripts/seedAdmin.js
+
+# 5. Start the server (Terminal 1)
+npm start
+# → Server listening on port 3000
+
+# 6. Start the client (Terminal 2)
+cd ..\client
+npm run dev
+# → http://localhost:5173
+```
+
+### Login Credentials
+The seed script creates a `super_admin` account. Check `scripts/seedAdmin.js` for the default email/password, or set them via env vars in the script.
+
+### Production URLs
+| Component | URL |
+|-----------|-----|
+| API | `https://source-one-data-transfer.vercel.app` |
+| Frontend | Separate Vercel project (check Vercel dashboard for exact URL) |
+
+---
+
+## 8. Summary of Findings
+
+### Strengths 🟢
+1. **Clean, well-documented codebase** — SPECS.md at every level, JSDoc on services, comprehensive CHANGELOG
+2. **Idempotent pipeline** — safe to re-run ingestions, upserts everywhere, duplicate-key handling
+3. **Solid data model** — normalized (Group → Location → Snapshot), proper indexes, audit trails
+4. **Production-ready deployment** — Vercel serverless with lazy DB connections, optimized pool settings
+5. **Comprehensive ingestion pipeline** — CSV parsing, group detection, alias mapping, rollup rebuild, auto-reporting
+6. **No code debt** — zero TODOs, zero HACKs, no commented-out code
+
+### Weaknesses 🔴
+1. **Webhook is completely open** — the biggest security risk; anyone can inject data
+2. **Zero test coverage** — no unit tests, no integration tests, no test framework installed
+3. **No rate limiting** — login brute-forcing is possible
+4. **Backend is untyped JavaScript** — no TypeScript, no JSDoc type hints beyond comments
+5. **Monolith components** — analytics routes (784 lines) and DealerTable (800+ lines) should be split
+6. **N+1 queries** in group location fetching
+
+### Data Status 📊
+- **Last ingestion**: April 8, 2026 (3 days ago)
+- **Latest report date in system**: April 7, 2026
+- **Dealer network**: ~2,500 locations per report
+- **Historical data**: March 29 through April 7, 2026 (confirmed from ingestion logs)
+- **Status**: All ingestions completed successfully, pipeline is healthy
+
+### Risk Level for Presentation
+> [!TIP]
+> The codebase is **clean, functional, and production-deployed**. For a presentation, the open webhook is the main talking point to address proactively — mention it's on the roadmap to secure. Everything else is solid for an MVP/internal tool demo.

@@ -3,6 +3,53 @@
 All notable changes to this project are documented here.
 Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
+----
+
+## [2026-04-14] — Webhook Observability + Light/Dark Theme
+
+### Added
+- **Webhook persistent logging** — `WebhookLog` model with 90-day TTL auto-expiry:
+  - Tracks 8 event types: `request_received`, `parse_success`, `parse_error`, `ingestion_start`, `ingestion_complete`, `ingestion_failed`, `empty_payload`, `health_check`
+  - Every POST to `/webhook` now logs the full request lifecycle to MongoDB
+- **Diagnostic endpoints** (unauthenticated — auth recommended before production):
+  - `GET /webhook/health` — server time, DB status, last received/ingested timestamps, 24h event breakdown
+  - `GET /webhook/logs` — queryable event history with `eventType`, `since`, `until`, `limit` filters
+- **Light/Dark theme system**:
+  - `ThemeProvider` context with `localStorage` persistence and OS preference fallback on first load
+  - Binary light ↔ dark toggle (no "system" third option)
+  - Professional SVG Sun/Moon icons in header (Lucide-style, 18px)
+  - `[data-theme="light"]` CSS token overrides in `tokens.css`: surfaces, text, borders, accent (Royal Blue `#2563EB`), trends, shadows
+  - `--bg-card` semantic token added to `:root` and light mode (was missing — root cause of DigestPanel staying dark)
+- **Theme-aware heatmap** — light mode returns crisp solid text colors (no backgrounds); dark mode preserves original HSLA glow
+- **Component-level light mode overrides**: DealerTable (status badges, sort toggles, best/worst values), FilterBar (chip hover/active, stats row), DigestPanel (hover states, flow pills, table borders, rep accent), Settings (button styles)
+
+### Changed
+- `App.tsx` — Wrapped in `ThemeProvider`, replaced hardcoded navy colors with CSS vars
+- `AppShell.tsx` — Added theme toggle button to header
+- `global.css` — Added `color-scheme`, selection color, and scrollbar theming for both modes
+- `heatmap.ts` — `HeatmapColor.background` made optional; early-return branch for light mode
+- `DigestPanel.tsx` — Fixed At-Risk Dealers table alignment (Rep → left, Days Since App → right)
+
+### Fixed
+- DigestPanel stuck in dark mode — caused by missing `--bg-card` token definition in `tokens.css`
+- Sort column indicators invisible in light mode — caused by accent color set to dark slate (`#0F172A`), reverted to Royal Blue
+- Status badge contrast — light mode badges now use darker semantic colors (e.g., `#15803D` green, `#DC2626` red)
+- Hover states using `rgba(255,255,255,0.06)` on white backgrounds — inverted to `rgba(0,0,0,0.04)` for light mode
+
+### Removed
+- `MonitorIcon` SVG component (dead code from removed "system" toggle)
+- `CYCLE_ORDER` constant (dead code from removed 3-state cycle)
+
+### Pipeline Audit
+- **Finding:** Source One stopped sending CSV data after April 8. Last 5 payloads span Apr 4–8, all ingested successfully (~2500 dealers each). Zero deliveries since. Server is healthy — issue is upstream.
+- **Action:** Contact Source One re: their `node-fetch` automation; deploy logging changes for future observability.
+
+### Tests Run
+- Verified production `/webhook` GET returns 5 payloads (Apr 4–8), all with correct report dates
+- Verified production `/webhook/ingestion-log` returns 10 logs, all `status: completed`
+- Confirmed `/webhook/health` returns 500 on production (expected — `WebhookLog` model not yet deployed)
+- Local dev: hot-reload verified for all theme changes across DealerTable, FilterBar, DigestPanel, Settings
+
 ---
 
 ## [2026-04-08] — Automated Reports (Daily Digest + Health Monitor)

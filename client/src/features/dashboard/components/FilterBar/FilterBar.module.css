@@ -50,6 +50,11 @@
   color: #e0e0e0;
 }
 
+[data-theme="light"] .filterSelect option {
+  background: #ffffff;
+  color: #1e293b;
+}
+
 .filterSelect:hover {
   border-color: var(--accent-primary);
 }
@@ -164,15 +169,24 @@
   background: rgba(45, 212, 191, 0.08);
 }
 
+[data-theme="light"] .stateChip:hover {
+  background: rgba(8, 145, 178, 0.06);
+}
+
 .stateChipActive {
   background: var(--accent-primary);
-  color: var(--bg-deep);
+  color: var(--color-navy-950, #060D1A);
   border-color: var(--accent-primary);
 }
 
 .stateChipActive:hover {
   opacity: 0.85;
-  color: var(--bg-deep);
+  color: var(--color-navy-950, #060D1A);
+}
+
+[data-theme="light"] .stateChipActive,
+[data-theme="light"] .stateChipActive:hover {
+  color: #FFFFFF;
 }
 
 .summaryBudget {
@@ -234,6 +248,10 @@
   margin-top: var(--space-2);
 }
 
+[data-theme="light"] .statsRowStandalone {
+  background: rgba(241, 245, 249, 0.7);
+}
+
 .statusByGroup {
   display: flex;
   align-items: center;
@@ -289,6 +307,10 @@
 .statClickable:hover {
   background: rgba(255, 255, 255, 0.04);
   border-color: var(--border-subtle);
+}
+
+[data-theme="light"] .statClickable:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .statSelected {

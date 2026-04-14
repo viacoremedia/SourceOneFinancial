@@ -200,6 +200,10 @@
   line-height: 1;
 }
 
+[data-theme="light"] .sortNumber {
+  color: #FFFFFF;
+}
+
 .sortArrow {
   font-size: var(--font-micro);
 }
@@ -268,6 +272,11 @@
   color: var(--color-navy-950);
 }
 
+[data-theme="light"] .sortToggleActive,
+[data-theme="light"] .sortToggleActive:hover {
+  color: #FFFFFF;
+}
+
 .sortClearBtn {
   font-size: var(--font-micro);
   color: var(--text-muted);
@@ -283,6 +292,10 @@
 .sortClearBtn:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .sortClearBtn:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* ── Body Rows ── */
@@ -362,6 +375,10 @@
   background: rgba(26, 41, 66, 0.6);
 }
 
+[data-theme="light"] .childRow:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
 .childRow:last-of-type td {
   border-bottom: 2px solid var(--border-default);
 }
@@ -413,6 +430,28 @@
   color: var(--color-slate-400);
 }
 
+/* Light mode: darker status badge text for contrast on white */
+[data-theme="light"] .statusActive {
+  background: rgba(22, 163, 74, 0.10);
+  color: #15803D;
+}
+[data-theme="light"] .status30d {
+  background: rgba(217, 119, 6, 0.10);
+  color: #B45309;
+}
+[data-theme="light"] .status60d {
+  background: rgba(234, 88, 12, 0.10);
+  color: #C2410C;
+}
+[data-theme="light"] .statusLong {
+  background: rgba(220, 38, 38, 0.08);
+  color: #DC2626;
+}
+[data-theme="light"] .statusNever {
+  background: rgba(100, 116, 139, 0.08);
+  color: #475569;
+}
+
 /* ── Trend Badge ── */
 .trendBadge {
   display: block;
@@ -456,6 +495,15 @@
   color: var(--text-muted);
   font-size: var(--font-micro);
   opacity: 0.4;
+}
+
+/* Light mode: use darker green/red for contrast */
+[data-theme="light"] .bestValue {
+  color: #15803D;
+}
+[data-theme="light"] .worstValue {
+  color: #DC2626;
+  opacity: 0.85;
 }
 
 /* ── Heatmap Cell ── */
