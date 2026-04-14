@@ -3,7 +3,7 @@
 All notable changes to this project are documented here.
 Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
----
+----
 
 ## [2026-04-14] — Webhook Observability + Light/Dark Theme
 
