@@ -48,12 +48,13 @@
   --color-orange-500: #F97316;
   --color-orange-400: #FB923C;
 
-  /* ── Semantic Aliases ── */
+  /* ── Semantic Aliases (Dark — default) ── */
   --bg-app: var(--color-navy-950);
   --bg-surface: var(--color-navy-900);
   --bg-surface-raised: var(--color-navy-800);
   --bg-surface-hover: var(--color-navy-700);
   --bg-header: rgba(11, 20, 38, 0.85);
+  --bg-card: #162031;
 
   --text-primary: var(--color-slate-50);
   --text-secondary: var(--color-slate-400);
@@ -123,4 +124,46 @@
   --table-row-height: 44px;
   --table-header-height: 40px;
   --table-child-indent: 32px;
+}
+
+/* ============================================
+   LIGHT THEME OVERRIDES
+   Applied via data-theme="light" on <html>
+   ============================================ */
+
+[data-theme="light"] {
+  /* ── Surfaces ── */
+  --bg-app: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-raised: #FFFFFF;
+  --bg-surface-hover: #F1F5F9;
+  --bg-header: rgba(255, 255, 255, 0.95);
+  --bg-card: #ffffff;
+
+  /* ── Text ── */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-tertiary: #475569;
+  --text-muted: #64748B;
+
+  /* ── Borders ── */
+  --border-default: #CBD5E1;
+  --border-subtle: #E2E8F0;
+
+  /* ── Accent — professional royal blue for high legibility & contrast ── */
+  --accent-primary: #2563EB;
+  --accent-hover: #1D4ED8;
+
+  /* ── Trends (darker shades for light bg readability) ── */
+  --trend-positive: #16A34A;
+  --trend-negative: #DC2626;
+  --trend-neutral: #64748B;
+  --trend-positive-bg: rgba(22, 163, 74, 0.08);
+  --trend-negative-bg: rgba(220, 38, 38, 0.08);
+
+  /* ── Shadows (softer for light bg) ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px rgba(8, 145, 178, 0.1);
 }

@@ -3,6 +3,8 @@
  * Maps a numeric "days since" value to a background + text color
  * using a smooth gradient: green → yellow → orange → red.
  *
+ * Theme-aware: detects [data-theme="light"] and adjusts contrast accordingly.
+ *
  * Thresholds:
  *   0-10  = vibrant green (healthy)
  *   10-30 = fading green
@@ -12,8 +14,14 @@
  */
 
 export interface HeatmapColor {
-  background: string;
+  background?: string;
   text: string;
+}
+
+/** Check if we're in light mode */
+function isLightMode(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.dataset.theme === 'light';
 }
 
 /**
@@ -23,93 +31,78 @@ export interface HeatmapColor {
 export function getDaysSinceHeatmap(days: number | null | undefined): HeatmapColor | null {
   if (days == null) return null;
 
-  // Clamp to a reasonable range for interpolation
   const d = Math.max(0, days);
+  const light = isLightMode();
 
+  if (light) {
+    // Professional Light Mode: Crisp text colors, no muddy backgrounds.
+    if (d <= 10) return { text: '#15803D' }; // High-contrast green
+    if (d <= 30) return { text: '#16A34A' }; // Green
+    if (d <= 60) return { text: '#B45309' }; // Amber
+    if (d <= 100) return { text: '#EA580C' }; // Orange
+    return { text: '#DC2626' }; // Red
+  }
+
+  // Dark Mode: Traditional glowing pastel heatmap
   let hue: number;
   let saturation: number;
   let lightness: number;
   let bgAlpha: number;
 
   if (d <= 10) {
-    // Green zone: hue 142 (green), high sat
-    hue = 142;
-    saturation = 70;
-    lightness = 45;
-    bgAlpha = 0.15;
+    hue = 142; saturation = 70; lightness = 45; bgAlpha = 0.15;
   } else if (d <= 30) {
-    // Green fading toward yellow-green: hue 142 → 80
-    const t = (d - 10) / 20; // 0..1
-    hue = 142 - t * 62; // 142 → 80
-    saturation = 70 - t * 10; // 70 → 60
-    lightness = 45 + t * 5; // 45 → 50
-    bgAlpha = 0.15 - t * 0.03; // 0.15 → 0.12
+    const t = (d - 10) / 20;
+    hue = 142 - t * 62; saturation = 70 - t * 10; lightness = 45 + t * 5; bgAlpha = 0.15 - t * 0.03;
   } else if (d <= 60) {
-    // Yellow zone: hue 80 → 45
-    const t = (d - 30) / 30; // 0..1
-    hue = 80 - t * 35; // 80 → 45
-    saturation = 60 + t * 20; // 60 → 80
-    lightness = 50; // flat
-    bgAlpha = 0.12 + t * 0.02; // 0.12 → 0.14
+    const t = (d - 30) / 30;
+    hue = 80 - t * 35; saturation = 60 + t * 20; lightness = 50; bgAlpha = 0.12 + t * 0.02;
   } else if (d <= 100) {
-    // Orange → Red: hue 45 → 10
-    const t = (d - 60) / 40; // 0..1
-    hue = 45 - t * 35; // 45 → 10
-    saturation = 80 + t * 10; // 80 → 90
-    lightness = 50 - t * 5; // 50 → 45
-    bgAlpha = 0.14 + t * 0.04; // 0.14 → 0.18
+    const t = (d - 60) / 40;
+    hue = 45 - t * 35; saturation = 80 + t * 10; lightness = 50 - t * 5; bgAlpha = 0.14 + t * 0.04;
   } else {
-    // Deep red: hue 10 → 0, getting deeper
-    const t = Math.min((d - 100) / 200, 1); // 0..1 over next 200 days
-    hue = 10 - t * 10; // 10 → 0
-    saturation = 90;
-    lightness = 45 - t * 10; // 45 → 35
-    bgAlpha = 0.18 + t * 0.12; // 0.18 → 0.30
+    const t = Math.min((d - 100) / 200, 1);
+    hue = 10 - t * 10; saturation = 90; lightness = 45 - t * 10; bgAlpha = 0.18 + t * 0.12;
   }
 
   const bg = `hsla(${hue}, ${saturation}%, ${lightness}%, ${bgAlpha})`;
   const text = `hsl(${hue}, ${saturation}%, ${Math.min(lightness + 15, 70)}%)`;
-
   return { background: bg, text };
 }
 
 /**
  * Heatmap for communication recency (days since last contact).
- * Lower = green (recently contacted), higher = red (stale).
- * Thresholds: 0-14d green, 15-30d yellow, 31-60d orange, 61+d red.
  */
 export function getCommDaysHeatmap(days: number | null | undefined): HeatmapColor | null {
   if (days == null) return null;
   const d = Math.max(0, days);
+  const light = isLightMode();
 
+  if (light) {
+    // Professional Light Mode: Crisp text colors, no muddy backgrounds.
+    if (d <= 14) return { text: '#15803D' }; 
+    if (d <= 30) return { text: '#16A34A' };
+    if (d <= 60) return { text: '#B45309' };
+    return { text: '#DC2626' }; 
+  }
+
+  // Dark Mode
   let hue: number;
   let saturation: number;
   let lightness: number;
   let bgAlpha: number;
 
   if (d <= 14) {
-    hue = 142;
-    saturation = 70;
-    lightness = 45;
-    bgAlpha = 0.15;
+    hue = 142; saturation = 70; lightness = 45; bgAlpha = 0.15;
   } else if (d <= 30) {
     const t = (d - 14) / 16;
-    hue = 142 - t * 62;
-    saturation = 70 - t * 10;
-    lightness = 45 + t * 5;
-    bgAlpha = 0.15 - t * 0.03;
+    hue = 142 - t * 62; saturation = 70 - t * 10; lightness = 45 + t * 5; bgAlpha = 0.15 - t * 0.03;
   } else if (d <= 60) {
     const t = (d - 30) / 30;
-    hue = 80 - t * 35;
-    saturation = 60 + t * 20;
-    lightness = 50;
-    bgAlpha = 0.12 + t * 0.04;
+    hue = 80 - t * 35; saturation = 60 + t * 20; lightness = 50; bgAlpha = 0.12 + t * 0.04;
   } else {
     const t = Math.min((d - 60) / 120, 1);
-    hue = 45 - t * 45;
-    saturation = 80 + t * 10;
-    lightness = 50 - t * 15;
-    bgAlpha = 0.16 + t * 0.14;
+    hue = 45 - t * 45; saturation = 80 + t * 10; lightness = 50 - t * 15; bgAlpha = 0.16 + t * 0.14;
   }
 
   const bg = `hsla(${hue}, ${saturation}%, ${lightness}%, ${bgAlpha})`;

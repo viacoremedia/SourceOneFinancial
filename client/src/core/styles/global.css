@@ -29,6 +29,7 @@ body {
   background-color: var(--bg-app);
   min-height: 100vh;
   overflow-x: hidden;
+  transition: background-color var(--transition-base), color var(--transition-base);
 }
 
 #root {
@@ -71,9 +72,23 @@ a:hover {
   scrollbar-color: var(--color-slate-700) transparent;
 }
 
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--color-slate-300);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-slate-400);
+}
+[data-theme="light"] * {
+  scrollbar-color: var(--color-slate-300) transparent;
+}
+
 ::selection {
   background: var(--color-teal-500);
   color: var(--color-navy-950);
+}
+[data-theme="light"] ::selection {
+  background: var(--accent-primary);
+  color: white;
 }
 
 table {
