@@ -3,7 +3,7 @@
  * 
  * Features:
  * - Group rows (expandable) with summary stats (best/worst, active ratio)
- * - Multi-column sorting (Ctrl/Cmd+Click to add secondary sorts)
+ * - Multi-column sorting (double-click to add secondary sort columns)
  * - Independent child location sorting (Shift+Click)
  * - Heatmap coloring for days-since metrics
  * - Flat dealer list for "Independent Dealers" tab
@@ -215,16 +215,14 @@ export function DealerTable({
     [groupLocations, onExpandGroup]
   );
 
-  // Track if user has explicitly sorted (vs default)
-  const groupSortExplicit = useRef(false);
-  const childSortExplicit = useRef(false);
-  const dealerSortExplicit = useRef(false);
+  // Debounce ref: delays single-click so we can detect double-click first
+  const sortClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Multi-column stack helper:
   // - If column exists in stack, toggle direction
-  // - If stack is still the default (not explicit), REPLACE with new column
-  // - If user already sorted explicitly, APPEND new column
-  const updateStack = (stack: SortColumn[], key: string, isExplicit: boolean): SortColumn[] => {
+  // - shouldAppend=false (single click): REPLACE stack with this column
+  // - shouldAppend=true  (double click): APPEND column to stack
+  const updateStack = (stack: SortColumn[], key: string, shouldAppend: boolean): SortColumn[] => {
     const idx = stack.findIndex((s) => s.key === key);
     if (idx !== -1) {
       // Already in stack → toggle direction
@@ -232,22 +230,20 @@ export function DealerTable({
       updated[idx] = { ...updated[idx], dir: updated[idx].dir === 'asc' ? 'desc' : 'asc' };
       return updated;
     }
-    if (!isExplicit) {
-      // First explicit sort → replace default entirely
-      return [{ key, dir: 'asc' }];
+    if (shouldAppend) {
+      // Double-click → append for multi-sort
+      return [...stack, { key, dir: 'asc' }];
     }
-    // Already sorted explicitly → append for multi-sort
-    return [...stack, { key, dir: 'asc' }];
+    // Single click → replace entire stack
+    return [{ key, dir: 'asc' }];
   };
 
-  // Sort handler
-  const handleSort = useCallback(
-    (key: string, _e: React.MouseEvent) => {
+  // Shared sort executor (used by both single-click and double-click paths)
+  const performSort = useCallback(
+    (key: string, shouldAppend: boolean) => {
       if (mode !== 'groups' && onDealerSortChange) {
-        // Dealer/all mode: multi-column server-side sort
         setDealerSort((prev) => {
-          const stack = updateStack(prev, key, dealerSortExplicit.current);
-          dealerSortExplicit.current = true;
+          const stack = updateStack(prev, key, shouldAppend);
           onDealerSortChange(
             stack.map(s => s.key),
             stack.map(s => s.dir)
@@ -256,15 +252,37 @@ export function DealerTable({
         });
       } else {
         if (sortTarget === 'locations') {
-          setChildSortStack((prev) => updateStack(prev, key, childSortExplicit.current));
-          childSortExplicit.current = true;
+          setChildSortStack((prev) => updateStack(prev, key, shouldAppend));
         } else {
-          setGroupSortStack((prev) => updateStack(prev, key, groupSortExplicit.current));
-          groupSortExplicit.current = true;
+          setGroupSortStack((prev) => updateStack(prev, key, shouldAppend));
         }
       }
     },
     [mode, onDealerSortChange, sortTarget]
+  );
+
+  // Single-click handler (debounced 250ms to allow double-click detection)
+  const handleSort = useCallback(
+    (key: string) => {
+      if (sortClickTimer.current) clearTimeout(sortClickTimer.current);
+      sortClickTimer.current = setTimeout(() => {
+        performSort(key, false);
+        sortClickTimer.current = null;
+      }, 250);
+    },
+    [performSort]
+  );
+
+  // Double-click handler: cancels pending single-click, appends to multi-sort
+  const handleDoubleClickSort = useCallback(
+    (key: string) => {
+      if (sortClickTimer.current) {
+        clearTimeout(sortClickTimer.current);
+        sortClickTimer.current = null;
+      }
+      performSort(key, true);
+    },
+    [performSort]
   );
 
   // Remove a single column from the active sort stack
@@ -551,8 +569,9 @@ export function DealerTable({
                       key={col.key}
                       style={{ textAlign: col.align, width: col.width, minWidth: col.minWidth }}
                       className={isSorted ? styles.thSorted : ''}
-                      onClick={(e) => col.sortable && handleSort(col.key, e)}
-                      title={col.sortable ? 'Click to add/toggle sort' : undefined}
+                      onClick={() => col.sortable && handleSort(col.key)}
+                      onDoubleClick={() => col.sortable && handleDoubleClickSort(col.key)}
+                      title={col.sortable ? 'Click to sort · Double-click to add multi-sort' : undefined}
                     >
                       {col.label}
                       {isSorted && (
