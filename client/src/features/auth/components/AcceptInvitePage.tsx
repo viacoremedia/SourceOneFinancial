@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import styles from './Auth.module.css';
 
 export function AcceptInvitePage() {
   const { acceptInvite } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('token') || '';
 
@@ -41,6 +42,7 @@ export function AcceptInvitePage() {
     setLoading(true);
     try {
       await acceptInvite(inviteToken, password, name);
+      navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to accept invite');
     } finally {
