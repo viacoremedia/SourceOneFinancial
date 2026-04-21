@@ -508,14 +508,11 @@ export function DealerTable({
               onClick={() => {
                 if (mode !== 'groups' && onDealerSortChange) {
                   setDealerSort([dealerSort[0]]);
-                  dealerSortExplicit.current = true;
                   onDealerSortChange([dealerSort[0].key], [dealerSort[0].dir]);
                 } else if (sortTarget === 'locations') {
                   setChildSortStack([childSortStack[0]]);
-                  childSortExplicit.current = true;
                 } else {
                   setGroupSortStack([groupSortStack[0]]);
-                  groupSortExplicit.current = true;
                 }
               }}
               title="Reset to primary sort only"
