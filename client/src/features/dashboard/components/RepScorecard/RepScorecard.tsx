@@ -225,6 +225,7 @@ interface RepScorecardProps {
   onSelectRep?: (rep: string) => void;
   onSelectRepState?: (rep: string, state: string) => void;
   activityMode?: string;
+  onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
 }
 
 /** Column definition for the scorecard table */
@@ -414,6 +415,7 @@ export function RepScorecard({
   onSelectRep,
   onSelectRepState,
   activityMode,
+  onActivityModeChange,
 }: RepScorecardProps) {
   const [drawerStatusFilter, setDrawerStatusFilter] = useState<string | null>(null);
 
@@ -517,6 +519,21 @@ export function RepScorecard({
                 </button>
               ))}
             </div>
+            {onActivityModeChange && (
+              <div className={styles.statusByToggle}>
+                <label className={styles.statusByLabel}>Status by</label>
+                <select
+                  className={styles.statusBySelect}
+                  value={activityMode || 'application'}
+                  onChange={(e) => onActivityModeChange(e.target.value as 'application' | 'approval' | 'booking')}
+                  id="scorecard-activity-mode"
+                >
+                  <option value="application">Application</option>
+                  <option value="approval">Approval</option>
+                  <option value="booking">Booking</option>
+                </select>
+              </div>
+            )}
             {data && (
               <span className={styles.headerMeta}>
                 {data.reps.length} reps · {data.reportDateRange.count} report dates

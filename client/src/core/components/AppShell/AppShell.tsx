@@ -15,6 +15,7 @@ interface AppShellProps {
   onSelectRep?: (rep: string) => void;
   onSelectRepState?: (rep: string, state: string) => void;
   activityMode?: string;
+  onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
 }
 
 // SVG theme icons (Lucide-style, 18px)
@@ -48,7 +49,7 @@ const THEME_LABELS: Record<string, string> = {
   dark: 'Dark mode',
 };
 
-export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode }: AppShellProps) {
+export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode, onActivityModeChange }: AppShellProps) {
   const { user } = useAuth();
   const { mode, toggleTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -136,6 +137,7 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
         onSelectRep={onSelectRep}
         onSelectRepState={onSelectRepState}
         activityMode={activityMode}
+        onActivityModeChange={onActivityModeChange}
       />
     </div>
   );

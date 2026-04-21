@@ -411,6 +411,7 @@ export function Dashboard() {
       onSelectRep={handleScorecardRepSelect}
       onSelectRepState={handleScorecardRepStateSelect}
       activityMode={activityMode}
+      onActivityModeChange={handleActivityModeChange}
     >
 
       <div
