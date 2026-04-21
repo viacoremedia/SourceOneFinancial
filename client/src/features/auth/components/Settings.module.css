@@ -57,6 +57,10 @@
   color: var(--text-primary, #f1f5f9);
 }
 
+[data-theme="light"] .closeBtn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .section {
   padding: 20px 0;
   border-bottom: 1px solid var(--border-subtle, #1e293b);
@@ -152,8 +156,18 @@
   transition: background 0.15s;
 }
 
+[data-theme="light"] .btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
 .btn:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .btn:hover {
+  background: #f1f5f9;
 }
 
 .msg {
@@ -178,6 +192,10 @@
 
 .userRow:hover {
   background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .userRow:hover {
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .userInfo {
@@ -205,6 +223,10 @@
   text-transform: capitalize;
   color: var(--text-tertiary, #64748b);
   background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .statusDot {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .status_active {
@@ -362,6 +384,10 @@
 
 .recipientRow:hover {
   background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .recipientRow:hover {
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .recipientEmail {

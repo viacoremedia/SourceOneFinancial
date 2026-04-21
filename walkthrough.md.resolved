@@ -1,0 +1,233 @@
+# Source One Financial — Project Review
+
+> **Purpose**: Dealer Performance Analytics platform for tracking activity metrics across a national dealer network.
+> **Client**: Source One Financial
+> **Status**: ✅ Production — deployed on Vercel, API healthy
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph External
+        CSV["Daily CSV Report"]
+    end
+
+    subgraph Vercel["Vercel (Serverless)"]
+        subgraph Server["Express API"]
+            WH["POST /webhook"]
+            AUTH["POST /auth/*"]
+            ANALYTICS["GET /analytics/*"]
+            REPORTS["POST /reports/*"]
+        end
+    end
+
+    subgraph Pipeline["Ingestion Pipeline"]
+        PARSE["CSV Parser"]
+        GROUP["Dealer Group Detector"]
+        INGEST["Metrics Ingestion"]
+        ROLLUP["Rollup Service"]
+        DIGEST["Auto Email Reports"]
+    end
+
+    subgraph MongoDB["MongoDB Atlas"]
+        SNAP["DailyDealerSnapshot"]
+        DG["DealerGroup"]
+        DL["DealerLocation"]
+        ROLL["MonthlyDealerRollup"]
+        USER["User"]
+    end
+
+    subgraph Frontend["Vite + React (TypeScript)"]
+        LOGIN["Login Page"]
+        DASH["Dashboard"]
+        FILTER["FilterBar"]
+        TABLE["DealerTable"]
+        SETTINGS["Settings Panel"]
+        DIG_PANEL["Digest Panel"]
+    end
+
+    CSV --> WH --> PARSE --> GROUP --> INGEST --> SNAP
+    INGEST --> ROLLUP --> ROLL
+    INGEST --> DIGEST
+    GROUP --> DG
+    GROUP --> DL
+    LOGIN --> AUTH
+    DASH --> ANALYTICS
+    SETTINGS --> REPORTS
+```
+
+---
+
+## Tech Stack
+
+| Layer | Stack | Details |
+|-------|-------|---------|
+| **Frontend** | Vite + React 18 (TypeScript) | CSS Modules, React Router |
+| **Backend** | Node.js + Express 5 | JWT auth, role-based access |
+| **Database** | MongoDB (Mongoose 9) | Atlas cloud, lazy serverless connection |
+| **Deployment** | Vercel | Separate projects for client + server |
+| **Email** | Nodemailer (Gmail SMTP) | Invite emails + automated digests |
+
+---
+
+## Key Features
+
+### 1. 📥 Automated Data Pipeline
+- **Webhook receiver** (`POST /webhook`) accepts daily CSV reports
+- **CSV Parser** validates headers and extracts rows
+- **Dealer Group Detector** resolves dealer names → groups + locations (with alias mapping to prevent duplicates)
+- **Metrics Ingestion** bulk upserts `DailyDealerSnapshot` docs (idempotent)
+- **Rollup Service** rebuilds monthly aggregates for affected months
+- Entire pipeline is idempotent — safe to re-run
+
+### 2. 📊 Analytics Dashboard
+- **Three tabs**: Dealer Groups, Independent Dealers, All Dealers
+- **Expandable group rows** with best/worst metrics per group
+- **Multi-column sorting** with per-column removal
+- **Infinite scroll** with server-side pagination
+- **Server-side search** (debounced regex)
+- **Status filters**: Active, 30d Inactive, 60d Inactive, Long Inactive
+- **Activity mode toggle**: Track by Application, Approval, or Booking dates
+- **Rep & State filtering** with budget display
+- **Heatmap-colored metric cells** for visual analytics
+- **Skeleton shimmer** loading states
+
+### 3. 🔐 Invite-Only Authentication
+- No public registration — admins invite users via email
+- JWT-based (90-day expiry) with role hierarchy: `employee → admin → super_admin`
+- Protected routes: `/analytics`, `/reports`
+- Open routes: `/webhook`, `/auth`
+
+### 4. 📧 Automated Reports
+- **Daily Activity Digest**: network status breakdown, new apps/approvals/bookings, at-risk dealers, active rate progress bar
+- **System Health Monitor**: alerts on row count anomalies, processing spikes, new dealer spikes, date gaps
+- **Admin-configurable recipients** via Settings panel
+- **Dark-themed HTML** emails matching dashboard aesthetic
+
+### 5. ⚙️ Settings & Admin
+- Profile management, password changes
+- Invite new users
+- Manage team (view/remove users with double-confirmation)
+- Report recipients management
+
+---
+
+## Data Model Summary
+
+| Model | Purpose | Key Fields |
+|-------|---------|------------|
+| `DealerGroup` | Multi-location brand | name, slug, dealerCount |
+| `DealerLocation` | Physical dealer site | dealerId, dealerName, statePrefix, dealerGroup ref |
+| `DailyDealerSnapshot` | Core metrics per dealer/day | daysSince*, activityStatus, dates |
+| `MonthlyDealerRollup` | Monthly aggregations | daysActive/Inactive, avg metrics |
+| `LargeDealerBudget` | Budget by state/rep | monthlyBudgets map |
+| `FileIngestionLog` | CSV processing audit trail | status, rowCount, processingTimeMs |
+| `WebhookPayload` | Raw webhook storage | body, files, headers |
+| `User` | Auth users | email, role, status, inviteToken |
+| `ReportRecipient` | Email recipients for reports | email address |
+
+---
+
+## File Structure at a Glance
+
+```
+SourceOneFinancial/
+├── client/                          # Frontend — Vite + React + TypeScript
+│   └── src/
+│       ├── core/
+│       │   ├── components/AppShell/  # Header, layout, settings/digest buttons
+│       │   ├── hooks/
+│       │   ├── services/api.ts       # Single API service (Axios, JWT interceptors)
+│       │   └── styles/
+│       └── features/
+│           ├── auth/                 # Login, invite, settings panel, digest panel
+│           └── dashboard/            # Main feature
+│               ├── components/
+│               │   ├── DealerTable/  # 32KB — complex table (groups, sorting, heatmaps)
+│               │   ├── FilterBar/    # Rep/state filters, status chips, budget
+│               │   ├── StatsBar/     # Network-level stats
+│               │   └── TabBar/       # Groups / Dealers / All tabs
+│               ├── hooks/            # useDealerGroups, useOverview
+│               ├── pages/Dashboard.tsx # 16KB — main orchestrator
+│               └── types.ts          # TypeScript interfaces
+│
+├── server/                          # Backend — Express + Mongoose
+│   ├── index.js                     # Entry point, route mounting, DB connect
+│   ├── middleware/authMiddleware.js  # JWT verify + role hierarchy
+│   ├── models/                      # 10 Mongoose schemas
+│   ├── routes/
+│   │   ├── analytics/               # Protected analytics endpoints
+│   │   ├── auth/                     # Login, invite, user management
+│   │   └── reports/                  # Report triggers + recipients
+│   ├── services/
+│   │   ├── csvParserService.js       # CSV validation + extraction
+│   │   ├── dealerGroupDetector.js    # Brand grouping + alias map
+│   │   ├── dealerMetricsIngestionService.js # Bulk upsert pipeline
+│   │   ├── rollupService.js          # Monthly aggregation
+│   │   ├── emailService.js           # SMTP transport
+│   │   ├── reportService.js          # Digest + health orchestrator
+│   │   └── reports/                  # Report templates
+│   ├── webhook/                      # Webhook receiver
+│   └── scripts/                      # 15 maintenance scripts
+│
+└── CHANGELOG.md                     # Full history (Apr 6–8, 2026)
+```
+
+---
+
+## Deployment
+
+| Component | URL | Platform |
+|-----------|-----|----------|
+| **API (Server)** | `https://source-one-data-transfer.vercel.app` | Vercel Serverless |
+| **Frontend** | Separate Vercel project (SPA) | Vercel Static |
+
+> [!NOTE]
+> The API `/ping-db` returned `✅ DB ping successful` — production backend is live and healthy.
+
+---
+
+## Development Timeline (from Changelog)
+
+| Date | Milestone |
+|------|-----------|
+| **Apr 6** | Initial dashboard build — webhook, CSV pipeline, DealerTable, FilterBar |
+| **Apr 6** | v2 — Clickable status filters, skeleton shimmer, group merging, budget display |
+| **Apr 7** | Dynamic activity mode (App/Approval/Booking), server search, infinite scroll parity |
+| **Apr 7** | Full auth system — invite-only, JWT, RBAC, settings panel |
+| **Apr 8** | Automated reports — daily digest + health monitor, admin email recipients |
+
+---
+
+## Git Status
+
+- **Branch**: `main` (clean, no pending changes)
+- **Remote branches**: `feature/001-dealer-data-pipeline`, `forntend-alpha-build`
+- **Total commits**: ~20+
+- **Latest commit**: `31bcd18`
+
+---
+
+## Presentation Talking Points
+
+1. **End-to-end automation**: CSV → webhook → parsed → grouped → stored → rolled up → emailed — all hands-free
+2. **Smart dealer grouping**: Automatic brand detection with alias mapping to prevent duplicates (Blue Compass RV with 77+ stores)
+3. **Three analysis modes**: Track dealer health by Application, Approval, or Booking activity
+4. **Real-time status monitoring**: Active / 30-day / 60-day / Long Inactive classification with multi-level filtering
+5. **Invite-only security**: No public registration — RBAC with employee → admin → super_admin
+6. **Zero-noise alerts**: Health monitor only emails when anomalies detected — no spam
+7. **Serverless deployment**: Both client and server on Vercel — auto-scaling, zero ops
+8. **Clean architecture**: Feature-sliced frontend, service-layer backend, comprehensive SPECS docs throughout
+
+---
+
+## What's NOT Built Yet (Potential Roadmap)
+
+- No historical trend charts / time-series visualizations
+- No dealer detail view / individual dealer profile page
+- No export functionality (PDF reports, CSV downloads)
+- No webhook retry / replay mechanism (raw payloads stored but no UI)
+- No multi-tenant support (single organization)
+- Report email templates are server-rendered HTML — no template editor

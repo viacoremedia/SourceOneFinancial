@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './features/auth/hooks/useAuth';
+import { ThemeProvider } from './core/hooks/useTheme';
 import { LoginPage } from './features/auth/components/LoginPage';
 import { AcceptInvitePage } from './features/auth/components/AcceptInvitePage';
 import { Dashboard } from './features/dashboard/pages';
@@ -14,8 +15,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#0b1120',
-        color: '#94a3b8',
+        background: 'var(--bg-app)',
+        color: 'var(--text-secondary)',
         fontSize: 15,
       }}>
         Loading...
@@ -37,8 +38,8 @@ function AppRoutes() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#0b1120',
-        color: '#94a3b8',
+        background: 'var(--bg-app)',
+        color: 'var(--text-secondary)',
         fontSize: 15,
       }}>
         Loading...
@@ -62,9 +63,11 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

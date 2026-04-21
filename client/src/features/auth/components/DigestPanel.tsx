@@ -353,7 +353,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                         <th>Dealer</th>
                         <th>ID</th>
                         <th>Rep</th>
-                        <th style={{ textAlign: 'center' }}>Days Since App</th>
+                        <th style={{ textAlign: 'right' }}>Days Since App</th>
                       </tr>
                     </thead>
                     <tbody>
