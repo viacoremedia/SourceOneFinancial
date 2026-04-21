@@ -154,3 +154,111 @@ export interface DealerGroupRow {
   locations: DealerLocation[];
   isExpanded: boolean;
 }
+
+// ── Rolling Window Types ──
+export type RollingWindow = 7 | 30;
+
+// ── Rolling Averages (Network-Level) ──
+
+/** The 5 core rolling average metrics */
+export interface RollingAvgMetrics {
+  avgDaysSinceApp: number | null;
+  avgDaysSinceApproval: number | null;
+  avgDaysSinceBooking: number | null;
+  avgContactDays: number | null;
+  avgVisitResponse: number | null;
+}
+
+/** Churn flow velocity — daily averages of status transitions */
+export interface StatusFlowData {
+  avgGainedActive: number;   // avg dealers/day moving INTO active
+  avgLostActive: number;     // avg dealers/day moving OUT of active
+  avgReactivated: number;    // avg reactivations/day
+  netDelta: number;          // gained - lost per day
+}
+
+/** Debug info: which report dates were used in the window */
+export interface ReportDateRange {
+  first: string;   // earliest date in window (ISO)
+  last: string;    // latest date in window (ISO)
+  count: number;   // number of distinct report dates used
+}
+
+/** Full response from GET /analytics/rolling-averages */
+export interface NetworkRollingAvgResponse {
+  current: RollingAvgMetrics;
+  previous: RollingAvgMetrics;
+  deltas: RollingAvgMetrics;        // current - previous (negative = improving for daysSince metrics)
+  statusFlows: StatusFlowData;
+  reportDateRange: ReportDateRange;
+  insufficientData: boolean;         // true when < 2 report dates exist
+  windowSize: number;
+}
+
+// ── Rep Scorecard ──
+
+/** Heat Index classification */
+export type HeatClass = 'strong' | 'average' | 'overburdened' | 'underperforming';
+
+/** Capacity flag for overburdened/underperforming distinction */
+export type CapacityFlag = 'overburdened' | 'underperforming' | null;
+
+/** Single rep row in the scorecard */
+export interface RepScorecardEntry {
+  rep: string;
+
+  // Dealer counts (latest snapshot)
+  totalDealers: number;
+  activeCount: number;
+  inactive30Count: number;
+  inactive60Count: number;
+  longInactiveCount: number;
+  reactivatedCount: number;     // reactivations within the rolling window
+
+  // Rolling averages (current window)
+  rollingAvg: RollingAvgMetrics;
+
+  // Period-over-period deltas
+  deltas: RollingAvgMetrics;
+
+  // Churn flow for this rep
+  statusFlows: StatusFlowData;
+
+  // Heat Index (Phase 4 — nullable until implemented)
+  heatIndex: number | null;       // 0–100 composite score
+  heatClass: HeatClass | null;    // green/amber/red classification
+  capacityRatio: number | null;   // repDealerCount / avgDealersPerRep
+  capacityFlag: CapacityFlag;     // overburdened / underperforming / null
+
+  // Heat Index sub-score breakdown (for tooltip transparency)
+  _heatBreakdown?: Record<string, {
+    raw: number | null;
+    normalized: number | null;
+    weighted: number | null;
+  }>;
+
+  // Per-state rolling averages breakdown
+  stateBreakdown?: StateBreakdown[];
+}
+
+/** Per-state performance data for a single rep */
+export interface StateBreakdown {
+  state: string;
+  totalDealers: number;
+  activeCount: number;
+  inactive30Count: number;
+  inactive60Count: number;
+  longInactiveCount: number;
+  reactivatedCount: number;
+  rollingAvg: RollingAvgMetrics;
+  statusFlows?: StatusFlowData;
+}
+
+/** Full response from GET /analytics/rep-scorecard */
+export interface RepScorecardResponse {
+  reps: RepScorecardEntry[];
+  networkAvgDealersPerRep: number;
+  reportDateRange: ReportDateRange;
+  insufficientData: boolean;
+  windowSize: number;
+}

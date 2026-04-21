@@ -80,9 +80,71 @@ Returns state-level budget data with rep assignments.
 
 **Response**: Array of `{ state, rep, annualTotal, monthlyBudgets }`
 
+---
+
+## Routes — Rolling Averages (in `index.js`)
+
+### `GET /analytics/rolling-averages`
+Network-level rolling averages across the dealer network.
+
+**Query Params**:
+| Param    | Type   | Default | Description                                    |
+|----------|--------|---------|------------------------------------------------|
+| `window` | Number | 7       | Window size in report dates (clamped 1–60)     |
+| `states` | String | —       | Comma-separated state codes (e.g., "TX,FL")    |
+| `debug`  | String | —       | Set to "true" to include raw reportDates array |
+
+**Response**: `NetworkRollingAvgResponse`
+- `current` — 5 core metrics (avgDaysSinceApp, avgDaysSinceApproval, avgDaysSinceBooking, avgContactDays, avgVisitResponse)
+- `previous` — same metrics from the previous window
+- `deltas` — current minus previous (negative = improving for days-since metrics)
+- `statusFlows` — churn velocity: avgGainedActive, avgLostActive, avgReactivated, netDelta
+- `reportDateRange` — { first, last, count } of dates used
+- `insufficientData` — true when < 2 report dates exist
+
+**Caching**: In-memory Map, 5-minute TTL, keyed by `window+states`.
+
+---
+
+### `GET /analytics/rep-scorecard`
+Per-rep rolling averages, dealer counts, churn flows, and heat index data.
+
+**Query Params**:
+| Param    | Type   | Default | Description                                    |
+|----------|--------|---------|------------------------------------------------|
+| `window` | Number | 7       | Window size in report dates (clamped 1–60)     |
+| `debug`  | String | —       | Set to "true" to include raw reportDates array |
+
+**Response**: `RepScorecardResponse`
+- `reps[]` — array of `RepScorecardEntry` objects:
+  - Rep name, dealer counts (total, active, 30d, 60d, long, reactivated)
+  - Rolling avg metrics (current + deltas)
+  - Status flows per rep
+  - Heat index, heat class, capacity ratio, capacity flag (Phase 4)
+- `networkAvgDealersPerRep` — avg dealers per rep for capacity ratio
+- `reportDateRange`, `insufficientData`, `windowSize`
+
+**Caching**: In-memory Map, 5-minute TTL, keyed by `window`.
+
+---
+
+## Services — `services/rollingAverages.js`
+
+| Function                     | Description                                                |
+|------------------------------|------------------------------------------------------------|
+| `computeNetworkRollingAvg()` | Company-wide rolling avgs with dual-window + deltas        |
+| `computeRepScorecard()`      | Per-rep breakdown via SalesBudget state→rep join           |
+| `computeStatusFlows()`       | Churn velocity from consecutive date-pair transitions      |
+
+Window uses N most recent **report dates** (not calendar days) to handle data gaps.
+
+---
+
 ## Files
 
-| File        | Lines | Description                          |
-|-------------|-------|--------------------------------------|
-| `index.js`  | ~600  | Main analytics API (groups, dealers) |
-| `budget.js` | ~150  | Budget/state endpoints               |
+| File                    | Lines | Description                               |
+|-------------------------|-------|-------------------------------------------|
+| `index.js`              | ~880  | Main analytics API (groups, dealers, rolling avgs) |
+| `budget.js`             | ~150  | Budget/state endpoints                    |
+| `rollingAverages.js`*   | ~320  | Rolling averages service (in services/)   |
+

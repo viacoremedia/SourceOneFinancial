@@ -8,10 +8,13 @@ import { AppShell } from '../../../core/components/AppShell';
 import { TabBar, type TabId } from '../components/TabBar';
 import { FilterBar } from '../components/FilterBar';
 import { DealerTable } from '../components/DealerTable';
+import { RollingAvgStrip } from '../components/RollingAvgStrip';
 import { useOverview, useDealerGroups } from '../hooks';
+import { useRollingAvg } from '../hooks/useRollingAvg';
+import { useRepScorecard } from '../hooks/useRepScorecard';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../core/services/api';
-import type { DealerLocation } from '../types';
+import type { DealerLocation, RollingWindow, HeatClass } from '../types';
 
 // Map frontend sort keys to server sort keys
 const SORT_KEY_MAP: Record<string, string> = {
@@ -27,7 +30,7 @@ const SORT_KEY_MAP: Record<string, string> = {
 export function Dashboard() {
   const { data: overview } = useOverview();
 
-  const [activeTab, setActiveTab] = useState<TabId>('groups');
+  const [activeTab, setActiveTab] = useState<TabId>('all');
   const [groupLocations, setGroupLocations] = useState<
     Record<string, DealerLocation[]>
   >({});
@@ -40,6 +43,10 @@ export function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
   const activityModeRef = useRef<'application' | 'approval' | 'booking'>('application');
+
+  // ── Rolling Averages ──
+  const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
+  const [activeOnly, setActiveOnly] = useState(false);
 
   // Fetch state-rep map + budgets on mount
   useEffect(() => {
@@ -63,6 +70,38 @@ export function Dashboard() {
     if (selectedRep && repStatesMap[selectedRep]) return repStatesMap[selectedRep];
     return undefined;
   }, [selectedRep, selectedState, repStatesMap]);
+
+  // Rolling averages — depends on targetStates + status filter
+  // Priority: dashboard statusFilter chips → strip activeOnly toggle → all
+  const STATUS_FILTER_MAP: Record<string, string[]> = {
+    active: ['active'],
+    inactive30: ['30d_inactive'],
+    inactive60: ['60d_inactive'],
+    longInactive: ['long_inactive'],
+  };
+
+  const rollingStatusFilter = useMemo(() => {
+    // Dashboard stat chip takes priority
+    if (statusFilter && STATUS_FILTER_MAP[statusFilter]) {
+      return STATUS_FILTER_MAP[statusFilter];
+    }
+    // Strip toggle fallback
+    if (activeOnly) return ['active'];
+    return undefined;
+  }, [statusFilter, activeOnly]);
+
+  const { data: rollingAvgData, isLoading: rollingAvgLoading } = useRollingAvg(rollingWindow, targetStates, rollingStatusFilter, activityMode);
+
+  // Rep scorecard (always fetched for heat dots in FilterBar — server caches 5 min)
+  const { data: scorecardData } = useRepScorecard(rollingWindow, true, undefined, activityMode);
+  const repHeatMap = useMemo(() => {
+    if (!scorecardData?.reps) return undefined;
+    const map: Record<string, HeatClass> = {};
+    for (const r of scorecardData.reps) {
+      if (r.heatClass) map[r.rep] = r.heatClass;
+    }
+    return Object.keys(map).length > 0 ? map : undefined;
+  }, [scorecardData]);
 
   // Fetch groups — re-fetches when targetStates changes (server recalculates summaries)
   const { groups, isLoading: groupsLoading } = useDealerGroups(targetStates, activityMode);
@@ -353,8 +392,26 @@ export function Dashboard() {
     ? overview.totalDealers - groups.reduce((sum, g) => sum + g.dealerCount, 0)
     : undefined);
 
+  // Rep selection from the scorecard drawer
+  const handleScorecardRepSelect = useCallback((rep: string) => {
+    handleRepChange(rep);
+  }, [handleRepChange]);
+
+  // Rep + State selection from scorecard state sub-rows
+  const handleScorecardRepStateSelect = useCallback((rep: string, state: string) => {
+    handleRepChange(rep);
+    handleStateChange(state);
+  }, [handleRepChange, handleStateChange]);
+
   return (
-    <AppShell latestReportDate={overview?.latestReportDate}>
+    <AppShell
+      latestReportDate={overview?.latestReportDate}
+      rollingWindow={rollingWindow}
+      onRollingWindowChange={setRollingWindow}
+      onSelectRep={handleScorecardRepSelect}
+      onSelectRepState={handleScorecardRepStateSelect}
+      activityMode={activityMode}
+    >
 
       <div
         style={{
@@ -387,9 +444,26 @@ export function Dashboard() {
             onStateChange={handleStateChange}
             onStatusFilterChange={handleStatusFilterChange}
             onActivityModeChange={handleActivityModeChange}
+            repHeatMap={repHeatMap}
           />
         )}
       </div>
+
+      <RollingAvgStrip
+        data={rollingAvgData}
+        isLoading={rollingAvgLoading}
+        windowSize={rollingWindow}
+        onWindowChange={setRollingWindow}
+        activeOnly={activeOnly}
+        onActiveOnlyChange={setActiveOnly}
+        statusFilterLabel={
+          statusFilter === 'active' ? 'Active'
+          : statusFilter === 'inactive30' ? '30d Inactive'
+          : statusFilter === 'inactive60' ? '60d Inactive'
+          : statusFilter === 'longInactive' ? 'Long Inactive'
+          : null
+        }
+      />
 
       <DealerTable
         mode={activeTab}

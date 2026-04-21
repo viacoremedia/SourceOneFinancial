@@ -196,4 +196,37 @@ export async function getBudgetByState(year?: number): Promise<StateBudget[]> {
   return data.states;
 }
 
+// ── Rolling Averages ──
+import type {
+  NetworkRollingAvgResponse,
+  RepScorecardResponse,
+  RollingWindow,
+} from '../../features/dashboard/types';
+
+export async function getRollingAverages(
+  windowSize: RollingWindow = 7,
+  states?: string[],
+  statusFilter?: string[],
+  activityMode?: string
+): Promise<NetworkRollingAvgResponse> {
+  const params: Record<string, string | number> = { window: windowSize };
+  if (states && states.length > 0) params.states = states.join(',');
+  if (statusFilter && statusFilter.length > 0) params.status = statusFilter.join(',');
+  if (activityMode && activityMode !== 'application') params.mode = activityMode;
+  const { data } = await api.get('/analytics/rolling-averages', { params });
+  return data;
+}
+
+export async function getRepScorecard(
+  windowSize: RollingWindow = 7,
+  statusFilter?: string[],
+  activityMode?: string
+): Promise<RepScorecardResponse> {
+  const params: Record<string, string | number> = { window: windowSize };
+  if (statusFilter && statusFilter.length > 0) params.status = statusFilter.join(',');
+  if (activityMode && activityMode !== 'application') params.mode = activityMode;
+  const { data } = await api.get('/analytics/rep-scorecard', { params });
+  return data;
+}
+
 export default api;

@@ -25,6 +25,17 @@
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.heatDotInline {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .filterSelect {

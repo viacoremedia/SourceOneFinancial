@@ -7,7 +7,7 @@
 import { useMemo } from 'react';
 import styles from './FilterBar.module.css';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../../core/services/api';
-import type { DealerGroup } from '../../types';
+import type { DealerGroup, HeatClass } from '../../types';
 
 interface FilterBarProps {
   stateRepMap: StateRepMap;
@@ -23,12 +23,33 @@ interface FilterBarProps {
   onStateChange: (state: string) => void;
   onStatusFilterChange: (status: string | null) => void;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
+  repHeatMap?: Record<string, HeatClass>;
 }
 
 function formatDollar(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n}`;
+}
+
+function heatClassColor(hc: HeatClass): string {
+  switch (hc) {
+    case 'strong': return '#34d399';
+    case 'average': return '#fbbf24';
+    case 'overburdened': return '#f97316';
+    case 'underperforming': return '#ef4444';
+    default: return '#64748b';
+  }
+}
+
+function heatDotSymbol(hc: HeatClass): string {
+  switch (hc) {
+    case 'strong': return '🟢';
+    case 'average': return '🟡';
+    case 'overburdened': return '🟠';
+    case 'underperforming': return '🔴';
+    default: return '⚪';
+  }
 }
 
 export function FilterBar({
@@ -45,6 +66,7 @@ export function FilterBar({
   onStateChange,
   onStatusFilterChange,
   onActivityModeChange,
+  repHeatMap,
 }: FilterBarProps) {
   const reps = useMemo(() => {
     const repSet = new Set(Object.values(stateRepMap));
@@ -174,7 +196,16 @@ export function FilterBar({
     <div className={styles.filterWrapper}>
       <div className={styles.filterBar}>
         <div className={styles.filterGroup}>
-          <label className={styles.filterLabel}>Rep</label>
+          <label className={styles.filterLabel}>
+            Rep
+            {selectedRep && repHeatMap?.[selectedRep] && (
+              <span
+                className={styles.heatDotInline}
+                style={{ background: heatClassColor(repHeatMap[selectedRep]) }}
+                title={`Heat: ${repHeatMap[selectedRep]}`}
+              />
+            )}
+          </label>
           <select
             className={`${styles.filterSelect} ${selectedRep ? styles.filterActive : ''}`}
             value={selectedRep}
@@ -183,7 +214,9 @@ export function FilterBar({
           >
             <option value="">All Reps</option>
             {reps.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>
+                {repHeatMap?.[r] ? `${heatDotSymbol(repHeatMap[r])} ${r}` : r}
+              </option>
             ))}
           </select>
         </div>

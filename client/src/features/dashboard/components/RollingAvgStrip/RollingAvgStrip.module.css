@@ -1,0 +1,309 @@
+/* RollingAvgStrip — compact data ticker */
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--card-bg, rgba(22, 32, 49, 0.6));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Window Toggle ── */
+
+.windowToggle {
+  display: flex;
+  gap: 2px;
+  background: var(--input-bg, rgba(15, 23, 42, 0.5));
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.windowBtn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.windowBtn:hover:not(:disabled) {
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.windowBtnActive {
+  background: var(--accent-color, #818cf8) !important;
+  color: #fff !important;
+  box-shadow: 0 1px 4px rgba(129, 140, 248, 0.3);
+}
+
+.windowBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Active Only Toggle ── */
+
+.activeToggle {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.activeToggle:hover {
+  border-color: var(--color-emerald, #34d399);
+  color: var(--color-emerald, #34d399);
+}
+
+.activeToggleOn {
+  border-color: var(--color-emerald, #34d399);
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--color-emerald, #34d399);
+}
+
+/* ── Metrics Row ── */
+
+.metricsRow {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.metricCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 12px;
+  min-width: 90px;
+  flex: 1;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.metricCard:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metricLabel {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.metricValue {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Delta Badges ── */
+
+.deltaBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-top: 2px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.deltaBadgeGood {
+  color: var(--color-emerald, #34d399);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.deltaBadgeBad {
+  color: var(--color-red, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Churn Summary ── */
+
+.churnSummary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-left: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.churnGained {
+  color: var(--color-emerald, #34d399);
+}
+
+.churnLost {
+  color: var(--color-red, #ef4444);
+}
+
+.churnDivider {
+  color: var(--text-muted, #475569);
+}
+
+/* ── Empty State ── */
+
+.emptyState {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  padding: 4px 0;
+  font-style: italic;
+}
+
+/* ── Skeleton ── */
+
+.skeleton {
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base, rgba(255, 255, 255, 0.04)) 25%,
+    var(--skeleton-shine, rgba(255, 255, 255, 0.08)) 50%,
+    var(--skeleton-base, rgba(255, 255, 255, 0.04)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonLabel {
+  width: 60px;
+  height: 10px;
+  margin-bottom: 4px;
+}
+
+.skeletonValue {
+  width: 40px;
+  height: 18px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+  .strip {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .churnSummary {
+    border-left: none;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+    padding-top: 8px;
+    padding-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .metricsRow {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .metricCard {
+    min-width: 75px;
+  }
+}
+
+/* ── Light Mode Overrides ── */
+:global([data-theme="light"]) .strip {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+:global([data-theme="light"]) .windowToggle {
+  background: #f1f5f9;
+}
+
+:global([data-theme="light"]) .windowBtn {
+  color: #64748b;
+}
+
+:global([data-theme="light"]) .windowBtn:hover:not(:disabled) {
+  color: #1e293b;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+:global([data-theme="light"]) .activeToggle {
+  color: #64748b;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+:global([data-theme="light"]) .metricLabel {
+  color: #64748b;
+}
+
+:global([data-theme="light"]) .metricCard:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+:global([data-theme="light"]) .deltaBadgeGood {
+  background: rgba(52, 211, 153, 0.08);
+}
+
+:global([data-theme="light"]) .deltaBadgeBad {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+:global([data-theme="light"]) .churnSummary {
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+:global([data-theme="light"]) .churnDivider {
+  color: #cbd5e1;
+}
+
+:global([data-theme="light"]) .emptyState {
+  color: #94a3b8;
+}
+
+:global([data-theme="light"]) .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.07) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+}

@@ -5,6 +5,55 @@ Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
 ----
 
+## [2026-04-21] — Rolling Averages Dashboard + Rep Scorecard + Heat Index
+
+### Added
+- **Rolling Averages API** — two new endpoints in `analytics/index.js`:
+  - `GET /analytics/rolling-averages?window=7|30&states=TX,FL` — network-level rolling averages (5 core metrics + churn velocity + period-over-period deltas)
+  - `GET /analytics/rep-scorecard?window=7|30` — per-rep rolling averages, dealer counts, churn flows, and Heat Index composite scoring
+  - Both use report-date-based windowing (not calendar days) to handle data gaps gracefully
+  - In-memory Map cache with 5-minute TTL; `?debug=true` returns raw reportDates array
+  - Window size hard-capped at 60 to prevent heavy queries
+  - `insufficientData` flag when < 2 report dates exist
+- **Rolling Averages Service** (`server/services/rollingAverages.js`):
+  - `computeNetworkRollingAvg()` — dual-window aggregation (current + previous) in one call
+  - `computeRepScorecard()` — per-rep breakdown via DealerLocation→SalesBudget→rep join
+  - `computeStatusFlows()` — churn velocity from consecutive date-pair status transitions
+- **Heat Index Engine** (`server/services/heatIndex.js`):
+  - 0–100 composite performance score per rep from 8 weighted sub-scores
+  - Min/max normalized across all reps; inverted for "days since" metrics (lower = better)
+  - Default weights: App Days 20%, Active Ratio 20%, Contact Days 15%, Approval/Booking/Visit/Reactivation/Churn
+  - Capacity classification: Strong (≥70) / Average / Overburdened (>1.3x avg dealers AND <50) / Underperforming (≤1.0x AND <40)
+  - Per-metric breakdown attached for frontend tooltip transparency
+- **Rolling Averages Strip** (`RollingAvgStrip`) — compact data ticker between FilterBar and DealerTable:
+  - 5 heatmap-colored metric cards with period-over-period delta badges (↓green / ↑red)
+  - Color-coded churn summary (gained/lost/net per day)
+  - 7d/30d window toggle pills
+  - Skeleton loading state + "insufficient data" empty state
+- **Rep Scorecard Drawer** (`RepScorecard`) — bottom-sliding drawer with all-reps comparison:
+  - 16-column sortable table: Heat Index, Rep, Dealers, Active, 30d, 60d, Long, Reactivated, 5 rolling avg metrics, Gained/d, Lost/d, Net
+  - Heat Index column with colored dot + capacity badges (⚡ Overburdened / ⚠ Underperforming)
+  - Hover tooltip on Heat Index showing weighted breakdown of all 8 sub-scores
+  - Clickable rows → filters main dashboard to selected rep
+  - Synced window toggle with strip
+  - Lazy loading (only fetches when drawer is open)
+- **Heat Index dots in FilterBar** — colored emoji indicators (🟢🟡🟠🔴) next to rep names in dropdown + inline dot on label when a rep is selected
+- **AppShell 📋 button** — Rep Scorecard trigger in header, next to Daily Digest
+- **TypeScript interfaces** — `NetworkRollingAvgResponse`, `RepScorecardEntry`, `RepScorecardResponse`, `StatusFlowData`, `ReportDateRange`, `RollingWindow`, `HeatClass`, `CapacityFlag` in `dashboard/types.ts`
+
+### Changed
+- `Dashboard.tsx` — Added `rollingWindow` state, `useRollingAvg` + `useRepScorecard` hooks, integrated `RollingAvgStrip` + FilterBar heat dots + scorecard rep selection callback
+- `AppShell.tsx` — Added `rollingWindow`, `onRollingWindowChange`, `onSelectRep` props; renders `RepScorecard` drawer
+- `FilterBar.tsx` — Added `repHeatMap` prop, `heatClassColor` + `heatDotSymbol` helpers, emoji in dropdown options, inline heat dot on label
+- `api.ts` — Added `getRollingAverages()` + `getRepScorecard()` client functions
+- `analytics/index.js` — Added rolling-averages + rep-scorecard endpoints with cache infrastructure
+
+### Tests Run
+- All TypeScript types compile (build verification pending user run)
+- Server services structured for unit testing with mock snapshot data
+
+---
+
 ## [2026-04-14] — Webhook Observability + Light/Dark Theme
 
 ### Added

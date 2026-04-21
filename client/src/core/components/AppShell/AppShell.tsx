@@ -3,11 +3,18 @@ import { useAuth } from '../../../features/auth/hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 import { SettingsPanel } from '../../../features/auth/components/SettingsPanel';
 import { DigestPanel } from '../../../features/auth/components/DigestPanel';
+import { RepScorecard } from '../../../features/dashboard/components/RepScorecard';
 import styles from './AppShell.module.css';
+import type { RollingWindow } from '../../../features/dashboard/types';
 
 interface AppShellProps {
   children: ReactNode;
   latestReportDate?: string | null;
+  rollingWindow?: RollingWindow;
+  onRollingWindowChange?: (w: RollingWindow) => void;
+  onSelectRep?: (rep: string) => void;
+  onSelectRepState?: (rep: string, state: string) => void;
+  activityMode?: string;
 }
 
 // SVG theme icons (Lucide-style, 18px)
@@ -41,11 +48,12 @@ const THEME_LABELS: Record<string, string> = {
   dark: 'Dark mode',
 };
 
-export function AppShell({ children, latestReportDate }: AppShellProps) {
+export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode }: AppShellProps) {
   const { user } = useAuth();
   const { mode, toggleTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
+  const [scorecardOpen, setScorecardOpen] = useState(false);
 
   const formattedDate = latestReportDate
     ? (() => {
@@ -90,6 +98,14 @@ export function AppShell({ children, latestReportDate }: AppShellProps) {
             <>
               <button
                 className={styles.settingsBtn}
+                onClick={() => setScorecardOpen(true)}
+                title="Rep Scorecard"
+                id="scorecard-btn"
+              >
+                📋
+              </button>
+              <button
+                className={styles.settingsBtn}
                 onClick={() => setDigestOpen(true)}
                 title="Daily Digest"
                 id="digest-btn"
@@ -112,6 +128,15 @@ export function AppShell({ children, latestReportDate }: AppShellProps) {
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <DigestPanel open={digestOpen} onClose={() => setDigestOpen(false)} latestReportDate={latestReportDate} />
+      <RepScorecard
+        open={scorecardOpen}
+        onClose={() => setScorecardOpen(false)}
+        windowSize={rollingWindow}
+        onWindowChange={onRollingWindowChange || (() => {})}
+        onSelectRep={onSelectRep}
+        onSelectRepState={onSelectRepState}
+        activityMode={activityMode}
+      />
     </div>
   );
 }

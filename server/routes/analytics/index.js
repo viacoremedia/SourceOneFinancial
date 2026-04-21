@@ -780,4 +780,114 @@ router.get('/overview', async (req, res) => {
     }
 });
 
+// ==========================================
+// Rolling Averages — In-Memory Cache (5 min TTL)
+// ==========================================
+const { computeNetworkRollingAvg, computeRepScorecard } = require('../../services/rollingAverages');
+
+const rollingAvgCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key) {
+    const entry = rollingAvgCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.ts > CACHE_TTL_MS) {
+        rollingAvgCache.delete(key);
+        return null;
+    }
+    return entry.data;
+}
+
+function setCache(key, data) {
+    rollingAvgCache.set(key, { data, ts: Date.now() });
+}
+
+// ==========================================
+// GET /analytics/rolling-averages
+// Network-level rolling averages (company-wide or by state)
+// Query: ?window=7|30&states=TX,FL&debug=true
+// ==========================================
+router.get('/rolling-averages', async (req, res) => {
+    try {
+        const windowSize = Math.min(60, Math.max(1, parseInt(req.query.window) || 7));
+        const statesParam = req.query.states
+            ? String(req.query.states).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+            : null;
+        const statusParam = req.query.status
+            ? String(req.query.status).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+            : null;
+        const mode = ['application', 'approval', 'booking'].includes(req.query.mode) ? req.query.mode : 'application';
+        const debug = req.query.debug === 'true';
+
+        const cacheKey = `ra:${windowSize}:${(statesParam || []).join(',')}:${(statusParam || []).join(',')}:${mode}`;
+        let result = getCached(cacheKey);
+
+        if (!result) {
+            result = await computeNetworkRollingAvg(windowSize, statesParam, statusParam, mode);
+            setCache(cacheKey, result);
+        }
+
+        const response = { success: true, ...result };
+        if (debug) {
+            // Fetch raw dates for debug
+            const DailySnap = require('../../models/DailyDealerSnapshot');
+            const rawDates = await DailySnap.aggregate([
+                { $group: { _id: '$reportDate' } },
+                { $sort: { _id: -1 } },
+                { $limit: windowSize * 2 },
+            ]);
+            response._debug = {
+                reportDates: rawDates.map(d => d._id.toISOString()),
+            };
+        }
+
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('Error computing rolling averages:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// GET /analytics/rep-scorecard
+// Per-rep rolling averages + dealer counts + churn flows
+// Query: ?window=7|30&debug=true
+// ==========================================
+router.get('/rep-scorecard', async (req, res) => {
+    try {
+        const windowSize = Math.min(60, Math.max(1, parseInt(req.query.window) || 7));
+        const statusParam = req.query.status
+            ? String(req.query.status).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+            : null;
+        const mode = ['application', 'approval', 'booking'].includes(req.query.mode) ? req.query.mode : 'application';
+        const debug = req.query.debug === 'true';
+
+        const cacheKey = `rs:${windowSize}:${(statusParam || []).join(',')}:${mode}`;
+        let result = getCached(cacheKey);
+
+        if (!result) {
+            result = await computeRepScorecard(windowSize, statusParam, mode);
+            setCache(cacheKey, result);
+        }
+
+        const response = { success: true, ...result };
+        if (debug) {
+            const DailySnap = require('../../models/DailyDealerSnapshot');
+            const rawDates = await DailySnap.aggregate([
+                { $group: { _id: '$reportDate' } },
+                { $sort: { _id: -1 } },
+                { $limit: windowSize * 2 },
+            ]);
+            response._debug = {
+                reportDates: rawDates.map(d => d._id.toISOString()),
+            };
+        }
+
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('Error computing rep scorecard:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 module.exports = router;
