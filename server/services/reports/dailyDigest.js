@@ -19,7 +19,7 @@ const SalesBudget = require('../../models/SalesBudget');
  * @param {Date} reportDate - The date of the ingested report
  * @returns {Promise<Object>} Collected metrics for template rendering
  */
-async function collectDigestData(reportDate) {
+async function collectDigestData(reportDate, activityMode = 'application') {
     // Normalize to midnight UTC for date comparisons
     const today = new Date(reportDate);
     today.setUTCHours(0, 0, 0, 0);
@@ -35,10 +35,31 @@ async function collectDigestData(reportDate) {
         stateRepMap[b.state] = b.rep;
     }
 
+    // Determine whether to use pre-computed activityStatus or derive from daysSince
+    const useCustomMode = activityMode !== 'application';
+    const daysSinceField = activityMode === 'approval'
+        ? '$daysSinceLastApproval'
+        : activityMode === 'booking'
+            ? '$daysSinceLastBooking'
+            : '$daysSinceLastApplication';
+
+    const statusSwitch = useCustomMode ? {
+        $switch: {
+            branches: [
+                { case: { $eq: [daysSinceField, null] }, then: 'never_active' },
+                { case: { $lte: [daysSinceField, 30] }, then: 'active' },
+                { case: { $lte: [daysSinceField, 60] }, then: '30d_inactive' },
+                { case: { $lte: [daysSinceField, 90] }, then: '60d_inactive' },
+            ],
+            default: 'long_inactive'
+        }
+    } : '$activityStatus';
+
     // 1. Status breakdown for today
     const statusBreakdown = await DailyDealerSnapshot.aggregate([
         { $match: { reportDate: today } },
-        { $group: { _id: '$activityStatus', count: { $sum: 1 } } },
+        { $addFields: { _derivedStatus: statusSwitch } },
+        { $group: { _id: '$_derivedStatus', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
     ]);
 
@@ -52,7 +73,8 @@ async function collectDigestData(reportDate) {
     // 2. Status breakdown for yesterday (for day-over-day changes)
     const yesterdayBreakdown = await DailyDealerSnapshot.aggregate([
         { $match: { reportDate: yesterday } },
-        { $group: { _id: '$activityStatus', count: { $sum: 1 } } },
+        { $addFields: { _derivedStatus: statusSwitch } },
+        { $group: { _id: '$_derivedStatus', count: { $sum: 1 } } },
     ]);
 
     const yesterdayMap = {};
@@ -196,11 +218,26 @@ async function collectDigestData(reportDate) {
                 }
             },
             { $addFields: { prevSnap: { $arrayElemAt: ['$prev', 0] } } },
+            // Derive status for both today and yesterday based on activityMode
+            { $addFields: {
+                _todayStatus: statusSwitch,
+                _prevStatus: useCustomMode ? {
+                    $switch: {
+                        branches: [
+                            { case: { $eq: [daysSinceField.replace('$', '$prevSnap.'), null] }, then: 'never_active' },
+                            { case: { $lte: [daysSinceField.replace('$', '$prevSnap.'), 30] }, then: 'active' },
+                            { case: { $lte: [daysSinceField.replace('$', '$prevSnap.'), 60] }, then: '30d_inactive' },
+                            { case: { $lte: [daysSinceField.replace('$', '$prevSnap.'), 90] }, then: '60d_inactive' },
+                        ],
+                        default: 'long_inactive'
+                    }
+                } : '$prevSnap.activityStatus',
+            } },
             // Only keep rows where status actually changed
             {
                 $match: {
                     prevSnap: { $ne: null },
-                    $expr: { $ne: ['$activityStatus', '$prevSnap.activityStatus'] },
+                    $expr: { $ne: ['$_todayStatus', '$_prevStatus'] },
                 }
             },
             // Lookup dealer name
@@ -218,8 +255,8 @@ async function collectDigestData(reportDate) {
                     dealerName: '$location.dealerName',
                     dealerId: '$location.dealerId',
                     statePrefix: '$location.statePrefix',
-                    from: '$prevSnap.activityStatus',
-                    to: '$activityStatus',
+                    from: '$_prevStatus',
+                    to: '$_todayStatus',
                     daysSinceLastApplication: 1,
                 }
             },

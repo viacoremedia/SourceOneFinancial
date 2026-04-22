@@ -68,6 +68,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
   const [loading, setLoading] = useState(false);
   const [repFilter, setRepFilter] = useState<string>('');
   const [flowFilter, setFlowFilter] = useState<string>('');
+  const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
 
   // Fetch available dates
   useEffect(() => {
@@ -84,11 +85,11 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
   }, [open]);
 
   // Fetch digest data when date changes
-  const fetchDigest = useCallback(async (date: string) => {
+  const fetchDigest = useCallback(async (date: string, mode: string) => {
     if (!date) return;
     setLoading(true);
     try {
-      const { data: res } = await api.get(`/reports/digest?date=${date}`);
+      const { data: res } = await api.get(`/reports/digest?date=${date}&activityMode=${mode}`);
       setData(res.data);
     } catch {
       setData(null);
@@ -98,8 +99,8 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
   }, []);
 
   useEffect(() => {
-    if (selectedDate && open) fetchDigest(selectedDate);
-  }, [selectedDate, open, fetchDigest]);
+    if (selectedDate && open) fetchDigest(selectedDate, activityMode);
+  }, [selectedDate, open, fetchDigest, activityMode]);
 
   if (!open) return null;
 
@@ -188,6 +189,20 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
               }}
             >Newer →</button>
           </div>
+        </div>
+
+        {/* Activity Mode Toggle */}
+        <div className={styles.modeToggle}>
+          <span className={styles.modeLabel}>Status By</span>
+          {(['application', 'approval', 'booking'] as const).map(mode => (
+            <button
+              key={mode}
+              className={`${styles.modeBtn} ${activityMode === mode ? styles.modeBtnActive : ''}`}
+              onClick={() => setActivityMode(mode)}
+            >
+              {mode === 'application' ? 'App' : mode === 'approval' ? 'Appr' : 'Bkd'}
+            </button>
+          ))}
         </div>
 
         {loading && <div className={styles.loadingMsg}>Loading digest...</div>}

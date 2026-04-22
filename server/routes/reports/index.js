@@ -181,7 +181,7 @@ router.get('/digest', async (req, res) => {
             reportDate = latest ? latest.reportDate : new Date();
         }
 
-        const data = await collectDigestData(reportDate);
+        const data = await collectDigestData(reportDate, req.query.activityMode || 'application');
         res.json({ success: true, data });
     } catch (err) {
         console.error('Error fetching digest data:', err);
