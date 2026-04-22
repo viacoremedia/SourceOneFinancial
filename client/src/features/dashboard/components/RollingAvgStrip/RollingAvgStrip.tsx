@@ -67,6 +67,29 @@ function fmt(v: number | null): string {
   return v.toFixed(1);
 }
 
+/**
+ * Delta badge for churn flow metrics.
+ * @param delta - Change vs previous window (positive = increased)
+ * @param invert - If true, positive delta = bad (e.g. "lost" went up = worse)
+ */
+function ChurnDelta({ delta, invert }: { delta: number | null; invert: boolean }) {
+  if (delta == null || delta === 0) return null;
+  const isPositive = delta > 0;
+  // For "gained" and "net": positive = good (green ↑)
+  // For "lost": positive = bad (red ↑), negative = good (green ↓)
+  const isGood = invert ? !isPositive : isPositive;
+  const cls = isGood ? styles.deltaBadgeGood : styles.deltaBadgeBad;
+  const arrow = isPositive ? '↑' : '↓';
+  return (
+    <span
+      className={`${styles.deltaBadge} ${cls} ${styles.churnDeltaBadge}`}
+      title={`${isPositive ? '+' : ''}${delta.toFixed(1)}/d vs previous ${invert ? '(lower is better)' : '(higher is better)'}`}
+    >
+      {arrow}{Math.abs(delta).toFixed(1)}
+    </span>
+  );
+}
+
 export function RollingAvgStrip({
   data,
   isLoading,
@@ -117,7 +140,7 @@ export function RollingAvgStrip({
     );
   }
 
-  const { current, deltas, statusFlows } = data;
+  const { current, deltas, statusFlows, statusFlowDeltas } = data;
 
   return (
     <div className={styles.strip} id="rolling-avg-strip">
@@ -168,18 +191,31 @@ export function RollingAvgStrip({
         })}
       </div>
 
-      {/* Churn Flow Summary */}
+      {/* Churn Flow Summary — with label, tooltips, and deltas */}
       <div className={styles.churnSummary}>
-        <span className={styles.churnGained}>
+        <span className={styles.churnLabel}>Daily Churn</span>
+        <span
+          className={styles.churnGained}
+          title={`Gained: on avg ${statusFlows.avgGainedActive.toFixed(1)} dealers/day entered this status over the ${windowSize}-day window`}
+        >
           +{statusFlows.avgGainedActive.toFixed(1)}/d
+          <ChurnDelta delta={statusFlowDeltas?.avgGainedActive ?? null} invert={false} />
         </span>
         <span className={styles.churnDivider}>·</span>
-        <span className={styles.churnLost}>
+        <span
+          className={styles.churnLost}
+          title={`Lost: on avg ${statusFlows.avgLostActive.toFixed(1)} dealers/day left this status over the ${windowSize}-day window`}
+        >
           -{statusFlows.avgLostActive.toFixed(1)}/d
+          <ChurnDelta delta={statusFlowDeltas?.avgLostActive ?? null} invert={true} />
         </span>
         <span className={styles.churnDivider}>·</span>
-        <span className={statusFlows.netDelta >= 0 ? styles.churnGained : styles.churnLost}>
+        <span
+          className={statusFlows.netDelta >= 0 ? styles.churnGained : styles.churnLost}
+          title={`Net: gained minus lost per day (${statusFlows.netDelta >= 0 ? 'growing' : 'shrinking'} by ${Math.abs(statusFlows.netDelta).toFixed(1)}/day)`}
+        >
           Net {statusFlows.netDelta >= 0 ? '+' : ''}{statusFlows.netDelta.toFixed(1)}
+          <ChurnDelta delta={statusFlowDeltas?.netDelta ?? null} invert={false} />
         </span>
       </div>
     </div>

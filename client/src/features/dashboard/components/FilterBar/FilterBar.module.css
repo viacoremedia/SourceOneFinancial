@@ -352,6 +352,99 @@
   color: var(--status-red);
 }
 
-.statReactivated {
-  color: var(--color-amber-400, #fbbf24);
+/* ── Status Transition Pills ── */
+
+.transitionRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
+  flex-wrap: wrap;
+}
+
+.transitionLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.transitionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.transitionPill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="light"] .transitionPill {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .transitionPill:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.transitionPillActive {
+  background: rgba(45, 212, 191, 0.08) !important;
+  border-color: var(--accent-primary, #2dd4bf) !important;
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.15);
+}
+
+.transitionStatus {
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.transitionArrow {
+  color: var(--text-muted, #475569);
+  font-size: 10px;
+}
+
+.transitionCount {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 10px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  margin-left: 2px;
+}
+
+.transitionClear {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.transitionClear:hover {
+  border-color: var(--status-red, #ef4444);
+  color: var(--status-red, #ef4444);
+  background: rgba(239, 68, 68, 0.08);
 }

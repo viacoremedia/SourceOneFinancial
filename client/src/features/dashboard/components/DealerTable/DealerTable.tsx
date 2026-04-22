@@ -15,6 +15,7 @@ import styles from './DealerTable.module.css';
 import { TABLE_COLUMNS } from './columns';
 import { StatusBadge } from './StatusBadge';
 import { getDaysSinceHeatmap, getCommDaysHeatmap } from '../../../../core/utils/heatmap';
+import type { StateRepMap } from '../../../../core/services/api';
 import type {
   DealerGroup,
   DealerLocation,
@@ -36,6 +37,7 @@ interface DealerTableProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   activityMode?: 'application' | 'approval' | 'booking';
+  stateRepMap?: StateRepMap;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
   onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
@@ -169,6 +171,7 @@ export function DealerTable({
   onDealerSortChange,
   onDealerSearch,
   activityMode = 'application',
+  stateRepMap = {},
 }: DealerTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
@@ -334,7 +337,9 @@ export function DealerTable({
 
   // Filter columns based on mode (hide groupOnly columns in dealer mode)
   const visibleColumns = useMemo(() =>
-    mode !== 'groups' ? TABLE_COLUMNS.filter((c) => !c.groupOnly) : TABLE_COLUMNS,
+    mode === 'groups'
+      ? TABLE_COLUMNS.filter((c) => !c.dealerOnly)
+      : TABLE_COLUMNS.filter((c) => !c.groupOnly),
     [mode]
   );
 
@@ -391,7 +396,7 @@ export function DealerTable({
     return 'long_inactive';
   };
 
-  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true) => (
+  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true, statePrefix?: string) => (
     <>
       {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
       <td style={{ textAlign: 'center' }}>
@@ -405,7 +410,7 @@ export function DealerTable({
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
       <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
-      <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
+      <td>{renderStubbed()}</td>
     </>
   );
 
@@ -618,7 +623,14 @@ export function DealerTable({
                 : sortedDealers.map((dealer) => (
                     <tr key={dealer._id} className={styles.dealerRow}>
                       <td><span>{dealer.dealerName}</span></td>
-                      {renderChildCells(dealer.latestSnapshot, false)}
+                      <td style={{ textAlign: 'left' }}>
+                        <span className={styles.repCell}>
+                          {stateRepMap[dealer.statePrefix]
+                            ? stateRepMap[dealer.statePrefix].split(' ').pop()
+                            : <span className={styles.emptyValue}>—</span>}
+                        </span>
+                      </td>
+                      {renderChildCells(dealer.latestSnapshot, false, dealer.statePrefix)}
                     </tr>
                   ))}
               {/* Loading more indicator */}
@@ -715,7 +727,7 @@ interface GroupRowsProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   onToggle: () => void;
-  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean) => React.JSX.Element;
+  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean, statePrefix?: string) => React.JSX.Element;
   deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
 }
 
@@ -832,7 +844,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={commDays} forceSingle={isSingle} useCommHeatmap unit="d" />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={visitToApp} forceSingle={isSingle} unit="d" />}</td>
-        <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
+        <td>{stub}</td><td>{stub}</td><td>{stub}</td>
         <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
       </tr>
       {isExpanded && locations.map((loc) => (

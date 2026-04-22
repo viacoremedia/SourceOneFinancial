@@ -99,6 +99,7 @@ export interface SmallDealerParams {
   states?: string[];
   activityMode?: 'application' | 'approval' | 'booking';
   search?: string;
+  transition?: string;  // e.g. "active→30d_inactive"
 }
 
 export interface DealerStatusBreakdown {
@@ -107,12 +108,12 @@ export interface DealerStatusBreakdown {
   inactive30: number;
   inactive60: number;
   longInactive: number;
-  reactivated: number;
 }
 
 export interface PaginatedDealers {
   dealers: DealerLocation[];
   statusBreakdown: DealerStatusBreakdown | null;
+  statusTransitions: { from: string; to: string; count: number }[];
   pagination: {
     page: number;
     limit: number;
@@ -134,8 +135,9 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.states && params.states.length > 0) queryParams.states = params.states.join(',');
   if (params.activityMode && params.activityMode !== 'application') queryParams.activityMode = params.activityMode;
   if (params.search) queryParams.search = params.search;
+  if (params.transition) queryParams.transition = params.transition;
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
-  return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, pagination: data.pagination };
+  return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, statusTransitions: data.statusTransitions || [], pagination: data.pagination };
 }
 
 // ── Single Dealer Trend ──

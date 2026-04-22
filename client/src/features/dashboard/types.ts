@@ -145,6 +145,7 @@ export interface TableColumn {
   sortable?: boolean;
   hasData: boolean; // false = stubbed for future
   groupOnly?: boolean; // only shown in group mode
+  dealerOnly?: boolean; // only shown in dealer/all mode
   format?: (value: unknown) => string;
 }
 
@@ -190,6 +191,7 @@ export interface NetworkRollingAvgResponse {
   previous: RollingAvgMetrics;
   deltas: RollingAvgMetrics;        // current - previous (negative = improving for daysSince metrics)
   statusFlows: StatusFlowData;
+  statusFlowDeltas: StatusFlowData | null;  // churn deltas vs previous window (null if insufficient data)
   reportDateRange: ReportDateRange;
   insufficientData: boolean;         // true when < 2 report dates exist
   windowSize: number;

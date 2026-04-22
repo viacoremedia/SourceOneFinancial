@@ -122,7 +122,6 @@ export function Dashboard() {
         case '30d_inactive': return g.summary.inactive30Count > 0;
         case '60d_inactive': return g.summary.inactive60Count > 0;
         case 'long_inactive': return g.summary.longInactiveCount > 0;
-        case 'reactivated': return g.summary.reactivatedCount > 0;
         default: return true;
       }
     });
@@ -137,6 +136,9 @@ export function Dashboard() {
   const [totalSmallDealers, setTotalSmallDealers] = useState(0);
   const [totalAllDealers, setTotalAllDealers] = useState(0);
   const [dealerStatusBreakdown, setDealerStatusBreakdown] = useState<DealerStatusBreakdown | null>(null);
+  const [statusTransitions, setStatusTransitions] = useState<{ from: string; to: string; count: number }[]>([]);
+  const [transitionFilter, setTransitionFilter] = useState<string | null>(null);
+  const transitionRef = useRef<string | null>(null);
   const pageRef = useRef(1);
   const sortStateRef = useRef({ sorts: ['dealerName'], dirs: ['asc'] as ('asc' | 'desc')[] });
   const statusRef = useRef<string | null>(null);
@@ -164,6 +166,7 @@ export function Dashboard() {
           page, limit: 50, status, scope, states,
           activityMode: activityModeRef.current,
           search: searchRef.current || undefined,
+          transition: transitionRef.current || undefined,
         });
         const setDealers = scope === 'all' ? setAllDealers : setSmallDealers;
         const setTotal = scope === 'all' ? setTotalAllDealers : setTotalSmallDealers;
@@ -174,6 +177,9 @@ export function Dashboard() {
         }
         if (result.statusBreakdown) {
           setDealerStatusBreakdown(result.statusBreakdown);
+        }
+        if (result.statusTransitions) {
+          setStatusTransitions(result.statusTransitions);
         }
         setHasMore(result.pagination.hasMore);
         setTotal(result.pagination.totalCount);
@@ -199,6 +205,26 @@ export function Dashboard() {
     fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, null, scope, statesRef.current);
   }, [activeTab, smallDealersLoading, fetchDealers]);
 
+  // Fetch transition data for the groups tab (lightweight — just needs the summary)
+  useEffect(() => {
+    if (activeTab !== 'groups') return;
+    (async () => {
+      try {
+        const result = await getSmallDealers({
+          page: 1, limit: 1, scope: 'all',
+          states: statesRef.current,
+          activityMode: activityModeRef.current,
+        });
+        if (result.statusTransitions) {
+          setStatusTransitions(result.statusTransitions);
+        }
+        if (result.statusBreakdown) {
+          setDealerStatusBreakdown(result.statusBreakdown);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [activeTab, targetStates, activityMode]);
+
   // Re-fetch flat tabs when target server params change
   const refetchFlatTab = useCallback(() => {
     const scope = scopeForTab(activeTab);
@@ -211,12 +237,17 @@ export function Dashboard() {
   const handleStatusFilterChange = useCallback((newStatus: string | null) => {
     setStatusFilter(newStatus);
     statusRef.current = newStatus;
+    // Clear transition filter when status filter changes
+    setTransitionFilter(null);
+    transitionRef.current = null;
     refetchFlatTab();
   }, [refetchFlatTab]);
 
   // Rep change — update state and re-fetch for flat tabs
   const handleRepChange = useCallback((rep: string) => {
     setSelectedRep(rep);
+    setTransitionFilter(null);
+    transitionRef.current = null;
     if (!selectedState) {
       statesRef.current = rep && repStatesMap[rep] ? repStatesMap[rep] : undefined;
       refetchFlatTab();
@@ -226,6 +257,8 @@ export function Dashboard() {
   // State change — update state and re-fetch for flat tabs
   const handleStateChange = useCallback((state: string) => {
     setSelectedState(state);
+    setTransitionFilter(null);
+    transitionRef.current = null;
     statesRef.current = state ? [state] : (selectedRep && repStatesMap[selectedRep] ? repStatesMap[selectedRep] : undefined);
     refetchFlatTab();
   }, [selectedRep, repStatesMap, refetchFlatTab]);
@@ -234,7 +267,19 @@ export function Dashboard() {
   const handleActivityModeChange = useCallback((mode: 'application' | 'approval' | 'booking') => {
     setActivityMode(mode);
     activityModeRef.current = mode;
-    // Clear status filter when changing mode
+    // Clear status + transition filters when changing mode
+    setStatusFilter(null);
+    statusRef.current = null;
+    setTransitionFilter(null);
+    transitionRef.current = null;
+    refetchFlatTab();
+  }, [refetchFlatTab]);
+
+  // Transition filter change — re-fetch with specific from→to transition
+  const handleTransitionFilterChange = useCallback((transition: string | null) => {
+    setTransitionFilter(transition);
+    transitionRef.current = transition;
+    // Clear status filter when applying a transition filter
     setStatusFilter(null);
     statusRef.current = null;
     refetchFlatTab();
@@ -244,6 +289,8 @@ export function Dashboard() {
   const handleTabChange = useCallback((tab: TabId) => {
     setStatusFilter(null);
     statusRef.current = null;
+    setTransitionFilter(null);
+    transitionRef.current = null;
     setActiveTab(tab);
     const scope = scopeForTab(tab);
     if (scope) {
@@ -379,7 +426,6 @@ export function Dashboard() {
       if (statusFilter) {
         result = result.filter((loc) => {
           if (!loc.latestSnapshot) return false;
-          if (statusFilter === 'reactivated') return loc.latestSnapshot.reactivatedAfterVisit;
           return deriveLocStatus(loc) === statusFilter;
         });
       }
@@ -446,6 +492,9 @@ export function Dashboard() {
             onStatusFilterChange={handleStatusFilterChange}
             onActivityModeChange={handleActivityModeChange}
             repHeatMap={repHeatMap}
+            statusTransitions={statusTransitions}
+            transitionFilter={transitionFilter}
+            onTransitionFilterChange={handleTransitionFilterChange}
           />
         )}
       </div>
@@ -477,6 +526,7 @@ export function Dashboard() {
         statusFilter={statusFilter}
         isPrefetching={prefetchingLocations}
         activityMode={activityMode}
+        stateRepMap={stateRepMap}
         onExpandGroup={handleExpandGroup}
         onLoadMore={handleLoadMore}
         onDealerSortChange={handleDealerSortChange}

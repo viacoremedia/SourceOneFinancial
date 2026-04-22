@@ -451,10 +451,14 @@ router.get('/dealers/small', async (req, res) => {
         const sortFields = (req.query.sort || 'dealerName').split(',').map(s => s.trim());
         const sortDirs = (req.query.dir || 'asc').split(',').map(s => s.trim());
 
-        // Get latest report date
-        const latestSnapshot = await DailyDealerSnapshot.findOne({})
-            .sort({ reportDate: -1 }).lean();
-        const latestDate = latestSnapshot?.reportDate;
+        // Get latest 2 report dates (for transition calculation)
+        const latestDatesAgg = await DailyDealerSnapshot.aggregate([
+            { $group: { _id: '$reportDate' } },
+            { $sort: { _id: -1 } },
+            { $limit: 2 },
+        ]);
+        const latestDate = latestDatesAgg.length > 0 ? latestDatesAgg[0]._id : null;
+        const previousDate = latestDatesAgg.length > 1 ? latestDatesAgg[1]._id : null;
 
         // Map frontend sort keys to snapshot fields
         const SORT_FIELD_MAP = {
@@ -479,6 +483,7 @@ router.get('/dealers/small', async (req, res) => {
         const statesParam = req.query.states ? req.query.states.split(',').map(s => s.trim().toUpperCase()) : null;
         const activityMode = req.query.activityMode || 'application'; // 'application' | 'approval' | 'booking'
         const searchQuery = req.query.search ? String(req.query.search).trim() : '';
+        const transitionParam = req.query.transition || null; // e.g. "active→30d_inactive"
 
         const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
         if (statesParam && statesParam.length > 0) {
@@ -496,6 +501,111 @@ router.get('/dealers/small', async (req, res) => {
         };
         const daysField = DAYS_FIELD_MAP[activityMode] || DAYS_FIELD_MAP['application'];
         const useCustomMode = activityMode !== 'application';
+
+        // ── Status Transitions: compare latest 2 dates ──
+        let statusTransitions = [];
+        let transitionDealerIds = null;
+
+        if (latestDate && previousDate) {
+            // Build scoped location IDs for transition computation
+            const transBaseMatch = { ...baseMatch };
+            delete transBaseMatch.dealerName; // Don't scope transitions by search query
+            const hasScopeFilters = Object.keys(transBaseMatch).length > 0;
+            let transitionLocFilter = {};
+            if (hasScopeFilters) {
+                const scopedLocs = await DealerLocation.find(transBaseMatch).select('_id').lean();
+                transitionLocFilter = { dealerLocation: { $in: scopedLocs.map(l => l._id) } };
+            }
+
+            // Days field for $switch derivation (snapshot-level)
+            const SNAP_DAYS_MAP = {
+                'application': '$daysSinceLastApplication',
+                'approval': '$daysSinceLastApproval',
+                'booking': '$daysSinceLastBooking',
+            };
+            const snapDaysField = SNAP_DAYS_MAP[activityMode] || SNAP_DAYS_MAP['application'];
+
+            const statusSwitch = useCustomMode ? {
+                $switch: {
+                    branches: [
+                        { case: { $eq: [snapDaysField, null] }, then: 'never_active' },
+                        { case: { $lte: [snapDaysField, 30] }, then: 'active' },
+                        { case: { $lte: [snapDaysField, 60] }, then: '30d_inactive' },
+                        { case: { $lte: [snapDaysField, 90] }, then: '60d_inactive' },
+                    ],
+                    default: 'long_inactive'
+                }
+            } : '$activityStatus';
+
+            // Build $switch for previous snapshot's days field
+            const prevDaysField = snapDaysField.replace('$', '$_prevSnap.');
+            const prevStatusSwitch = useCustomMode ? {
+                $switch: {
+                    branches: [
+                        { case: { $eq: [prevDaysField, null] }, then: 'never_active' },
+                        { case: { $lte: [prevDaysField, 30] }, then: 'active' },
+                        { case: { $lte: [prevDaysField, 60] }, then: '30d_inactive' },
+                        { case: { $lte: [prevDaysField, 90] }, then: '60d_inactive' },
+                    ],
+                    default: 'long_inactive'
+                }
+            } : '$_prevSnap.activityStatus';
+
+            const latestMatch = { reportDate: latestDate, ...transitionLocFilter };
+
+            const transitionPipeline = [
+                { $match: latestMatch },
+                { $addFields: { _currentStatus: statusSwitch } },
+                {
+                    $lookup: {
+                        from: 'dailydealersnapshots',
+                        let: { locId: '$dealerLocation' },
+                        pipeline: [
+                            { $match: { $expr: { $and: [
+                                { $eq: ['$dealerLocation', '$$locId'] },
+                                { $eq: ['$reportDate', previousDate] },
+                            ] } } },
+                            { $limit: 1 },
+                        ],
+                        as: '_prevSnap',
+                    }
+                },
+                { $addFields: { _prevSnap: { $arrayElemAt: ['$_prevSnap', 0] } } },
+                { $match: { _prevSnap: { $ne: null } } },
+                { $addFields: { _previousStatus: prevStatusSwitch } },
+                { $match: { $expr: { $ne: ['$_currentStatus', '$_previousStatus'] } } },
+            ];
+
+            const transitionSummary = await DailyDealerSnapshot.aggregate([
+                ...transitionPipeline,
+                { $group: {
+                    _id: { from: '$_previousStatus', to: '$_currentStatus' },
+                    count: { $sum: 1 },
+                    dealerLocations: { $push: '$dealerLocation' },
+                } },
+                { $sort: { count: -1 } },
+            ]);
+
+            statusTransitions = transitionSummary.map(t => ({
+                from: t._id.from,
+                to: t._id.to,
+                count: t.count,
+            }));
+
+            // If filtering by a specific transition, extract matching dealer location IDs
+            if (transitionParam) {
+                const parts = transitionParam.split('\u2192');
+                const fromStatus = parts[0];
+                const toStatus = parts[1];
+                const match = transitionSummary.find(t => t._id.from === fromStatus && t._id.to === toStatus);
+                transitionDealerIds = match ? match.dealerLocations : [];
+            }
+        }
+
+        // If transition filter is active, inject into baseMatch
+        if (transitionDealerIds !== null) {
+            baseMatch._id = { $in: transitionDealerIds };
+        }
 
         // Build aggregation pipeline
         const pipeline = [
@@ -609,10 +719,13 @@ router.get('/dealers/small', async (req, res) => {
         let statusBreakdown = null;
         if (latestDate) {
             // Always scope breakdown by baseMatch (respects state filter + scope)
-            const hasFilters = Object.keys(baseMatch).length > 0;
+            // Exclude transition _id filter from breakdown to show full counts
+            const breakdownBaseMatch = { ...baseMatch };
+            delete breakdownBaseMatch._id;
+            const hasFilters = Object.keys(breakdownBaseMatch).length > 0;
             let breakdownMatch = { reportDate: latestDate };
             if (hasFilters) {
-                const scopedIds = await DealerLocation.find(baseMatch).select('_id').lean();
+                const scopedIds = await DealerLocation.find(breakdownBaseMatch).select('_id').lean();
                 breakdownMatch.dealerLocation = { $in: scopedIds.map(l => l._id) };
             }
 
@@ -656,7 +769,6 @@ router.get('/dealers/small', async (req, res) => {
                     inactive30: { $sum: { $cond: [{ $eq: [statusField, '30d_inactive'] }, 1, 0] } },
                     inactive60: { $sum: { $cond: [{ $eq: [statusField, '60d_inactive'] }, 1, 0] } },
                     longInactive: { $sum: { $cond: [{ $eq: [statusField, 'long_inactive'] }, 1, 0] } },
-                    reactivated: { $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] } },
                 }
             });
 
@@ -670,7 +782,6 @@ router.get('/dealers/small', async (req, res) => {
                     inactive30: b.inactive30,
                     inactive60: b.inactive60,
                     longInactive: b.longInactive,
-                    reactivated: b.reactivated,
                 };
             }
         }
@@ -679,6 +790,7 @@ router.get('/dealers/small', async (req, res) => {
             success: true,
             dealers,
             statusBreakdown,
+            statusTransitions,
             pagination: {
                 page,
                 limit,

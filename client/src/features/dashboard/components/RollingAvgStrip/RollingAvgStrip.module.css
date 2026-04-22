@@ -165,12 +165,36 @@
   white-space: nowrap;
 }
 
+.churnLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+  writing-mode: horizontal-tb;
+}
+
 .churnGained {
   color: var(--color-emerald, #34d399);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: help;
 }
 
 .churnLost {
   color: var(--color-red, #ef4444);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: help;
+}
+
+.churnDeltaBadge {
+  font-size: 9px;
+  padding: 0 3px;
+  margin-top: 0;
 }
 
 .churnDivider {

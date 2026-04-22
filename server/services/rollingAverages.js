@@ -223,19 +223,31 @@ async function computeNetworkRollingAvg(windowSize, states = null, statusFilter 
     // Derive target status for churn flow tracking
     const targetStatus = (statusFilter && statusFilter.length === 1) ? statusFilter[0] : 'active';
 
-    const [current, previous, statusFlows] = await Promise.all([
+    const [current, previous, statusFlows, prevStatusFlows] = await Promise.all([
         aggregateMetrics(currentDates, locationFilter, statusFilter, activityMode),
         aggregateMetrics(previousDates, locationFilter, statusFilter, activityMode),
-        computeStatusFlows(currentDates, locationFilter, targetStatus),
+        computeStatusFlows(currentDates, locationFilter, targetStatus, activityMode),
+        previousDates.length >= 2
+            ? computeStatusFlows(previousDates, locationFilter, targetStatus, activityMode)
+            : Promise.resolve(null),
     ]);
 
     const deltas = computeDeltas(current, previous);
+
+    // Compute churn flow deltas (current vs previous window)
+    const statusFlowDeltas = prevStatusFlows ? {
+        avgGainedActive: Math.round((statusFlows.avgGainedActive - prevStatusFlows.avgGainedActive) * 100) / 100,
+        avgLostActive: Math.round((statusFlows.avgLostActive - prevStatusFlows.avgLostActive) * 100) / 100,
+        avgReactivated: Math.round((statusFlows.avgReactivated - prevStatusFlows.avgReactivated) * 100) / 100,
+        netDelta: Math.round((statusFlows.netDelta - prevStatusFlows.netDelta) * 100) / 100,
+    } : null;
 
     return {
         current,
         previous,
         deltas,
         statusFlows,
+        statusFlowDeltas,
         reportDateRange: {
             first: currentDates[currentDates.length - 1].toISOString(),
             last: currentDates[0].toISOString(),
@@ -247,13 +259,46 @@ async function computeNetworkRollingAvg(windowSize, states = null, statusFilter 
 }
 
 /**
+ * Build a MongoDB $switch expression that derives activity status from a
+ * daysSince field.  Used for approval/booking mode where status is not
+ * pre-stored on the snapshot document.
+ *
+ * @param {string} daysField - e.g. '$daysSinceLastApproval'
+ * @returns {Object} $switch expression
+ */
+function buildDynStatusSwitch(daysField) {
+    return {
+        $switch: {
+            branches: [
+                { case: { $eq: [daysField, null] }, then: 'long_inactive' },
+                { case: { $lte: [daysField, 30] }, then: 'active' },
+                { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
+                { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+            ],
+            default: 'long_inactive',
+        },
+    };
+}
+
+/** Map activityMode → snapshot field for dynamic status derivation */
+const MODE_STATUS_FIELD = {
+    application: '$daysSinceLastApplication',
+    approval: '$daysSinceLastApproval',
+    booking: '$daysSinceLastBooking',
+};
+
+/**
  * Compute churn velocity: daily avg of status transitions across the window.
+ * Now activityMode-aware: for approval/booking modes, status is derived
+ * dynamically from the relevant daysSince field.
  *
  * @param {Date[]} dates - Sorted (desc) report dates
  * @param {Object|null} locationFilter - Optional location filter
+ * @param {string} targetStatus - The status to track transitions for
+ * @param {string} activityMode - 'application' | 'approval' | 'booking'
  * @returns {Promise<Object>} StatusFlowData shape
  */
-async function computeStatusFlows(dates, locationFilter = null, targetStatus = 'active') {
+async function computeStatusFlows(dates, locationFilter = null, targetStatus = 'active', activityMode = 'application') {
     if (dates.length < 2) {
         return { avgGainedActive: 0, avgLostActive: 0, avgReactivated: 0, netDelta: 0 };
     }
@@ -264,7 +309,9 @@ async function computeStatusFlows(dates, locationFilter = null, targetStatus = '
     let totalLost = 0;
     let totalReactivated = 0;
 
-    // For each consecutive date pair, count transitions into/out of targetStatus
+    // Determine whether we need dynamic status computation
+    const useNativeStatus = activityMode === 'application';
+
     for (let i = 0; i < sortedDates.length - 1; i++) {
         const prevDate = sortedDates[i];
         const currDate = sortedDates[i + 1];
@@ -272,7 +319,8 @@ async function computeStatusFlows(dates, locationFilter = null, targetStatus = '
         const matchStage = { reportDate: currDate };
         if (locationFilter) matchStage.dealerLocation = locationFilter;
 
-        const transitions = await DailyDealerSnapshot.aggregate([
+        // Build the aggregation pipeline
+        const pipeline = [
             { $match: matchStage },
             {
                 $lookup: {
@@ -296,41 +344,69 @@ async function computeStatusFlows(dates, locationFilter = null, targetStatus = '
             },
             { $addFields: { prevSnap: { $arrayElemAt: ['$prev', 0] } } },
             { $match: { prevSnap: { $ne: null } } },
-            {
-                $group: {
-                    _id: null,
-                    gained: {
-                        $sum: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $eq: ['$activityStatus', targetStatus] },
-                                        { $ne: ['$prevSnap.activityStatus', targetStatus] },
-                                    ],
-                                },
-                                1, 0,
-                            ],
-                        },
-                    },
-                    lost: {
-                        $sum: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $ne: ['$activityStatus', targetStatus] },
-                                        { $eq: ['$prevSnap.activityStatus', targetStatus] },
-                                    ],
-                                },
-                                1, 0,
-                            ],
-                        },
-                    },
-                    reactivated: {
-                        $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] },
+        ];
+
+        // For non-application modes, compute dynamic status for both current + previous snap
+        let currStatusExpr;
+        let prevStatusExpr;
+
+        if (useNativeStatus) {
+            currStatusExpr = '$activityStatus';
+            prevStatusExpr = '$prevSnap.activityStatus';
+        } else {
+            const daysField = MODE_STATUS_FIELD[activityMode] || MODE_STATUS_FIELD.application;
+            const prevDaysField = '$prevSnap.' + daysField.slice(1); // remove leading $
+
+            currStatusExpr = buildDynStatusSwitch(daysField);
+            prevStatusExpr = buildDynStatusSwitch(prevDaysField);
+
+            // Add computed fields so we can reference them in $group
+            pipeline.push({
+                $addFields: {
+                    _currDynStatus: currStatusExpr,
+                    _prevDynStatus: prevStatusExpr,
+                },
+            });
+            currStatusExpr = '$_currDynStatus';
+            prevStatusExpr = '$_prevDynStatus';
+        }
+
+        pipeline.push({
+            $group: {
+                _id: null,
+                gained: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    { $eq: [currStatusExpr, targetStatus] },
+                                    { $ne: [prevStatusExpr, targetStatus] },
+                                ],
+                            },
+                            1, 0,
+                        ],
                     },
                 },
+                lost: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    { $ne: [currStatusExpr, targetStatus] },
+                                    { $eq: [prevStatusExpr, targetStatus] },
+                                ],
+                            },
+                            1, 0,
+                        ],
+                    },
+                },
+                reactivated: {
+                    $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] },
+                },
             },
-        ]);
+        });
+
+        const transitions = await DailyDealerSnapshot.aggregate(pipeline);
 
         if (transitions.length > 0) {
             totalGained += transitions[0].gained;
@@ -398,8 +474,17 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
 
     // Aggregate latest-date snapshots grouped by location (for status counts per rep)
     const latestSnapshots = await DailyDealerSnapshot.find({ reportDate: latestDate })
-        .select('dealerLocation activityStatus reactivatedAfterVisit')
+        .select('dealerLocation activityStatus daysSinceLastApproval daysSinceLastBooking reactivatedAfterVisit')
         .lean();
+
+    // Helper: derive activity status from daysSince value (mirrors the $switch thresholds)
+    const deriveStatus = (days) => {
+        if (days == null) return 'long_inactive';
+        if (days <= 30) return 'active';
+        if (days <= 60) return '30d_inactive';
+        if (days <= 90) return '60d_inactive';
+        return 'long_inactive';
+    };
 
     // Build per-rep accumulators
     const repData = {};
@@ -427,8 +512,18 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
         if (!rep || !repData[rep]) continue;
         const st = locationStateMap[locStr] || 'XX';
 
+        // Derive status based on activityMode
+        let status;
+        if (activityMode === 'approval') {
+            status = deriveStatus(snap.daysSinceLastApproval);
+        } else if (activityMode === 'booking') {
+            status = deriveStatus(snap.daysSinceLastBooking);
+        } else {
+            status = snap.activityStatus;
+        }
+
         repData[rep].totalDealers++;
-        switch (snap.activityStatus) {
+        switch (status) {
             case 'active': repData[rep].activeCount++; break;
             case '30d_inactive': repData[rep].inactive30Count++; break;
             case '60d_inactive': repData[rep].inactive60Count++; break;
@@ -447,7 +542,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
         }
         const sd = repData[rep].stateData[st];
         sd.totalDealers++;
-        switch (snap.activityStatus) {
+        switch (status) {
             case 'active': sd.activeCount++; break;
             case '30d_inactive': sd.inactive30Count++; break;
             case '60d_inactive': sd.inactive60Count++; break;
@@ -489,7 +584,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             const [current, previous, flows] = await Promise.all([
                 aggregateMetrics(currentDates, locFilter, statusFilter, activityMode),
                 aggregateMetrics(previousDates, locFilter, statusFilter, activityMode),
-                computeStatusFlows(currentDates, locFilter, targetStatus),
+                computeStatusFlows(currentDates, locFilter, targetStatus, activityMode),
             ]);
 
             const deltas = computeDeltas(current, previous);
@@ -504,7 +599,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
                     const stateLocFilter = { $in: sd.locationIds };
                     const [sCurrent, sFlows] = await Promise.all([
                         aggregateMetrics(currentDates, stateLocFilter, statusFilter, activityMode),
-                        computeStatusFlows(currentDates, stateLocFilter, targetStatus),
+                        computeStatusFlows(currentDates, stateLocFilter, targetStatus, activityMode),
                     ]);
                     return {
                         state: sd.state,

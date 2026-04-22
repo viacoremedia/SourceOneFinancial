@@ -16,6 +16,15 @@ export const TABLE_COLUMNS: TableColumn[] = [
     hasData: true,
   },
   {
+    key: 'rep',
+    label: 'Rep',
+    align: 'left',
+    width: '80px',
+    sortable: false,
+    hasData: true,
+    dealerOnly: true,
+  },
+  {
     key: 'locationCount',
     label: 'Locs',
     align: 'center',
@@ -88,14 +97,6 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'approvals',
     label: 'Appr',
-    align: 'right',
-    width: '65px',
-    sortable: true,
-    hasData: false,
-  },
-  {
-    key: 'declines',
-    label: 'Decl',
     align: 'right',
     width: '65px',
     sortable: true,

@@ -392,6 +392,14 @@
   background: var(--bg-surface-hover);
 }
 
+/* ── Rep Cell ── */
+.repCell {
+  font-size: var(--font-small);
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  text-align: left;
+}
+
 /* ── Status Badge ── */
 .statusBadge {
   display: inline-flex;

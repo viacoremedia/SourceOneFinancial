@@ -24,6 +24,9 @@ interface FilterBarProps {
   onStatusFilterChange: (status: string | null) => void;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
   repHeatMap?: Record<string, HeatClass>;
+  statusTransitions?: { from: string; to: string; count: number }[];
+  transitionFilter?: string | null;
+  onTransitionFilterChange?: (key: string | null) => void;
 }
 
 function formatDollar(n: number): string {
@@ -52,6 +55,22 @@ function heatDotSymbol(hc: HeatClass): string {
   }
 }
 
+const STATUS_LABEL_MAP: Record<string, string> = {
+  active: 'Active',
+  '30d_inactive': '30d',
+  '60d_inactive': '60d',
+  long_inactive: 'Long',
+  never_active: 'Never',
+};
+
+const STATUS_COLOR_MAP: Record<string, string> = {
+  active: '#34d399',
+  '30d_inactive': '#fbbf24',
+  '60d_inactive': '#f97316',
+  long_inactive: '#ef4444',
+  never_active: '#64748b',
+};
+
 export function FilterBar({
   stateRepMap,
   budgets,
@@ -67,6 +86,9 @@ export function FilterBar({
   onStatusFilterChange,
   onActivityModeChange,
   repHeatMap,
+  statusTransitions = [],
+  transitionFilter = null,
+  onTransitionFilterChange,
 }: FilterBarProps) {
   const reps = useMemo(() => {
     const repSet = new Set(Object.values(stateRepMap));
@@ -92,7 +114,6 @@ export function FilterBar({
     let inactive30 = 0;
     let inactive60 = 0;
     let longInactive = 0;
-    let reactivated = 0;
 
     for (const g of filteredGroups) {
       if (g.summary) {
@@ -101,7 +122,6 @@ export function FilterBar({
         inactive30 += g.summary.inactive30Count;
         inactive60 += g.summary.inactive60Count;
         longInactive += g.summary.longInactiveCount;
-        reactivated += g.summary.reactivatedCount || 0;
       }
     }
 
@@ -117,7 +137,6 @@ export function FilterBar({
       inactive30,
       inactive60,
       longInactive,
-      reactivated,
     };
   }, [filteredGroups]);
 
@@ -126,7 +145,7 @@ export function FilterBar({
     if (!dealerStatusBreakdown) {
       return {
         groups: 0, locations: 0, activeCount: 0, activePercent: 0,
-        inactive30: 0, inactive60: 0, longInactive: 0, reactivated: 0,
+        inactive30: 0, inactive60: 0, longInactive: 0,
       };
     }
     const b = dealerStatusBreakdown;
@@ -139,7 +158,6 @@ export function FilterBar({
       inactive30: b.inactive30,
       inactive60: b.inactive60,
       longInactive: b.longInactive,
-      reactivated: b.reactivated,
     };
   }, [dealerStatusBreakdown]);
 
@@ -188,6 +206,8 @@ export function FilterBar({
 
   const handleStatClick = (statKey: string) => {
     onStatusFilterChange(statusFilter === statKey ? null : statKey);
+    // Clear transition filter when a status filter is clicked
+    if (onTransitionFilterChange) onTransitionFilterChange(null);
   };
 
   const hasActiveFilters = selectedRep || selectedState;
@@ -346,17 +366,44 @@ export function FilterBar({
           <span className={`${styles.statValue} ${styles.statDanger}`}>{stats.longInactive}</span>
           <span className={styles.statLabel}>Long Inactive</span>
         </button>
-        {stats.reactivated > 0 && (
-          <button
-            className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'reactivated' ? styles.statSelected : ''}`}
-            onClick={() => handleStatClick('reactivated')}
-            title="Filter to groups with reactivated dealers"
-          >
-            <span className={`${styles.statValue} ${styles.statReactivated}`}>{stats.reactivated}</span>
-            <span className={styles.statLabel}>Reactivated</span>
-          </button>
-        )}
       </div>
+
+      {/* Status Transition Pills — separate row below stats */}
+      {statusTransitions.length > 0 && (
+        <div className={styles.transitionRow}>
+          <span className={styles.transitionLabel}>Transitions</span>
+          {statusTransitions.map((t) => {
+            const key = `${t.from}→${t.to}`;
+            const isActive = transitionFilter === key;
+            return (
+              <button
+                key={key}
+                className={`${styles.transitionPill} ${isActive ? styles.transitionPillActive : ''}`}
+                onClick={() => onTransitionFilterChange?.(isActive ? null : key)}
+                title={`Show ${t.count} dealer(s) that moved from ${STATUS_LABEL_MAP[t.from] || t.from} to ${STATUS_LABEL_MAP[t.to] || t.to}`}
+              >
+                <span className={styles.transitionStatus} style={{ color: STATUS_COLOR_MAP[t.from] || '#94a3b8' }}>
+                  {STATUS_LABEL_MAP[t.from] || t.from}
+                </span>
+                <span className={styles.transitionArrow}>→</span>
+                <span className={styles.transitionStatus} style={{ color: STATUS_COLOR_MAP[t.to] || '#94a3b8' }}>
+                  {STATUS_LABEL_MAP[t.to] || t.to}
+                </span>
+                <span className={styles.transitionCount}>{t.count}</span>
+              </button>
+            );
+          })}
+          {transitionFilter && (
+            <button
+              className={styles.transitionClear}
+              onClick={() => onTransitionFilterChange?.(null)}
+              title="Clear transition filter"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
