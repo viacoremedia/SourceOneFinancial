@@ -396,7 +396,7 @@ export function DealerTable({
     return 'long_inactive';
   };
 
-  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true, statePrefix?: string) => (
+  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true) => (
     <>
       {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
       <td style={{ textAlign: 'center' }}>
@@ -630,7 +630,7 @@ export function DealerTable({
                             : <span className={styles.emptyValue}>—</span>}
                         </span>
                       </td>
-                      {renderChildCells(dealer.latestSnapshot, false, dealer.statePrefix)}
+                      {renderChildCells(dealer.latestSnapshot, false)}
                     </tr>
                   ))}
               {/* Loading more indicator */}
@@ -727,7 +727,7 @@ interface GroupRowsProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   onToggle: () => void;
-  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean, statePrefix?: string) => React.JSX.Element;
+  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean) => React.JSX.Element;
   deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
 }
 
