@@ -360,7 +360,6 @@ const COLUMNS: ScorecardColumn[] = [
     align: 'center',
     getValue: (r) => r.statusFlows.avgLostActive,
     format: (v) => v != null ? `-${v.toFixed(1)}` : '—',
-    heatmap: true,
   },
   {
     key: 'net', label: 'Net/day', short: 'Net',
@@ -386,12 +385,28 @@ function daysHeatColor(value: number | null): string {
 }
 
 /**
- * Heatmap for "higher = better" metrics.
+ * Heatmap for "higher = better" metrics (e.g. gained, net).
+ * Positive = green, negative = severity-based red/orange/amber.
  */
 function reverseHeatColor(value: number | null): string {
   if (value == null) return '';
   if (value > 0) return 'var(--color-emerald, #34d399)';
-  return '';
+  if (value === 0) return '';
+  // Negative — severity scale
+  if (value >= -0.3) return 'var(--color-amber, #fbbf24)';
+  if (value >= -0.8) return 'var(--color-orange, #f97316)';
+  return 'var(--color-red, #ef4444)';
+}
+
+/**
+ * Color for loss-per-day metrics (higher loss = worse).
+ * Any loss is bad; 0 = neutral, escalates amber → orange → red.
+ */
+function lossHeatColor(value: number | null): string {
+  if (value == null || value === 0) return '';
+  if (value <= 0.3) return 'var(--color-amber, #fbbf24)';
+  if (value <= 0.8) return 'var(--color-orange, #f97316)';
+  return 'var(--color-red, #ef4444)';
 }
 
 /**
@@ -613,6 +628,8 @@ export function RepScorecard({
                       let color = '';
                       if (col.key === 'heatIndex') {
                         color = heatDotColor(rep.heatClass);
+                      } else if (col.key === 'lost' && typeof raw === 'number') {
+                        color = lossHeatColor(raw);
                       } else if (col.staticColor) {
                         color = col.staticColor;
                       } else if (col.heatmap && typeof raw === 'number') {
@@ -745,11 +762,11 @@ export function RepScorecard({
                             } else if (col.key === 'lost' && st.statusFlows) {
                               const v = st.statusFlows.avgLostActive;
                               val = v != null ? `-${v.toFixed(1)}` : '—';
-                              if (typeof v === 'number' && v > 0) cellColor = 'var(--color-red, #ef4444)';
+                              if (typeof v === 'number') cellColor = lossHeatColor(v);
                             } else if (col.key === 'net' && st.statusFlows) {
                               const v = st.statusFlows.netDelta;
                               val = v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}` : '—';
-                              if (typeof v === 'number') cellColor = v >= 0 ? 'var(--color-emerald, #34d399)' : 'var(--color-red, #ef4444)';
+                              if (typeof v === 'number') cellColor = reverseHeatColor(v);
                             } else {
                               val = '—';
                             }
