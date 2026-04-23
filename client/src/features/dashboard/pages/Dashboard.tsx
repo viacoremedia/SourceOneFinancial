@@ -279,9 +279,11 @@ export function Dashboard() {
   const handleTransitionFilterChange = useCallback((transition: string | null) => {
     setTransitionFilter(transition);
     transitionRef.current = transition;
-    // Clear status filter when applying a transition filter
-    setStatusFilter(null);
-    statusRef.current = null;
+    // Only clear status filter when APPLYING a transition (not when clearing one)
+    if (transition) {
+      setStatusFilter(null);
+      statusRef.current = null;
+    }
     refetchFlatTab();
   }, [refetchFlatTab]);
 
