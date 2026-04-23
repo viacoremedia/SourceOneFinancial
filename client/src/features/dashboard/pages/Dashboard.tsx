@@ -75,9 +75,9 @@ export function Dashboard() {
   // Priority: dashboard statusFilter chips → strip activeOnly toggle → all
   const STATUS_FILTER_MAP: Record<string, string[]> = {
     active: ['active'],
-    inactive30: ['30d_inactive'],
-    inactive60: ['60d_inactive'],
-    longInactive: ['long_inactive'],
+    '30d_inactive': ['30d_inactive'],
+    '60d_inactive': ['60d_inactive'],
+    'long_inactive': ['long_inactive'],
   };
 
   const rollingStatusFilter = useMemo(() => {
@@ -508,9 +508,9 @@ export function Dashboard() {
         onActiveOnlyChange={setActiveOnly}
         statusFilterLabel={
           statusFilter === 'active' ? 'Active'
-          : statusFilter === 'inactive30' ? '30d Inactive'
-          : statusFilter === 'inactive60' ? '60d Inactive'
-          : statusFilter === 'longInactive' ? 'Long Inactive'
+          : statusFilter === '30d_inactive' ? '30d Inactive'
+          : statusFilter === '60d_inactive' ? '60d Inactive'
+          : statusFilter === 'long_inactive' ? 'Long Inactive'
           : null
         }
       />
