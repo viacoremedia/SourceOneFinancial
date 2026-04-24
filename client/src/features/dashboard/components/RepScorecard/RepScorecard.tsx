@@ -42,7 +42,7 @@ const COLUMN_DESCRIPTIONS: Record<string, string> = {
   inactive30Count: 'Dealers whose last application was 31–60 days ago.',
   inactive60Count: 'Dealers whose last application was 61–90 days ago.',
   longInactiveCount: 'Dealers with no application in 90+ days.',
-  reactivatedCount: 'Dealers that went from inactive → active within this rolling window.',
+
   avgApp: 'Average days since last application across all dealers.',
   avgApproval: 'Average days since last approval across all dealers.',
   avgBooking: 'Average days since last booking across all dealers.',
@@ -306,13 +306,7 @@ const COLUMNS: ScorecardColumn[] = [
     staticColor: 'var(--color-red, #ef4444)',
     filterKey: 'long',
   },
-  {
-    key: 'reactivatedCount', label: 'Reactivated', short: 'React',
-    align: 'center',
-    getValue: (r) => r.reactivatedCount,
-    format: (v) => v != null ? String(v) : '—',
-    reverseHeat: true,
-  },
+
   {
     key: 'avgApp', label: 'Avg App Days', short: 'App',
     align: 'center',
@@ -734,7 +728,7 @@ export function RepScorecard({
                                 : String(st.longInactiveCount);
                               cellColor = 'var(--color-red, #ef4444)';
                             } else if (col.key === 'reactivatedCount') {
-                              val = String(st.reactivatedCount);
+                              val = '—'; // column removed but guard kept for safety
                             } else if (col.key === 'avgApp' && st.rollingAvg) {
                               const v = st.rollingAvg.avgDaysSinceApp;
                               val = v != null ? v.toFixed(1) : '—';
