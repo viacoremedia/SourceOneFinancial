@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@viacoremedia/bug-reporter": "^1.2.0",
+    "html2canvas": "^1.4.1"
+  }
+}
