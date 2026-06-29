@@ -56,9 +56,10 @@ function parseCSV(csvString, expectedHeaders = null) {
         throw new Error('CSV header row is empty');
     }
 
-    // Validate against expected headers if provided
+    // Validate against expected headers if provided (case-insensitive)
     if (expectedHeaders) {
-        const missing = expectedHeaders.filter(h => !headers.includes(h));
+        const upperHeaders = headers.map(h => h.toUpperCase());
+        const missing = expectedHeaders.filter(h => !upperHeaders.includes(h.toUpperCase()));
         if (missing.length > 0) {
             throw new Error(
                 `CSV is missing expected headers: ${missing.join(', ')}. ` +
@@ -152,13 +153,17 @@ function registerParser(name, config) {
 
 /**
  * Detect which registered parser matches the given CSV headers.
+ * Comparison is case-insensitive to handle inconsistent casing from source systems.
  * 
  * @param {string[]} headers - The CSV header row values
  * @returns {string|null} Name of the matching parser, or null if no match
  */
 function detectParser(headers) {
+    const upperHeaders = headers.map(h => h.toUpperCase());
     for (const [name, config] of parserRegistry) {
-        const allPresent = config.expectedHeaders.every(h => headers.includes(h));
+        const allPresent = config.expectedHeaders.every(
+            h => upperHeaders.includes(h.toUpperCase())
+        );
         if (allPresent) {
             return name;
         }
@@ -181,7 +186,7 @@ function getParser(name) {
 // ==========================================
 
 registerParser('dealer_metrics', {
-    description: 'Daily dealer application/approval/booking metrics from Source One',
+    description: 'Daily dealer application/approval/booking metrics from Source One (legacy Caleb format)',
     expectedHeaders: [
         'DEALER ID',
         'DEALER NAME',
@@ -196,6 +201,39 @@ registerParser('dealer_metrics', {
         'LATEST COMMUNICATION DATETIME',
         'REACTIVATED AFTER SALES VISIT FLAG',
         'DAYS FROM VISIT TO NEXT APPLICATION'
+    ]
+});
+
+registerParser('dealer_communication', {
+    description: 'Dealer communication events from OMNI (Andrew\'s table)',
+    expectedHeaders: [
+        'SOURCESYSTEMCOMMUNICATIONID',
+        'COMMUNICATIONTYPE',
+        'COMMUNICATIONEVENTDATETIME',
+        'COMMUNICATIONUSERFULLNAME',
+        'RECIPIENTORGANIZATIONNAME'
+    ]
+});
+
+registerParser('main_application', {
+    description: 'Individual loan application records from OMNI (Andrew\'s table)',
+    expectedHeaders: [
+        'APPLICATIONID',
+        'AMOUNTFINANCED',
+        'STATUS',
+        'DEALERNAME',
+        'APPLICATIONDATE'
+    ]
+});
+
+registerParser('dealer_information', {
+    description: 'Dealer master reference data from OMNI (Andrew\'s table)',
+    expectedHeaders: [
+        'DEALERID',
+        'CLIENTDEALERID',
+        'ISACTIVE',
+        'ENROLLMENTDATE',
+        'DEALERNAME'
     ]
 });
 

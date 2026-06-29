@@ -12,7 +12,9 @@ const INGESTION_STATUSES = ['pending', 'processing', 'completed', 'failed'];
  * Provides observability into what's been processed, what failed,
  * and processing performance metrics.
  * 
- * One log entry per WebhookPayload (enforced by unique index on sourcePayload).
+ * One log entry per WebhookPayload + parserType combination (enforced by
+ * compound unique index). This allows a single payload to contain multiple
+ * CSV files for different table types (e.g., applications + communications).
  * 
  * @example
  *   { fileName: "andrews_daily_dealer_metrics.csv", status: "completed",
@@ -24,6 +26,11 @@ const fileIngestionLogSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'WebhookPayload',
         required: [true, 'Source payload reference is required']
+    },
+    parserType: {
+        type: String,
+        trim: true,
+        default: 'dealer_metrics'
     },
     fileName: {
         type: String,
@@ -75,10 +82,11 @@ const fileIngestionLogSchema = new mongoose.Schema({
     }
 });
 
-// One log per payload — prevents duplicate processing entries
+// One log per payload + parser type — prevents duplicate processing entries
+// A single payload can contain multiple CSVs for different table types
 fileIngestionLogSchema.index(
-    { sourcePayload: 1 },
-    { unique: true, name: 'source_payload_unique' }
+    { sourcePayload: 1, parserType: 1 },
+    { unique: true, name: 'source_payload_parser_unique' }
 );
 
 // Filter by status (find all failed, find all pending)

@@ -383,6 +383,17 @@ router.post('/', async (req, res) => {
             // Check if the CSV headers match a known parser
             const { parseCSV, detectParser } = require('../services/csvParserService');
             const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
+            const { ingestApplicationCSV } = require('../services/applicationIngestionService');
+            const { ingestCommunicationCSV } = require('../services/communicationIngestionService');
+            const { ingestDealerInfoCSV } = require('../services/dealerInfoIngestionService');
+
+            // Map parser names to their ingestion functions
+            const ingestionRouter = {
+                'dealer_metrics': ingestDealerMetricsCSV,
+                'main_application': ingestApplicationCSV,
+                'dealer_communication': ingestCommunicationCSV,
+                'dealer_information': ingestDealerInfoCSV,
+            };
 
             for (const csvFile of csvFiles) {
                 try {
@@ -401,10 +412,23 @@ router.post('/', async (req, res) => {
                             parserDetected: parserName,
                         });
 
+                        // Route to the correct ingestion service
+                        const ingestFn = ingestionRouter[parserName];
+                        if (!ingestFn) {
+                            console.warn(`  No ingestion handler registered for parser "${parserName}"`);
+                            ingestionResults.push({
+                                file: csvFile.originalName,
+                                parser: parserName,
+                                status: 'skipped',
+                                reason: `No ingestion handler for parser "${parserName}"`
+                            });
+                            continue;
+                        }
+
                         // Await inline — Vercel serverless kills the process after
                         // res.send(), so setImmediate/fire-and-forget never completes.
                         try {
-                            const result = await ingestDealerMetricsCSV(
+                            const result = await ingestFn(
                                 csvFile.content,
                                 payload._id,
                                 csvFile.originalName
@@ -418,19 +442,18 @@ router.post('/', async (req, res) => {
                                 parserDetected: parserName,
                                 durationMs: Date.now() - startTime,
                                 metadata: {
-                                    reportDate: result.reportDate,
-                                    dealersProcessed: result.dealersProcessed,
-                                    newDealers: result.newDealers,
-                                    rowCount: result.rowCount,
+                                    reportDate: result.reportDate || null,
+                                    dealersProcessed: result.dealersProcessed || result.recordsProcessed || 0,
+                                    newDealers: result.newDealers || result.newRecords || 0,
+                                    rowCount: result.rowCount || 0,
                                 }
                             });
 
                             ingestionResults.push({
                                 file: csvFile.originalName,
+                                parser: parserName,
                                 status: 'completed',
-                                reportDate: result.reportDate,
-                                dealersProcessed: result.dealersProcessed,
-                                processingTimeMs: result.processingTimeMs
+                                ...result
                             });
                         } catch (ingestionError) {
                             console.error(`  Ingestion FAILED for "${csvFile.originalName}":`, ingestionError.message);
@@ -446,6 +469,7 @@ router.post('/', async (req, res) => {
 
                             ingestionResults.push({
                                 file: csvFile.originalName,
+                                parser: parserName,
                                 status: 'failed',
                                 error: ingestionError.message
                             });

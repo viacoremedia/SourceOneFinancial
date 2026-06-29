@@ -39,6 +39,65 @@ const dealerLocationSchema = new mongoose.Schema({
         trim: true,
         uppercase: true
     },
+
+    // ── Fields from OMNI Dealer Information Table ──
+    // All optional — populated when dealer_information CSV is ingested
+
+    // Identifiers
+    clientDealerId: { type: String, trim: true, default: null },
+    globalId: { type: String, trim: true, default: null },
+
+    // Business names
+    dba: { type: String, trim: true, default: null },
+    dealerGroupName: { type: String, trim: true, default: null },
+    region: { type: String, trim: true, default: null },
+
+    // Location
+    dealerAddress: { type: String, trim: true, default: null },
+    dealerCity: { type: String, trim: true, default: null },
+    dealerState: { type: String, trim: true, default: null },
+    dealerPostalCode: { type: String, trim: true, default: null },
+    county: { type: String, trim: true, default: null },
+
+    // Contact
+    dealerPhoneNumber: { type: String, trim: true, default: null },
+    dealerFaxNumber: { type: String, trim: true, default: null },
+
+    // Lifecycle dates
+    enrollmentDate: { type: Date, default: null },
+    activatedDate: { type: Date, default: null },
+    deactivatedDate: { type: Date, default: null },
+    dealerAgreementDate: { type: Date, default: null },
+    dealerLicenseExpiration: { type: Date, default: null },
+    terminationDate: { type: Date, default: null },
+
+    // Active status from OMNI
+    isActive: { type: Boolean, default: null },
+
+    // Dealer capabilities
+    collateralType: { type: String, trim: true, default: null },
+    dealerRepresentative: { type: String, trim: true, default: null },
+    documentDelivery: { type: String, trim: true, default: null },
+    bookout: { type: String, trim: true, default: null },
+
+    // Platform flags
+    isActiveForDealerTrack: { type: Boolean, default: null },
+    isActiveForRouteOne: { type: Boolean, default: null },
+    isEsignAllowed: { type: Boolean, default: null },
+    isFundingReserveHold: { type: Boolean, default: null },
+    isBmoDealer: { type: Boolean, default: null },
+    isMedallionDealer: { type: Boolean, default: null },
+    isActiveForRouteOneCanada: { type: Boolean, default: null },
+    isActiveForCreditLane: { type: Boolean, default: null },
+    isActiveForCudl: { type: Boolean, default: null },
+    isSourceOneOnly: { type: Boolean, default: null },
+    isFsbDealer: { type: Boolean, default: null },
+    isSalesTaxRequired: { type: Boolean, default: null },
+    isMultiDecisionEnabled: { type: Boolean, default: null },
+
+    // Metadata
+    lastInfoIngestionDate: { type: Date, default: null },
+
     createdAt: {
         type: Date,
         default: Date.now
