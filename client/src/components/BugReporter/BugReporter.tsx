@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Bug } from 'lucide-react';
 import { BugReportModal } from './BugReportModal';
 import { RouteTracker } from './RouteTracker';
-import { cn } from '@/lib/utils';
 import { SYSTEM_NAME, BUG_REPORTER_API_URL } from './config';
 import type { BugReporterConfig } from './types';
 

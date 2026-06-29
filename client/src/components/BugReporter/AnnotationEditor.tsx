@@ -342,7 +342,7 @@ export function AnnotationEditor({ imageSrc, onSave, onCancel }: AnnotationEdito
 
                     {/* Color Picker */}
                     <Popover>
-                        <PopoverTrigger asChild>
+                        <PopoverTrigger>
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -376,7 +376,7 @@ export function AnnotationEditor({ imageSrc, onSave, onCancel }: AnnotationEdito
                             min={1}
                             max={20}
                             step={1}
-                            onValueChange={([v]) => setLineWidth(v)}
+                            onValueChange={([v]: number[]) => setLineWidth(v)}
                         />
                     </div>
                 </div>
