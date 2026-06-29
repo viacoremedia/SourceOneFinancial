@@ -376,7 +376,7 @@ export function AnnotationEditor({ imageSrc, onSave, onCancel }: AnnotationEdito
                             min={1}
                             max={20}
                             step={1}
-                            onValueChange={([v]: number[]) => setLineWidth(v)}
+                            onValueChange={(value) => setLineWidth(Array.isArray(value) ? value[0] : value)}
                         />
                     </div>
                 </div>
