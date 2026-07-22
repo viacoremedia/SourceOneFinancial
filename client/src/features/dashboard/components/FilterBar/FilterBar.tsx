@@ -4,10 +4,12 @@
  * Budget/rep summary only shows when a rep or state is selected.
  */
 
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import styles from './FilterBar.module.css';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../../core/services/api';
 import type { DealerGroup, HeatClass } from '../../types';
+
+export type DatePreset = 'this_month' | 'last_30' | 'last_60' | 'last_month' | 'ytd' | 'last_year' | 'all_time' | 'custom';
 
 interface FilterBarProps {
   stateRepMap: StateRepMap;
@@ -19,10 +21,15 @@ interface FilterBarProps {
   selectedState: string;
   statusFilter: string | null;
   activityMode?: 'application' | 'approval' | 'booking';
+  datePreset?: DatePreset;
+  customStartDate?: string;
+  customEndDate?: string;
   onRepChange: (rep: string) => void;
   onStateChange: (state: string) => void;
   onStatusFilterChange: (status: string | null) => void;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
+  onDatePresetChange?: (preset: DatePreset) => void;
+  onCustomDateChange?: (start?: string, end?: string) => void;
   repHeatMap?: Record<string, HeatClass>;
   statusTransitions?: { from: string; to: string; count: number }[];
   transitionFilter?: string | null;
@@ -59,6 +66,7 @@ const STATUS_LABEL_MAP: Record<string, string> = {
   active: 'Active',
   '30d_inactive': '30d',
   '60d_inactive': '60d',
+  '90d_inactive': '90d',
   long_inactive: 'Long',
   never_active: 'Never',
 };
@@ -67,6 +75,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   active: '#34d399',
   '30d_inactive': '#fbbf24',
   '60d_inactive': '#f97316',
+  '90d_inactive': '#ea580c',
   long_inactive: '#ef4444',
   never_active: '#64748b',
 };
@@ -81,25 +90,36 @@ export function FilterBar({
   selectedState,
   statusFilter,
   activityMode = 'application',
+  datePreset = 'all_time',
+  customStartDate = '',
+  customEndDate = '',
   onRepChange,
   onStateChange,
   onStatusFilterChange,
   onActivityModeChange,
+  onDatePresetChange,
+  onCustomDateChange,
   repHeatMap,
   statusTransitions = [],
   transitionFilter = null,
   onTransitionFilterChange,
 }: FilterBarProps) {
+  const [localCustomStart, setLocalCustomStart] = useState(customStartDate);
+  const [localCustomEnd, setLocalCustomEnd] = useState(customEndDate);
+
+  useEffect(() => {
+    setLocalCustomStart(customStartDate);
+    setLocalCustomEnd(customEndDate);
+  }, [customStartDate, customEndDate]);
+
   const reps = useMemo(() => {
     const repSet = new Set(Object.values(stateRepMap));
     return [...repSet].sort();
   }, [stateRepMap]);
 
   const states = useMemo(() => {
-    const allStates = Object.keys(stateRepMap).sort();
-    if (!selectedRep) return allStates;
-    return allStates.filter((s) => stateRepMap[s] === selectedRep);
-  }, [stateRepMap, selectedRep]);
+    return Object.keys(stateRepMap).sort();
+  }, [stateRepMap]);
 
   const budgetByState = useMemo(() => {
     const map: Record<string, StateBudget> = {};
@@ -136,6 +156,7 @@ export function FilterBar({
       activePercent,
       inactive30,
       inactive60,
+      inactive90: 0,
       longInactive,
     };
   }, [filteredGroups]);
@@ -145,19 +166,20 @@ export function FilterBar({
     if (!dealerStatusBreakdown) {
       return {
         groups: 0, locations: 0, activeCount: 0, activePercent: 0,
-        inactive30: 0, inactive60: 0, longInactive: 0,
+        inactive30: 0, inactive60: 0, inactive90: 0, longInactive: 0,
       };
     }
     const b = dealerStatusBreakdown;
     const activePercent = b.total > 0 ? Math.round((b.active / b.total) * 100) : 0;
     return {
       groups: 0,
-      locations: b.total,
-      activeCount: b.active,
+      locations: b.total || 0,
+      activeCount: b.active || 0,
       activePercent,
-      inactive30: b.inactive30,
-      inactive60: b.inactive60,
-      longInactive: b.longInactive,
+      inactive30: b.inactive30 ?? b.inactive30d ?? 0,
+      inactive60: b.inactive60 ?? b.inactive60d ?? 0,
+      inactive90: b.inactive90 ?? b.inactive90d ?? 0,
+      longInactive: b.longInactive || 0,
     };
   }, [dealerStatusBreakdown]);
 
@@ -177,14 +199,13 @@ export function FilterBar({
       };
     }
     if (selectedRep) {
-      const repBudgets = budgets.filter((b) => b.rep === selectedRep);
-      const repStates = repBudgets.map((b) => b.state).sort();
+      const repBudgets = budgets.filter((b) => b.rep.toLowerCase() === selectedRep.toLowerCase());
       const annualBudget = repBudgets.reduce((sum, b) => sum + b.annualTotal, 0);
       return {
         type: 'rep' as const,
         label: selectedRep,
         rep: selectedRep,
-        states: repStates,
+        states: [],
         annualBudget,
       };
     }
@@ -194,9 +215,6 @@ export function FilterBar({
   const handleRepChange = (rep: string) => {
     onRepChange(rep);
     onStatusFilterChange(null);
-    if (rep && selectedState && stateRepMap[selectedState] !== rep) {
-      onStateChange('');
-    }
   };
 
   const handleStateChange = (state: string) => {
@@ -324,6 +342,62 @@ export function FilterBar({
             </select>
           </div>
         )}
+
+        {/* Date Range Selector */}
+        {onDatePresetChange && (
+          <div className={styles.statusByGroup}>
+            <label className={styles.statusByLabel}>Date Range</label>
+            <select
+              className={styles.statusBySelect}
+              value={datePreset}
+              onChange={(e) => onDatePresetChange(e.target.value as DatePreset)}
+              id="date-preset-select"
+            >
+              <option value="this_month">This Month (MTD)</option>
+              <option value="last_30">Last 30 Days</option>
+              <option value="last_60">Last 60 Days</option>
+              <option value="last_month">Last Month</option>
+              <option value="ytd">YTD</option>
+              <option value="last_year">Last Year</option>
+              <option value="all_time">All-Time</option>
+              <option value="custom">Custom Range</option>
+            </select>
+            {datePreset === 'custom' && onCustomDateChange && (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <input
+                  type="date"
+                  value={localCustomStart || ''}
+                  onChange={(e) => setLocalCustomStart(e.target.value)}
+                  className={styles.dateInput}
+                />
+                <span style={{ color: '#64748b' }}>to</span>
+                <input
+                  type="date"
+                  value={localCustomEnd || ''}
+                  onChange={(e) => setLocalCustomEnd(e.target.value)}
+                  className={styles.dateInput}
+                />
+                <button
+                  type="button"
+                  onClick={() => onCustomDateChange(localCustomStart, localCustomEnd)}
+                  style={{
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {mode === 'groups' && (
           <div className={styles.statItem}>
             <span className={styles.statValue}>{stats.groups}</span>
@@ -357,6 +431,14 @@ export function FilterBar({
         >
           <span className={styles.statValue}>{stats.inactive60}</span>
           <span className={styles.statLabel}>60d Inactive</span>
+        </button>
+        <button
+          className={`${styles.statItem} ${styles.statClickable} ${statusFilter === '90d_inactive' ? styles.statSelected : ''}`}
+          onClick={() => handleStatClick('90d_inactive')}
+          title="Filter to groups with 90d inactive"
+        >
+          <span className={styles.statValue}>{stats.inactive90 || 0}</span>
+          <span className={styles.statLabel}>90d Inactive</span>
         </button>
         <button
           className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'long_inactive' ? styles.statSelected : ''}`}

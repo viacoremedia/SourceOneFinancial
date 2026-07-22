@@ -45,6 +45,7 @@ const dealerLocationSchema = new mongoose.Schema({
 
     // Identifiers
     clientDealerId: { type: String, trim: true, default: null },
+    omniDealerId: { type: String, trim: true, default: null },
     globalId: { type: String, trim: true, default: null },
 
     // Business names

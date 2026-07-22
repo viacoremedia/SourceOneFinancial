@@ -222,7 +222,7 @@ registerParser('main_application', {
         'AMOUNTFINANCED',
         'STATUS',
         'DEALERNAME',
-        'APPLICATIONDATE'
+        'APPLICATIONDATE DATE'
     ]
 });
 

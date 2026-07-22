@@ -75,7 +75,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '80px',
     sortable: true,
-    hasData: true,
+    hasData: false,
   },
   {
     key: 'visitToApp',
@@ -84,7 +84,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '80px',
     sortable: true,
-    hasData: true,
+    hasData: false,
   },
   {
     key: 'apps',
@@ -92,7 +92,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
   {
     key: 'approvals',
@@ -100,7 +100,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
   {
     key: 'inHouse',
@@ -108,7 +108,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
   {
     key: 'booked',
@@ -116,7 +116,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
   {
     key: 'bookedDollars',
@@ -124,7 +124,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '90px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
   {
     key: 'lookToBook',
@@ -132,7 +132,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
   {
     key: 'approvalToBook',
@@ -140,6 +140,6 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: false,
+    hasData: true,
   },
 ];

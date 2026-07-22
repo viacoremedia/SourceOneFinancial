@@ -16,6 +16,7 @@ interface AppShellProps {
   onSelectRepState?: (rep: string, state: string) => void;
   activityMode?: string;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
+  onOpenMoMAnalytics?: () => void;
 }
 
 // SVG theme icons (Lucide-style, 18px)
@@ -49,7 +50,7 @@ const THEME_LABELS: Record<string, string> = {
   dark: 'Dark mode',
 };
 
-export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode, onActivityModeChange }: AppShellProps) {
+export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode, onActivityModeChange, onOpenMoMAnalytics }: AppShellProps) {
   const { user } = useAuth();
   const { mode, toggleTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -95,6 +96,17 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
           >
             {(THEME_ICON_MAP[mode] || SunIcon)()}
           </button>
+          {onOpenMoMAnalytics && (
+            <button
+              className={styles.settingsBtn}
+              onClick={onOpenMoMAnalytics}
+              title="Month-over-Month Historical Analytics"
+              id="mom-analytics-btn"
+              aria-label="MoM Analytics"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </button>
+          )}
           {user && (
             <>
               <button

@@ -153,20 +153,22 @@ async function ingestCommunicationCSV(csvContent, webhookPayloadId, fileName = '
         console.log(`  communication ingestion: completed in ${processingTimeMs}ms — ${bulkOps.length} records`);
 
         // Step 5: Update ingestion log
-        await FileIngestionLog.updateOne(
-            { _id: ingestionLog._id },
-            {
-                $set: {
-                    status: 'completed',
-                    rowCount: rows.length,
-                    dealersProcessed: bulkOps.length,
-                    newDealers: totalUpserted,
-                    errorReason: errors.length > 0 ? errors.slice(0, 10).join('; ') : null,
-                    processingTimeMs,
-                    completedAt: new Date()
+        if (ingestionLog) {
+            await FileIngestionLog.updateOne(
+                { _id: ingestionLog._id },
+                {
+                    $set: {
+                        status: 'completed',
+                        rowCount: rows.length,
+                        dealersProcessed: bulkOps.length,
+                        newDealers: totalUpserted,
+                        errorReason: errors.length > 0 ? errors.slice(0, 10).join('; ') : null,
+                        processingTimeMs,
+                        completedAt: new Date()
+                    }
                 }
-            }
-        );
+            );
+        }
 
         return {
             rowCount: rows.length,
@@ -180,17 +182,19 @@ async function ingestCommunicationCSV(csvContent, webhookPayloadId, fileName = '
 
     } catch (err) {
         const processingTimeMs = Date.now() - startTime;
-        await FileIngestionLog.updateOne(
-            { _id: ingestionLog._id },
-            {
-                $set: {
-                    status: 'failed',
-                    errorReason: err.message,
-                    processingTimeMs,
-                    completedAt: new Date()
+        if (ingestionLog) {
+            await FileIngestionLog.updateOne(
+                { _id: ingestionLog._id },
+                {
+                    $set: {
+                        status: 'failed',
+                        errorReason: err.message,
+                        processingTimeMs,
+                        completedAt: new Date()
+                    }
                 }
-            }
-        );
+            );
+        }
         console.error(`  communication ingestion: FAILED after ${processingTimeMs}ms — ${err.message}`);
         throw err;
     }

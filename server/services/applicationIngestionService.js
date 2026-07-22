@@ -125,9 +125,9 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
                 status: get('STATUS'),
                 underwriter: get('UNDERWRITER'),
                 lender: get('LENDER'),
-                applicationDate: parseDate(get('APPLICATIONDATE')),
-                approvalDate: parseDate(get('APPROVALDATE')),
-                bookedDate: parseDate(get('BOOKEDDATE')),
+                applicationDate: parseDate(get('APPLICATIONDATE DATE')),
+                approvalDate: parseDate(get('APPROVALDATE DATE')),
+                bookedDate: parseDate(get('BOOKEDDATE DATE')),
                 amountFinanced: parseNumber(get('AMOUNTFINANCED')),
                 term: parseNumber(get('TERM')),
                 apr: parseNumber(get('APR')),
@@ -163,6 +163,7 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
                 isBusinessApp: parseBool(get('ISBUSINESSAPP')),
                 wasApproved: parseBool(get('WASAPPROVED')),
                 wasApprovedNotBooked: parseBool(get('WASAPPROVEDNOTBOOKED')),
+                applicationClass: get('CLASS'),
                 sourcePayload: webhookPayloadId,
                 lastIngestionDate: new Date()
             };
@@ -193,20 +194,22 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
         console.log(`  application ingestion: completed in ${processingTimeMs}ms — ${bulkOps.length} records`);
 
         // Step 5: Update ingestion log
-        await FileIngestionLog.updateOne(
-            { _id: ingestionLog._id },
-            {
-                $set: {
-                    status: 'completed',
-                    rowCount: rows.length,
-                    dealersProcessed: bulkOps.length,
-                    newDealers: totalUpserted,
-                    errorReason: errors.length > 0 ? errors.slice(0, 10).join('; ') : null,
-                    processingTimeMs,
-                    completedAt: new Date()
+        if (ingestionLog) {
+            await FileIngestionLog.updateOne(
+                { _id: ingestionLog._id },
+                {
+                    $set: {
+                        status: 'completed',
+                        rowCount: rows.length,
+                        dealersProcessed: bulkOps.length,
+                        newDealers: totalUpserted,
+                        errorReason: errors.length > 0 ? errors.slice(0, 10).join('; ') : null,
+                        processingTimeMs,
+                        completedAt: new Date()
+                    }
                 }
-            }
-        );
+            );
+        }
 
         return {
             rowCount: rows.length,
@@ -220,17 +223,19 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
 
     } catch (err) {
         const processingTimeMs = Date.now() - startTime;
-        await FileIngestionLog.updateOne(
-            { _id: ingestionLog._id },
-            {
-                $set: {
-                    status: 'failed',
-                    errorReason: err.message,
-                    processingTimeMs,
-                    completedAt: new Date()
+        if (ingestionLog) {
+            await FileIngestionLog.updateOne(
+                { _id: ingestionLog._id },
+                {
+                    $set: {
+                        status: 'failed',
+                        errorReason: err.message,
+                        processingTimeMs,
+                        completedAt: new Date()
+                    }
                 }
-            }
-        );
+            );
+        }
         console.error(`  application ingestion: FAILED after ${processingTimeMs}ms — ${err.message}`);
         throw err;
     }

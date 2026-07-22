@@ -6,11 +6,12 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { AppShell } from '../../../core/components/AppShell';
 import { TabBar, type TabId } from '../components/TabBar';
-import { FilterBar } from '../components/FilterBar';
+import { FilterBar, type DatePreset } from '../components/FilterBar';
 import { DealerTable } from '../components/DealerTable';
-import { RollingAvgStrip } from '../components/RollingAvgStrip';
+import { DealerDrawer } from '../components/DealerDrawer/DealerDrawer';
+import { ExecutiveSummaryBanner } from '../components/ExecutiveSummaryBanner/ExecutiveSummaryBanner';
+import { AnalyticsDrawer } from '../components/AnalyticsDrawer/AnalyticsDrawer';
 import { useOverview, useDealerGroups } from '../hooks';
-import { useRollingAvg } from '../hooks/useRollingAvg';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../core/services/api';
@@ -25,10 +26,18 @@ const SORT_KEY_MAP: Record<string, string> = {
   activityStatus: 'activityStatus',
   commDays: 'commDays',
   visitToApp: 'visitToApp',
+  apps: 'apps',
+  approvals: 'approvals',
+  inHouse: 'inHouse',
+  booked: 'booked',
+  bookedDollars: 'bookedDollars',
+  lookToBook: 'lookToBook',
+  approvalToBook: 'approvalToBook',
 };
 
 export function Dashboard() {
   const { data: overview } = useOverview();
+  const [momDrawerOpen, setMomDrawerOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabId>('all');
   const [groupLocations, setGroupLocations] = useState<
@@ -44,9 +53,9 @@ export function Dashboard() {
   const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
   const activityModeRef = useRef<'application' | 'approval' | 'booking'>('application');
 
-  // ── Rolling Averages ──
+  // ── Drawer state ──
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
-  const [activeOnly, setActiveOnly] = useState(false);
+  const [selectedDealerIdForDrawer, setSelectedDealerIdForDrawer] = useState<string | null>(null);
 
   // Fetch state-rep map + budgets on mount
   useEffect(() => {
@@ -67,30 +76,8 @@ export function Dashboard() {
   // Compute target states from current filter
   const targetStates = useMemo(() => {
     if (selectedState) return [selectedState];
-    if (selectedRep && repStatesMap[selectedRep]) return repStatesMap[selectedRep];
     return undefined;
-  }, [selectedRep, selectedState, repStatesMap]);
-
-  // Rolling averages — depends on targetStates + status filter
-  // Priority: dashboard statusFilter chips → strip activeOnly toggle → all
-  const STATUS_FILTER_MAP: Record<string, string[]> = {
-    active: ['active'],
-    '30d_inactive': ['30d_inactive'],
-    '60d_inactive': ['60d_inactive'],
-    'long_inactive': ['long_inactive'],
-  };
-
-  const rollingStatusFilter = useMemo(() => {
-    // Dashboard stat chip takes priority
-    if (statusFilter && STATUS_FILTER_MAP[statusFilter]) {
-      return STATUS_FILTER_MAP[statusFilter];
-    }
-    // Strip toggle fallback
-    if (activeOnly) return ['active'];
-    return undefined;
-  }, [statusFilter, activeOnly]);
-
-  const { data: rollingAvgData, isLoading: rollingAvgLoading } = useRollingAvg(rollingWindow, targetStates, rollingStatusFilter, activityMode);
+  }, [selectedState]);
 
   // Rep scorecard (always fetched for heat dots in FilterBar — server caches 5 min)
   const { data: scorecardData } = useRepScorecard(rollingWindow, true, undefined, activityMode);
@@ -103,8 +90,33 @@ export function Dashboard() {
     return Object.keys(map).length > 0 ? map : undefined;
   }, [scorecardData]);
 
-  // Fetch groups — re-fetches when targetStates changes (server recalculates summaries)
-  const { groups, isLoading: groupsLoading } = useDealerGroups(targetStates, activityMode);
+  // ── Date Range state (defaults to This Month / MTD) ──
+  const nowUtc = new Date();
+  const defaultStartDate = `${nowUtc.getUTCFullYear()}-${String(nowUtc.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  const defaultEndDate = nowUtc.toISOString().split('T')[0];
+  const [datePreset, setDatePreset] = useState<DatePreset>('this_month');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string | undefined>(defaultStartDate);
+  const [endDate, setEndDate] = useState<string | undefined>(defaultEndDate);
+  const startDateRef = useRef<string | undefined>(defaultStartDate);
+  const endDateRef = useRef<string | undefined>(defaultEndDate);
+
+  // ── Trend state (defaults to vs Last Month / MoM) ──
+  const [trend, setTrend] = useState<'mom' | 'yoy' | '30d' | '60d' | 'prior' | 'none'>('mom');
+  const trendRef = useRef<'mom' | 'yoy' | '30d' | '60d' | 'prior' | 'none'>('mom');
+  const [comparisonLabel, setComparisonLabel] = useState<string | undefined>(undefined);
+
+  // Fetch groups — re-fetches automatically via useEffect when targetStates, activityMode, dates, trend, statusFilter, or selectedRep change
+  const { groups, isLoading: groupsLoading } = useDealerGroups(
+    targetStates,
+    activityMode,
+    startDate,
+    endDate,
+    trend,
+    statusFilter,
+    selectedRep
+  );
 
   // Groups filtered by state only — used for stats computation (stable numbers)
   const stateFilteredGroups = useMemo(() => {
@@ -140,7 +152,7 @@ export function Dashboard() {
   const [transitionFilter, setTransitionFilter] = useState<string | null>(null);
   const transitionRef = useRef<string | null>(null);
   const pageRef = useRef(1);
-  const sortStateRef = useRef({ sorts: ['dealerName'], dirs: ['asc'] as ('asc' | 'desc')[] });
+  const sortStateRef = useRef({ sorts: ['apps'], dirs: ['desc'] as ('asc' | 'desc')[] });
   const statusRef = useRef<string | null>(null);
   const statesRef = useRef<string[] | undefined>(undefined);
   const searchRef = useRef('');
@@ -164,9 +176,13 @@ export function Dashboard() {
         const result = await getSmallDealers({
           sort: sorts.join(','), dir: dirs.join(',') as any,
           page, limit: 50, status, scope, states,
+          rep: selectedRep || undefined,
           activityMode: activityModeRef.current,
           search: searchRef.current || undefined,
           transition: transitionRef.current || undefined,
+          startDate: startDateRef.current,
+          endDate: endDateRef.current,
+          trend: trendRef.current,
         });
         const setDealers = scope === 'all' ? setAllDealers : setSmallDealers;
         const setTotal = scope === 'all' ? setTotalAllDealers : setTotalSmallDealers;
@@ -181,6 +197,7 @@ export function Dashboard() {
         if (result.statusTransitions) {
           setStatusTransitions(result.statusTransitions);
         }
+        setComparisonLabel(result.comparisonLabel);
         setHasMore(result.pagination.hasMore);
         setTotal(result.pagination.totalCount);
         pageRef.current = page;
@@ -191,7 +208,7 @@ export function Dashboard() {
         setSmallDealersLoadingMore(false);
       }
     },
-    []
+    [selectedRep]
   );
 
 
@@ -275,6 +292,61 @@ export function Dashboard() {
     refetchFlatTab();
   }, [refetchFlatTab]);
 
+  // Helper to compute start & end dates from preset
+  const computeDateRange = useCallback((preset: DatePreset, cStart?: string, cEnd?: string): { startDate?: string; endDate?: string } => {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+    switch (preset) {
+      case 'this_month':
+        return { startDate: formatDate(new Date(Date.UTC(year, month, 1))), endDate: formatDate(now) };
+      case 'last_30':
+        return { startDate: formatDate(new Date(now.getTime() - 30 * 86400000)), endDate: formatDate(now) };
+      case 'last_60':
+        return { startDate: formatDate(new Date(now.getTime() - 60 * 86400000)), endDate: formatDate(now) };
+      case 'last_month':
+        return { startDate: formatDate(new Date(Date.UTC(year, month - 1, 1))), endDate: formatDate(new Date(Date.UTC(year, month, 0))) };
+      case 'ytd':
+        return { startDate: formatDate(new Date(Date.UTC(year, 0, 1))), endDate: formatDate(now) };
+      case 'last_year':
+        return { startDate: formatDate(new Date(Date.UTC(year - 1, 0, 1))), endDate: formatDate(new Date(Date.UTC(year - 1, 11, 31))) };
+      case 'all_time':
+        return { startDate: '2025-01-01', endDate: formatDate(now) };
+      case 'custom':
+        return { startDate: cStart || undefined, endDate: cEnd || undefined };
+      default:
+        return { startDate: '2025-01-01' };
+    }
+  }, []);
+
+  // Date range preset change
+  const handleDatePresetChange = useCallback((preset: DatePreset) => {
+    setDatePreset(preset);
+    const range = computeDateRange(preset, customStartDate, customEndDate);
+    startDateRef.current = range.startDate;
+    endDateRef.current = range.endDate;
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+    setGroupLocations({});
+    refetchFlatTab();
+  }, [computeDateRange, customStartDate, customEndDate, refetchFlatTab]);
+
+  // Custom date range change
+  const handleCustomDateChange = useCallback((start?: string, end?: string) => {
+    setCustomStartDate(start || '');
+    setCustomEndDate(end || '');
+    if (datePreset === 'custom') {
+      startDateRef.current = start || undefined;
+      endDateRef.current = end || undefined;
+      setStartDate(start || undefined);
+      setEndDate(end || undefined);
+      setGroupLocations({});
+      refetchFlatTab();
+    }
+  }, [datePreset, refetchFlatTab]);
+
   // Transition filter change — re-fetch with specific from→to transition
   const handleTransitionFilterChange = useCallback((transition: string | null) => {
     setTransitionFilter(transition);
@@ -284,6 +356,14 @@ export function Dashboard() {
       setStatusFilter(null);
       statusRef.current = null;
     }
+    refetchFlatTab();
+  }, [refetchFlatTab]);
+
+  // Trend selection change — re-fetch with new baseline comparison
+  const handleTrendChange = useCallback((newTrend: string) => {
+    setTrend(newTrend as any);
+    trendRef.current = newTrend as any;
+    setGroupLocations({});
     refetchFlatTab();
   }, [refetchFlatTab]);
 
@@ -344,7 +424,12 @@ export function Dashboard() {
     async (slug: string) => {
       if (groupLocations[slug]) return;
       try {
-        const { locations } = await getGroupLocations(slug);
+        const { locations } = await getGroupLocations(
+          slug,
+          startDateRef.current,
+          endDateRef.current,
+          trendRef.current
+        );
         setGroupLocations((prev) => ({ ...prev, [slug]: locations }));
       } catch (err) {
         console.error(`Failed to load locations for ${slug}:`, err);
@@ -371,7 +456,12 @@ export function Dashboard() {
         const results = await Promise.all(
           batch.map(async (g) => {
             try {
-              const { locations } = await getGroupLocations(g.slug);
+              const { locations } = await getGroupLocations(
+                g.slug,
+                startDateRef.current,
+                endDateRef.current,
+                trendRef.current
+              );
               return { slug: g.slug, locations };
             } catch {
               return null;
@@ -460,6 +550,7 @@ export function Dashboard() {
       onSelectRepState={handleScorecardRepStateSelect}
       activityMode={activityMode}
       onActivityModeChange={handleActivityModeChange}
+      onOpenMoMAnalytics={() => setMomDrawerOpen(true)}
     >
 
       <div
@@ -489,10 +580,15 @@ export function Dashboard() {
             selectedState={selectedState}
             statusFilter={statusFilter}
             activityMode={activityMode}
+            datePreset={datePreset}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
             onRepChange={handleRepChange}
             onStateChange={handleStateChange}
             onStatusFilterChange={handleStatusFilterChange}
             onActivityModeChange={handleActivityModeChange}
+            onDatePresetChange={handleDatePresetChange}
+            onCustomDateChange={handleCustomDateChange}
             repHeatMap={repHeatMap}
             statusTransitions={statusTransitions}
             transitionFilter={transitionFilter}
@@ -501,20 +597,14 @@ export function Dashboard() {
         )}
       </div>
 
-      <RollingAvgStrip
-        data={rollingAvgData}
-        isLoading={rollingAvgLoading}
-        windowSize={rollingWindow}
-        onWindowChange={setRollingWindow}
-        activeOnly={activeOnly}
-        onActiveOnlyChange={setActiveOnly}
-        statusFilterLabel={
-          statusFilter === 'active' ? 'Active'
-          : statusFilter === '30d_inactive' ? '30d Inactive'
-          : statusFilter === '60d_inactive' ? '60d Inactive'
-          : statusFilter === 'long_inactive' ? 'Long Inactive'
-          : null
-        }
+      {/* Executive Summary Banner (Replaces bracketed summary strip) */}
+      <ExecutiveSummaryBanner
+        startDate={startDate}
+        endDate={endDate}
+        trend={trend}
+        state={selectedState}
+        rep={selectedRep}
+        status={statusFilter}
       />
 
       <DealerTable
@@ -529,10 +619,31 @@ export function Dashboard() {
         isPrefetching={prefetchingLocations}
         activityMode={activityMode}
         stateRepMap={stateRepMap}
+        datePreset={datePreset}
+        customStartDate={customStartDate}
+        customEndDate={customEndDate}
         onExpandGroup={handleExpandGroup}
         onLoadMore={handleLoadMore}
         onDealerSortChange={handleDealerSortChange}
         onDealerSearch={handleDealerSearch}
+        onSelectDealer={setSelectedDealerIdForDrawer}
+        onDatePresetChange={handleDatePresetChange}
+        onCustomDateChange={handleCustomDateChange}
+        onTrendChange={handleTrendChange}
+        comparisonLabel={comparisonLabel}
+      />
+
+      <DealerDrawer
+        dealerId={selectedDealerIdForDrawer}
+        onClose={() => setSelectedDealerIdForDrawer(null)}
+      />
+
+      {/* Bottom-Up Historical MoM Analytics Drawer */}
+      <AnalyticsDrawer
+        isOpen={momDrawerOpen}
+        onClose={() => setMomDrawerOpen(false)}
+        availableStates={Object.keys(stateRepMap)}
+        availableGroups={groups.map((g) => ({ name: g.name, slug: g.slug }))}
       />
     </AppShell>
   );

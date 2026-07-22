@@ -2,7 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { getGroups, getGroupLocations } from '../../../core/services/api';
 import type { DealerGroup, DealerLocation } from '../types';
 
-export function useDealerGroups(states?: string[], activityMode?: string) {
+export function useDealerGroups(
+  states?: string[],
+  activityMode?: string,
+  startDate?: string,
+  endDate?: string,
+  trend?: string,
+  status?: string | null,
+  rep?: string
+) {
   const [groups, setGroups] = useState<DealerGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +23,15 @@ export function useDealerGroups(states?: string[], activityMode?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getGroups(states && states.length > 0 ? states : undefined, activityMode);
+      const data = await getGroups(
+        states && states.length > 0 ? states : undefined,
+        activityMode,
+        startDate,
+        endDate,
+        trend,
+        status,
+        rep
+      );
       setGroups(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dealer groups');
@@ -23,7 +39,7 @@ export function useDealerGroups(states?: string[], activityMode?: string) {
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statesKey, modeKey]);
+  }, [statesKey, modeKey, startDate, endDate, trend, status, rep]);
 
   useEffect(() => {
     fetch();
@@ -32,7 +48,12 @@ export function useDealerGroups(states?: string[], activityMode?: string) {
   return { groups, isLoading, error, refetch: fetch };
 }
 
-export function useGroupLocations(slug: string | null) {
+export function useGroupLocations(
+  slug: string | null,
+  startDate?: string,
+  endDate?: string,
+  trend?: string
+) {
   const [locations, setLocations] = useState<DealerLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,14 +63,14 @@ export function useGroupLocations(slug: string | null) {
     setIsLoading(true);
     setError(null);
     try {
-      const { locations: locs } = await getGroupLocations(slug);
+      const { locations: locs } = await getGroupLocations(slug, startDate, endDate, trend);
       setLocations(locs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load locations');
     } finally {
       setIsLoading(false);
     }
-  }, [slug]);
+  }, [slug, startDate, endDate, trend]);
 
   useEffect(() => {
     fetch();

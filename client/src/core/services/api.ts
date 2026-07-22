@@ -52,20 +52,42 @@ export async function getOverview(year?: number, month?: number): Promise<Overvi
 }
 
 // ── Dealer Groups ──
-export async function getGroups(states?: string[], activityMode?: string): Promise<DealerGroup[]> {
+export async function getGroups(
+  states?: string[],
+  activityMode?: string,
+  startDate?: string,
+  endDate?: string,
+  trend?: string,
+  status?: string | null,
+  rep?: string
+): Promise<DealerGroup[]> {
   const params: Record<string, string> = {};
   if (states && states.length > 0) params.states = states.join(',');
   if (activityMode && activityMode !== 'application') params.activityMode = activityMode;
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  if (trend) params.trend = trend;
+  if (status) params.status = status;
+  if (rep) params.rep = rep;
   const { data } = await api.get('/analytics/groups', { params });
   return data.groups;
 }
 
 // ── Group Locations ──
-export async function getGroupLocations(slug: string): Promise<{
+export async function getGroupLocations(
+  slug: string,
+  startDate?: string,
+  endDate?: string,
+  trend?: string
+): Promise<{
   group: { name: string; slug: string; dealerCount: number };
   locations: DealerLocation[];
 }> {
-  const { data } = await api.get(`/analytics/groups/${slug}/locations`);
+  const params: Record<string, string> = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  if (trend) params.trend = trend;
+  const { data } = await api.get(`/analytics/groups/${slug}/locations`, { params });
   return { group: data.group, locations: data.locations };
 }
 
@@ -91,15 +113,19 @@ export async function getGroupMonthly(
 // ── Independent Dealers (no group) — server-side sort + pagination ──
 export interface SmallDealerParams {
   sort?: string;
-  dir?: string; // 'asc', 'desc', or comma-separated for multi-sort (e.g. 'asc,desc')
+  dir?: 'asc' | 'desc';
   page?: number;
   limit?: number;
   status?: string | null;
   scope?: 'ungrouped' | 'all';
   states?: string[];
+  rep?: string;
   activityMode?: 'application' | 'approval' | 'booking';
   search?: string;
   transition?: string;  // e.g. "active→30d_inactive"
+  startDate?: string;
+  endDate?: string;
+  trend?: string;
 }
 
 export interface DealerStatusBreakdown {
@@ -107,6 +133,10 @@ export interface DealerStatusBreakdown {
   active: number;
   inactive30: number;
   inactive60: number;
+  inactive90?: number;
+  inactive30d?: number;
+  inactive60d?: number;
+  inactive90d?: number;
   longInactive: number;
 }
 
@@ -114,6 +144,7 @@ export interface PaginatedDealers {
   dealers: DealerLocation[];
   statusBreakdown: DealerStatusBreakdown | null;
   statusTransitions: { from: string; to: string; count: number }[];
+  comparisonLabel?: string;
   pagination: {
     page: number;
     limit: number;
@@ -125,17 +156,21 @@ export interface PaginatedDealers {
 
 export async function getSmallDealers(params: SmallDealerParams = {}): Promise<PaginatedDealers> {
   const queryParams: Record<string, string | number> = {
-    sort: params.sort || 'dealerName',
-    dir: params.dir || 'asc',
+    sort: params.sort || 'apps',
+    dir: params.dir || 'desc',
     page: params.page || 1,
     limit: params.limit || 50,
   };
   if (params.status) queryParams.status = params.status;
   if (params.scope) queryParams.scope = params.scope;
   if (params.states && params.states.length > 0) queryParams.states = params.states.join(',');
+  if (params.rep) queryParams.rep = params.rep;
   if (params.activityMode && params.activityMode !== 'application') queryParams.activityMode = params.activityMode;
   if (params.search) queryParams.search = params.search;
   if (params.transition) queryParams.transition = params.transition;
+  if (params.startDate) queryParams.startDate = params.startDate;
+  if (params.endDate) queryParams.endDate = params.endDate;
+  if (params.trend) queryParams.trend = params.trend;
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
   return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, statusTransitions: data.statusTransitions || [], pagination: data.pagination };
 }
@@ -228,6 +263,58 @@ export async function getRepScorecard(
   if (statusFilter && statusFilter.length > 0) params.status = statusFilter.join(',');
   if (activityMode && activityMode !== 'application') params.mode = activityMode;
   const { data } = await api.get('/analytics/rep-scorecard', { params });
+  return data;
+}
+
+import type {
+  DealerApplicationHistoryResponse,
+  ExecutiveSummaryResponse,
+  HistoricalMoMResponse
+} from '../../features/dashboard/types';
+
+export async function getDealerApplicationsHistory(
+  dealerId: string,
+  page: number = 1,
+  limit: number = 20
+): Promise<DealerApplicationHistoryResponse> {
+  const { data } = await api.get(`/analytics/dealers/${dealerId}/applications`, {
+    params: { page, limit }
+  });
+  return data;
+}
+
+export async function getExecutiveSummary(
+  startDate?: string,
+  endDate?: string,
+  trend?: string,
+  state?: string,
+  rep?: string,
+  groupSlug?: string,
+  status?: string | null
+): Promise<ExecutiveSummaryResponse> {
+  const params: Record<string, string> = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  if (trend) params.trend = trend;
+  if (state) params.state = state;
+  if (rep) params.rep = rep;
+  if (groupSlug) params.groupSlug = groupSlug;
+  if (status) params.status = status;
+  const { data } = await api.get('/analytics/executive-summary', { params });
+  return data;
+}
+
+export async function getHistoricalMoM(
+  trend: 'mom' | 'yoy' = 'mom',
+  state?: string,
+  rep?: string,
+  groupSlug?: string
+): Promise<HistoricalMoMResponse> {
+  const params: Record<string, string> = { trend };
+  if (state) params.state = state;
+  if (rep) params.rep = rep;
+  if (groupSlug) params.groupSlug = groupSlug;
+  const { data } = await api.get('/analytics/historical/mom', { params });
   return data;
 }
 

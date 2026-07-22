@@ -135,3 +135,52 @@ System user for invite-only authentication.
 | `inviteExpiresAt` | Date     | Invite expiry (7 days from creation)         |
 
 **Indexes**: `{ email: 1 }` (unique), `{ inviteToken: 1 }`
+
+---
+
+### `Application.js`
+Individual loan application records from OMNI Main Application Table.
+
+| Field | Type | Description |
+|---|---|---|
+| `applicationId` | String | Unique primary key from OMNI (indexed, unique) |
+| `status` | String | Pipeline status (Booked, Decline, Approved, etc.) |
+| `underwriter` | String | Underwriter username |
+| `lender` | String | Lender name (e.g. Source One, Connexus CU) |
+| `applicationDate` | Date | Application submission date |
+| `approvalDate` | Date | Application approval date |
+| `bookedDate` | Date | Loan booking date |
+| `amountFinanced` | Number | Financed dollar amount |
+| `clientDealerId` | String | Dealer ID key (e.g. "AZ260", "TX400") |
+| `applicationClass` | String | Loan classification tier (Core, Silver, etc.) |
+
+**Indexes**:
+- `{ applicationId: 1 }` (unique)
+- `{ clientDealerId: 1, applicationDate: -1 }`
+- `{ clientDealerId: 1, status: 1, applicationDate: -1 }` (dealer stats aggregation)
+- `{ lender: 1, status: 1, applicationDate: -1 }` (in-house deal aggregation)
+- `{ status: 1, applicationDate: -1 }`
+- `{ dealerRepresentative: 1, applicationDate: -1 }`
+
+---
+
+### `DealerCommunication.js`
+Rep visits and communication events from Badger / OMNI.
+
+| Field | Type | Description |
+|---|---|---|
+| `sourceCommunicationId` | String | Unique communication event ID (unique) |
+| `communicationUserFullName` | String | Sales rep name / email |
+| `recipientOrganizationName` | String | Dealer org name |
+| `internalRelationshipId1` | String | OMNI internal dealer ID |
+| `internalRelationshipId2` | String | Client dealer ID key (e.g. "IN188", "AZ312") |
+| `communicationResult1` | String | Visit result / outcome |
+| `communicationFeedback1` | String | Dealer feedback / sentiment |
+| `communicationEventDatetime` | Date | Event timestamp |
+
+**Indexes**:
+- `{ sourceCommunicationId: 1 }` (unique)
+- `{ internalRelationshipId2: 1, communicationEventDatetime: -1 }` (dealer ID lookup)
+- `{ recipientOrganizationName: 1, communicationEventDatetime: -1 }`
+- `{ communicationUserFullName: 1, communicationEventDatetime: -1 }`
+

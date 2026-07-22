@@ -12,6 +12,7 @@ const STATUS_CONFIG: Record<
   active: { label: 'Active', className: styles.statusActive },
   '30d_inactive': { label: '30d', className: styles.status30d },
   '60d_inactive': { label: '60d', className: styles.status60d },
+  '90d_inactive': { label: '90d', className: styles.status60d },
   long_inactive: { label: 'Long', className: styles.statusLong },
   never_active: { label: 'Never', className: styles.statusNever },
 };

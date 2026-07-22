@@ -83,6 +83,9 @@ const applicationSchema = new mongoose.Schema({
     wasApproved: { type: Boolean, default: null },
     wasApprovedNotBooked: { type: Boolean, default: null },
 
+    // Classification
+    applicationClass: { type: String, trim: true, default: null },
+
     // Traceability
     sourcePayload: {
         type: mongoose.Schema.Types.ObjectId,
@@ -102,6 +105,12 @@ applicationSchema.index({ applicationId: 1 }, { unique: true, name: 'app_id_uniq
 
 // Dealer-level queries: "all applications for this dealer"
 applicationSchema.index({ clientDealerId: 1, applicationDate: -1 }, { name: 'dealer_apps' });
+
+// Dealer + Status aggregation index (powers Apps/Approvals/Booked dashboard columns)
+applicationSchema.index({ clientDealerId: 1, status: 1, applicationDate: -1 }, { name: 'dealer_status_date' });
+
+// Lender + Status aggregation index (powers In-House dashboard column)
+applicationSchema.index({ lender: 1, status: 1, applicationDate: -1 }, { name: 'lender_status_date' });
 
 // Status pipeline queries: "all booked applications this month"
 applicationSchema.index({ status: 1, applicationDate: -1 }, { name: 'status_date' });

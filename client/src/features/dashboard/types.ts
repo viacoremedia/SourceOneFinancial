@@ -34,6 +34,79 @@ export interface DealerGroup {
   states: string[];  // 2-letter state codes from locations
   createdAt: string;
   summary: GroupSummary | null;
+  stats?: DealerStats;
+}
+
+export interface MetricTrend {
+  value: number;
+  baseline: number;
+  diff: number;
+  pct: number;
+}
+
+export interface DealerStats {
+  apps: number;
+  approvals: number;
+  inHouse: number;
+  booked: number;
+  bookedDollars: number;
+  lookToBook: number;
+  approvalToBook: number;
+  trends?: {
+    apps: MetricTrend;
+    approvals: MetricTrend;
+    inHouse: MetricTrend;
+    booked: MetricTrend;
+    bookedDollars: MetricTrend;
+    lookToBook: MetricTrend;
+    approvalToBook: MetricTrend;
+  };
+}
+
+export interface DealerStatusBreakdown {
+  active: number;
+  inactive30d: number;
+  inactive60d: number;
+  inactive90d: number;
+  longInactive: number;
+}
+
+export interface ApplicationHistoryItem {
+  _id: string;
+  applicationId: string;
+  applicationDate: string | null;
+  status: string | null;
+  amountFinanced: number | null;
+  lender: string | null;
+  underwriter: string | null;
+  primaryFicoAuto8: number | null;
+  daysAgo: number | null;
+}
+
+export interface DealerApplicationHistorySummary {
+  allTime: { apps: number; approvals: number; booked: number; bookedDollars: number };
+  ytd: { apps: number; approvals: number; booked: number; bookedDollars: number };
+  mtd: { apps: number; approvals: number; booked: number; bookedDollars: number };
+}
+
+export interface DealerApplicationHistoryResponse {
+  success: boolean;
+  location: {
+    _id: string;
+    dealerName: string;
+    dealerId: string;
+    clientDealerId: string;
+    statePrefix: string;
+  };
+  summary: DealerApplicationHistorySummary;
+  applications: ApplicationHistoryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
 }
 
 // ── Dealer Location ──
@@ -45,6 +118,7 @@ export interface DealerLocation {
   dealerGroup: string | null;
   createdAt: string;
   latestSnapshot: DailySnapshot | null;
+  stats?: DealerStats;
 }
 
 // ── Daily Snapshot ──
@@ -71,6 +145,7 @@ export type ActivityStatus =
   | 'active'
   | '30d_inactive'
   | '60d_inactive'
+  | '90d_inactive'
   | 'long_inactive'
   | 'never_active';
 
@@ -263,4 +338,74 @@ export interface RepScorecardResponse {
   reportDateRange: ReportDateRange;
   insufficientData: boolean;
   windowSize: number;
+}
+
+export interface ExecutiveSummaryResponse {
+  success: boolean;
+  dateRange: {
+    startStr: string;
+    endStr: string;
+    label: string;
+  };
+  comparisonLabel: string | null;
+  totals: DealerStats;
+  trends: {
+    apps: MetricTrend;
+    approvals: MetricTrend;
+    booked: MetricTrend;
+    bookedDollars: MetricTrend;
+    lookToBook: MetricTrend;
+    approvalToBook: MetricTrend;
+  };
+  budget: {
+    annual2026Budget: number;
+    targetBookedDollars: number;
+    actualBookedDollars: number;
+    varianceDollars: number;
+    percentAchieved: number;
+    isOverBudget: boolean;
+  };
+  pacing: {
+    mtdActualBookedDollars: number;
+    mtdPace: number;
+    daysElapsedCurrentMonth: number;
+    daysInCurrentMonth: number;
+    ytdActualBookedDollars: number;
+    fullYearPace: number;
+    annualBudget: number;
+    ytdTargetBudget: number;
+  };
+}
+
+export interface HistoricalMoMItem {
+  key: string;
+  label: string;
+  year: number;
+  monthIndex: number;
+  stats: DealerStats;
+  cohorts: {
+    active: number;
+    inactive30: number;
+    inactive60: number;
+    inactive90: number;
+    longInactive: number;
+    total: number;
+    activePct: number;
+  };
+  budgetTarget: number;
+  trends: {
+    apps: MetricTrend;
+    approvals: MetricTrend;
+    booked: MetricTrend;
+    bookedDollars: MetricTrend;
+    lookToBook: MetricTrend;
+    approvalToBook: MetricTrend;
+  };
+}
+
+export interface HistoricalMoMResponse {
+  success: boolean;
+  trendMode: 'mom' | 'yoy';
+  count: number;
+  months: HistoricalMoMItem[];
 }

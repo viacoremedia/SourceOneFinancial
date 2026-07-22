@@ -19,12 +19,63 @@ import type { StateRepMap } from '../../../../core/services/api';
 import type {
   DealerGroup,
   DealerLocation,
+  DealerStats,
+  MetricTrend,
   TrendPeriod,
   ActivityStatus,
   BestWorst,
+  TableColumn,
 } from '../../types';
 
-// ── Types ──
+// ── Stacked Stat Cell ──
+
+function formatStatValue(val: number | undefined | null, type: 'count' | 'dollar' | 'percent'): string {
+  if (val == null || val === 0) return '—';
+  if (type === 'dollar') return `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (type === 'percent') return `${(val * 100).toFixed(1)}%`;
+  return val.toLocaleString();
+}
+
+function renderStackedStatCell(
+  val: number | undefined | null,
+  trend: MetricTrend | undefined,
+  type: 'count' | 'dollar' | 'percent'
+) {
+  if (val == null || val === 0) {
+    return <span className={styles.emptyValue}>—</span>;
+  }
+
+  const currentFormatted = formatStatValue(val, type);
+  const baselineFormatted = trend ? formatStatValue(trend.baseline, type) : null;
+  const isUp = trend ? trend.diff > 0 : false;
+  const isDown = trend ? trend.diff < 0 : false;
+  const pctSign = trend && trend.pct > 0 ? '+' : '';
+  const pctText = trend ? `${pctSign}${trend.pct}%` : null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
+      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+        {currentFormatted}
+      </span>
+      {trend && baselineFormatted !== '—' && (
+        <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <span style={{
+            color: isUp ? '#34d399' : isDown ? '#f87171' : '#94a3b8',
+            fontWeight: 700,
+            background: isUp ? 'rgba(52, 211, 153, 0.18)' : isDown ? 'rgba(248, 113, 113, 0.18)' : 'rgba(148, 163, 184, 0.15)',
+            padding: '1px 4px',
+            borderRadius: '4px'
+          }}>
+            {pctText}
+          </span>
+          <span style={{ color: '#94a3b8', fontWeight: 500 }}>({baselineFormatted})</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+import type { DatePreset } from '../FilterBar';
 
 interface DealerTableProps {
   mode: 'groups' | 'dealers' | 'all';
@@ -38,10 +89,18 @@ interface DealerTableProps {
   isPrefetching?: boolean;
   activityMode?: 'application' | 'approval' | 'booking';
   stateRepMap?: StateRepMap;
+  datePreset?: DatePreset;
+  customStartDate?: string;
+  customEndDate?: string;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
   onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
   onDealerSearch?: (query: string) => void;
+  onSelectDealer?: (dealerId: string) => void;
+  onDatePresetChange?: (preset: DatePreset) => void;
+  onCustomDateChange?: (start?: string, end?: string) => void;
+  onTrendChange?: (trend: TrendPeriod) => void;
+  comparisonLabel?: string;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -170,6 +229,14 @@ export function DealerTable({
   onLoadMore,
   onDealerSortChange,
   onDealerSearch,
+  onSelectDealer,
+  datePreset = 'this_month',
+  customStartDate = '',
+  customEndDate = '',
+  onDatePresetChange,
+  onCustomDateChange,
+  onTrendChange,
+  comparisonLabel,
   activityMode = 'application',
   stateRepMap = {},
 }: DealerTableProps) {
@@ -177,6 +244,14 @@ export function DealerTable({
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [localCustomStart, setLocalCustomStart] = useState(customStartDate);
+  const [localCustomEnd, setLocalCustomEnd] = useState(customEndDate);
+
+  useEffect(() => {
+    setLocalCustomStart(customStartDate);
+    setLocalCustomEnd(customEndDate);
+  }, [customStartDate, customEndDate]);
 
   // Debounced search for server-side mode
   const handleSearchChange = useCallback(
@@ -197,7 +272,7 @@ export function DealerTable({
   const [childSortStack, setChildSortStack] = useState<SortColumn[]>([{ key: 'name', dir: 'asc' }]);
   const [sortTarget, setSortTarget] = useState<'groups' | 'locations'>('groups');
   // Single/multi-column sort for dealer/all tabs (server-side)
-  const [dealerSort, setDealerSort] = useState<SortColumn[]>([{ key: 'dealerName', dir: 'asc' }]);
+  const [dealerSort, setDealerSort] = useState<SortColumn[]>([{ key: 'apps', dir: 'desc' }]);
 
   // Toggle expand
   const toggleGroup = useCallback(
@@ -225,7 +300,10 @@ export function DealerTable({
   // - If column exists in stack, toggle direction
   // - shouldAppend=false (single click): REPLACE stack with this column
   // - shouldAppend=true  (double click): APPEND column to stack
+  const STAT_KEYS = new Set(['apps', 'approvals', 'inHouse', 'booked', 'bookedDollars', 'lookToBook', 'approvalToBook']);
+
   const updateStack = (stack: SortColumn[], key: string, shouldAppend: boolean): SortColumn[] => {
+    const defaultDir: SortDir = STAT_KEYS.has(key) ? 'desc' : 'asc';
     const idx = stack.findIndex((s) => s.key === key);
     if (idx !== -1) {
       // Already in stack → toggle direction
@@ -235,10 +313,10 @@ export function DealerTable({
     }
     if (shouldAppend) {
       // Double-click → append for multi-sort
-      return [...stack, { key, dir: 'asc' }];
+      return [...stack, { key, dir: defaultDir }];
     }
     // Single click → replace entire stack
-    return [{ key, dir: 'asc' }];
+    return [{ key, dir: defaultDir }];
   };
 
   // Shared sort executor (used by both single-click and double-click paths)
@@ -338,14 +416,12 @@ export function DealerTable({
   // Filter columns based on mode (hide groupOnly columns in dealer mode)
   const visibleColumns = useMemo(() =>
     mode === 'groups'
-      ? TABLE_COLUMNS.filter((c) => !c.dealerOnly)
-      : TABLE_COLUMNS.filter((c) => !c.groupOnly),
+      ? TABLE_COLUMNS.filter((c) => !c.dealerOnly && c.hasData !== false)
+      : TABLE_COLUMNS.filter((c) => !c.groupOnly && c.hasData !== false),
     [mode]
   );
 
   // ── Render Helpers ──
-
-  const renderStubbed = () => <span className={styles.emptyValue}>—</span>;
 
   const renderHeatmapCell = (value: number | null | undefined) => {
     if (value == null) return <span className={styles.emptyValue}>—</span>;
@@ -393,26 +469,39 @@ export function DealerTable({
     if (days <= 30) return 'active';
     if (days <= 60) return '30d_inactive';
     if (days <= 90) return '60d_inactive';
+    if (days <= 120) return '90d_inactive';
     return 'long_inactive';
   };
 
-  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true) => (
-    <>
-      {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
-      <td style={{ textAlign: 'center' }}>
-        <StatusBadge status={deriveStatus(snap)} />
-      </td>
-      <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
-      <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
-      <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
-      <td>{renderCommCell(snap?.latestCommunicationDatetime as string | null)}</td>
-      <td>{renderVisitCell(snap?.daysFromVisitToNextApp)}</td>
-      <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
-      <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
-      <td>{renderStubbed()}</td><td>{renderStubbed()}</td>
-      <td>{renderStubbed()}</td>
-    </>
-  );
+
+
+  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true, stats?: DealerStats) => {
+    const trends = stats?.trends;
+    return (
+      <>
+        {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
+        <td style={{ textAlign: 'center' }}>
+          <StatusBadge status={deriveStatus(snap)} />
+        </td>
+        <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
+        <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
+        <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
+        {visibleColumns.some(c => c.key === 'commDays') && (
+          <td>{renderCommCell(snap?.latestCommunicationDatetime as string | null)}</td>
+        )}
+        {visibleColumns.some(c => c.key === 'visitToApp') && (
+          <td>{renderVisitCell(snap?.daysFromVisitToNextApp)}</td>
+        )}
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.apps, trends?.apps, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvals, trends?.approvals, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.inHouse, trends?.inHouse, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.booked, trends?.booked, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.bookedDollars, trends?.bookedDollars, 'dollar')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.lookToBook, trends?.lookToBook, 'percent')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvalToBook, trends?.approvalToBook, 'percent')}</td>
+      </>
+    );
+  };
 
   // Infinite scroll for dealer mode (must be before any early returns)
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -525,20 +614,116 @@ export function DealerTable({
               ✕ {displayStack.length}
             </button>
           )}
+          {/* Date Range Selector right next to Trend */}
+          {onDatePresetChange && (
+            <div className={styles.trendSelect}>
+              <span className={styles.trendLabel}>Date Range</span>
+              <select
+                className={styles.trendDropdown}
+                value={datePreset}
+                onChange={(e) => onDatePresetChange(e.target.value as DatePreset)}
+                id="dealer-table-date-range-select"
+              >
+                <option value="this_month">This Month (MTD)</option>
+                <option value="last_30">Last 30 Days</option>
+                <option value="last_month">Last Month</option>
+                <option value="ytd">YTD</option>
+                <option value="last_year">Last Year</option>
+                <option value="all_time">All-Time</option>
+                <option value="custom">Custom Range</option>
+              </select>
+              {datePreset === 'custom' && onCustomDateChange && (
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <input
+                    type="date"
+                    value={localCustomStart || ''}
+                    onChange={(e) => setLocalCustomStart(e.target.value)}
+                    className={styles.dateInput}
+                  />
+                  <span style={{ color: '#64748b', fontSize: '12px' }}>to</span>
+                  <input
+                    type="date"
+                    value={localCustomEnd || ''}
+                    onChange={(e) => setLocalCustomEnd(e.target.value)}
+                    className={styles.dateInput}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onCustomDateChange(localCustomStart, localCustomEnd)}
+                    style={{
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className={styles.trendSelect}>
             <span className={styles.trendLabel}>Trend</span>
             <select
               className={styles.trendDropdown}
-              value={trendPeriod}
-              onChange={(e) => setTrendPeriod(e.target.value as TrendPeriod)}
+              value={datePreset === 'all_time' ? 'none' : trendPeriod}
+              disabled={datePreset === 'all_time'}
+              onChange={(e) => {
+                const val = e.target.value as TrendPeriod;
+                setTrendPeriod(val);
+                onTrendChange?.(val);
+              }}
               id="trend-select"
             >
-              <option value="mom">vs Last Month</option>
-              <option value="yoy">vs Last Year</option>
-              <option value="30d">30d Moving Avg</option>
-              <option value="60d">60d Moving Avg</option>
+              {datePreset === 'all_time' ? (
+                <option value="none">N/A (All-Time)</option>
+              ) : datePreset === 'last_30' || datePreset === 'last_60' ? (
+                <option value="prior">vs Prior Period</option>
+              ) : datePreset === 'ytd' || datePreset === 'last_year' ? (
+                <>
+                  <option value="yoy">vs Last Year</option>
+                  <option value="mom">vs Last Month</option>
+                </>
+              ) : datePreset === 'custom' ? (
+                <>
+                  <option value="prior">vs Preceding Period</option>
+                  <option value="yoy">vs Same Period Last Year</option>
+                </>
+              ) : (
+                <>
+                  <option value="mom">vs Last Month</option>
+                  <option value="yoy">vs Last Year</option>
+                </>
+              )}
             </select>
           </div>
+
+          {comparisonLabel && datePreset !== 'all_time' && (
+            <span
+              style={{
+                fontSize: '11px',
+                color: '#38bdf8',
+                background: 'rgba(56, 189, 248, 0.1)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                padding: '4px 9px',
+                borderRadius: '6px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              title="Exact date ranges compared for stats and trends"
+            >
+              📅 {comparisonLabel}
+            </span>
+          )}
         </div>
       </div>
 
@@ -617,12 +802,19 @@ export function DealerTable({
                         onToggle={() => toggleGroup(group.slug)}
                         renderChildCells={renderChildCells}
                         deriveStatusFn={deriveStatus}
+                        visibleColumns={visibleColumns}
                       />
                     );
                   })
                 : sortedDealers.map((dealer) => (
                     <tr key={dealer._id} className={styles.dealerRow}>
-                      <td><span>{dealer.dealerName}</span></td>
+                      <td
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => onSelectDealer?.(dealer._id)}
+                        title="Click to view application history"
+                      >
+                        <span style={{ color: '#38bdf8', fontWeight: 600 }}>{dealer.dealerName}</span>
+                      </td>
                       <td style={{ textAlign: 'left' }}>
                         <span className={styles.repCell}>
                           {stateRepMap[dealer.statePrefix]
@@ -630,7 +822,7 @@ export function DealerTable({
                             : <span className={styles.emptyValue}>—</span>}
                         </span>
                       </td>
-                      {renderChildCells(dealer.latestSnapshot, false)}
+                      {renderChildCells(dealer.latestSnapshot, false, dealer.stats)}
                     </tr>
                   ))}
               {/* Loading more indicator */}
@@ -651,6 +843,8 @@ export function DealerTable({
     </div>
   );
 }
+
+
 
 
 // ── Best / Worst Cell ──
@@ -727,8 +921,9 @@ interface GroupRowsProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   onToggle: () => void;
-  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean) => React.JSX.Element;
+  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean, stats?: DealerStats) => React.JSX.Element;
   deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
+  visibleColumns: TableColumn[];
 }
 
 
@@ -762,9 +957,26 @@ function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null
   return { best, worst };
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn }: GroupRowsProps) {
+function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns }: GroupRowsProps) {
   const s = group.summary;
-  const stub = <span className={styles.emptyValue}>—</span>;
+
+  // Aggregate stats across child locations
+  const groupStats = locations.reduce<DealerStats>(
+    (acc, loc) => {
+      if (loc.stats) {
+        acc.apps += loc.stats.apps || 0;
+        acc.approvals += loc.stats.approvals || 0;
+        acc.inHouse += loc.stats.inHouse || 0;
+        acc.booked += loc.stats.booked || 0;
+        acc.bookedDollars += loc.stats.bookedDollars || 0;
+      }
+      return acc;
+    },
+    { apps: 0, approvals: 0, inHouse: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 }
+  );
+
+  if (groupStats.apps > 0) groupStats.lookToBook = groupStats.booked / groupStats.apps;
+  if (groupStats.approvals > 0) groupStats.approvalToBook = (groupStats.approvals + groupStats.booked) > 0 ? groupStats.booked / (groupStats.approvals + groupStats.booked) : 0;
 
   // Compute the displayed location count
   let displayCount = s?.locationCount ?? group.dealerCount;
@@ -842,15 +1054,24 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
-        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={commDays} forceSingle={isSingle} useCommHeatmap unit="d" />}</td>
-        <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={visitToApp} forceSingle={isSingle} unit="d" />}</td>
-        <td>{stub}</td><td>{stub}</td><td>{stub}</td>
-        <td>{stub}</td><td>{stub}</td><td>{stub}</td><td>{stub}</td>
+        {visibleColumns.some(c => c.key === 'commDays') && (
+          <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={commDays} forceSingle={isSingle} useCommHeatmap unit="d" />}</td>
+        )}
+        {visibleColumns.some(c => c.key === 'visitToApp') && (
+          <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={visitToApp} forceSingle={isSingle} unit="d" />}</td>
+        )}
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.apps, group.stats?.trends?.apps, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.approvals, group.stats?.trends?.approvals, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.inHouse, group.stats?.trends?.inHouse, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.booked, group.stats?.trends?.booked, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.bookedDollars, group.stats?.trends?.bookedDollars, 'dollar')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.lookToBook, group.stats?.trends?.lookToBook, 'percent')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.approvalToBook, group.stats?.trends?.approvalToBook, 'percent')}</td>
       </tr>
       {isExpanded && locations.map((loc) => (
         <tr key={loc._id} className={styles.childRow}>
           <td>{loc.dealerName}</td>
-          {renderChildCells(loc.latestSnapshot, true)}
+          {renderChildCells(loc.latestSnapshot, true, loc.stats)}
         </tr>
       ))}
     </>

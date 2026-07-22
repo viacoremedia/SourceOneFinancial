@@ -82,6 +82,12 @@ dealerCommunicationSchema.index(
     { name: 'recipient_date' }
 );
 
+// Dealer ID lookup: internalRelationshipId2 is the clientDealerId (e.g. AZ312, IN188)
+dealerCommunicationSchema.index(
+    { internalRelationshipId2: 1, communicationEventDatetime: -1 },
+    { name: 'dealer_id_date' }
+);
+
 // User/rep-based queries: "all communications by this rep"
 dealerCommunicationSchema.index(
     { communicationUserFullName: 1, communicationEventDatetime: -1 },
