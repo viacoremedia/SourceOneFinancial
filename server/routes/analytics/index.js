@@ -61,6 +61,141 @@ async function getMonthlyBudgetsMap2026(stateFilter = null, repFilter = null, gr
 }
 
 // ==========================================
+// Shared REP_ALIAS_MAP — maps display name → array of handles
+// ==========================================
+const REP_ALIAS_MAP_SHARED = {
+    'bruce': ['edominguez', 'bruce'],
+    'george': ['gott', 'george'],
+    'janet': ['jharrington1', 'janet'],
+    'jeff': ['jweller', 'jeff'],
+    'john': ['jsmith', 'john'],
+    'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
+    'steve': ['skimble', 'steve'],
+    'mandi': ['mschultz1', 'mandi'],
+    'tony': ['gcoulombe', 'tony'],
+    'dzilberchtein': ['dzilberchtein'],
+    'ljablonoski': ['ljablonoski'],
+    'jrubi': ['jrubi'],
+    'pcarter': ['pcarter'],
+    'wendy': ['wendy']
+};
+
+/**
+ * Build reverse lookup: handle (lowercase) → display name
+ */
+function buildHandleToDisplayName() {
+    const reverseMap = {};
+    for (const [displayKey, handles] of Object.entries(REP_ALIAS_MAP_SHARED)) {
+        // Capitalize display name: 'janet' → 'Janet', 'pam/ward' → 'Pam/Ward'
+        const displayName = displayKey.split('/').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('/');
+        for (const handle of handles) {
+            reverseMap[handle.toLowerCase()] = displayName;
+        }
+    }
+    return reverseMap;
+}
+
+// ==========================================
+// GET /analytics/rep-mappings
+// Derive rep → states[] and rep → groups[] from actual DealerLocation data
+// ==========================================
+router.get('/rep-mappings', async (req, res) => {
+    try {
+        const handleToDisplay = buildHandleToDisplayName();
+
+        // Get all dealer locations with a rep assigned
+        const locations = await DealerLocation.find({
+            dealerRepresentative: { $ne: null, $exists: true }
+        }).select('dealerRepresentative statePrefix dealerGroup').lean();
+
+        // Build rep → states and rep → groupIds
+        // ONLY include handles that map to known reps in the alias map.
+        // Unknown handles (S1House, system accounts, unmapped reps) are excluded.
+        const repStatesMap = {};  // displayName → Set<state>
+        const repGroupIdMap = {}; // displayName → Set<groupId string>
+
+        for (const loc of locations) {
+            const handle = (loc.dealerRepresentative || '').trim().toLowerCase();
+            if (!handle) continue;
+
+            // Skip handles not in the alias map — they're system accounts or unmapped
+            const displayName = handleToDisplay[handle];
+            if (!displayName) continue;
+
+            if (!repStatesMap[displayName]) {
+                repStatesMap[displayName] = new Set();
+                repGroupIdMap[displayName] = new Set();
+            }
+
+            if (loc.statePrefix) {
+                repStatesMap[displayName].add(loc.statePrefix);
+            }
+            if (loc.dealerGroup) {
+                repGroupIdMap[displayName].add(loc.dealerGroup.toString());
+            }
+        }
+
+        // Convert Sets to sorted arrays
+        const repStates = {};
+        for (const [rep, statesSet] of Object.entries(repStatesMap)) {
+            repStates[rep] = [...statesSet].sort();
+        }
+
+        // Resolve group ObjectIds to names + slugs
+        const allGroupIds = new Set();
+        for (const ids of Object.values(repGroupIdMap)) {
+            for (const id of ids) allGroupIds.add(id);
+        }
+
+        const groupDocs = allGroupIds.size > 0
+            ? await DealerGroup.find({ _id: { $in: [...allGroupIds] } }).select('name slug').lean()
+            : [];
+        const groupById = {};
+        for (const g of groupDocs) {
+            groupById[g._id.toString()] = { name: g.name, slug: g.slug };
+        }
+
+        const repGroups = {};
+        for (const [rep, groupIds] of Object.entries(repGroupIdMap)) {
+            const groups = [];
+            for (const id of groupIds) {
+                if (groupById[id]) groups.push(groupById[id]);
+            }
+            repGroups[rep] = groups.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        // Aggregate all unique values
+        const allReps = Object.keys(repStates).sort();
+
+        // allStates: union of rep-derived states + budget states (comprehensive)
+        const allStatesSet = new Set();
+        for (const states of Object.values(repStates)) {
+            for (const s of states) allStatesSet.add(s);
+        }
+        // Also include states from SalesBudget so no budget states are missing
+        const budgetStates = await SalesBudget.distinct('state', { year: 2026 });
+        for (const s of budgetStates) allStatesSet.add(s);
+        const allStates = [...allStatesSet].sort();
+
+        // All groups from DB (not just rep-linked) so unfiltered dropdown is complete
+        const allGroupDocs = await DealerGroup.find({}).select('name slug').sort({ name: 1 }).lean();
+        const allGroups = allGroupDocs.map(g => ({ name: g.name, slug: g.slug }));
+
+        res.status(200).json({
+            success: true,
+            repStates,
+            repGroups,
+            allReps,
+            allStates,
+            allGroups,
+        });
+    } catch (error) {
+        console.error('Error fetching rep mappings:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
 // GET /analytics/executive-summary
 // Executive Network Summary Banner KPI Totals, Trends, Budget, & Pacing
 // ==========================================
@@ -73,19 +208,23 @@ router.get('/executive-summary', async (req, res) => {
         const repFilter = req.query.rep || null;
         const groupSlugFilter = req.query.groupSlug || null;
 
-        const now = new Date();
-        const year = now.getUTCFullYear();
-        const month = now.getUTCMonth(); // 0-indexed (0 = Jan)
+        const maxReportDate = await getMaxReportDate();
+        const year = maxReportDate.getUTCFullYear();
+        const month = maxReportDate.getUTCMonth(); // 0-indexed (0 = Jan)
 
         let start = startDateStr ? new Date(startDateStr) : new Date(Date.UTC(year, month, 1));
-        let end = endDateStr ? new Date(endDateStr) : now;
+        let end = endDateStr ? new Date(endDateStr) : new Date(maxReportDate);
         if (isNaN(start.getTime())) start = new Date(Date.UTC(year, month, 1));
-        if (isNaN(end.getTime())) end = now;
+        if (isNaN(end.getTime())) end = new Date(maxReportDate);
+
+        if (end > maxReportDate) {
+            end = new Date(maxReportDate);
+        }
 
         const formattedStart = formatDateUtcNice(start);
         const formattedEnd = formatDateUtcNice(end);
 
-        const { compStart, compEnd, comparisonLabel } = getComparisonDateRange(startDateStr, endDateStr, trendPeriod);
+        const { compStart, compEnd, comparisonLabel } = await getComparisonDateRange(startDateStr, endDateStr, trendPeriod);
 
         const statusFilter = req.query.status || req.query.statusFilter || null;
 
@@ -98,7 +237,12 @@ router.get('/executive-summary', async (req, res) => {
             'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
             'steve': ['skimble', 'steve'],
             'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony']
+            'tony': ['gcoulombe', 'tony'],
+            'dzilberchtein': ['dzilberchtein'],
+            'ljablonoski': ['ljablonoski'],
+            'jrubi': ['jrubi'],
+            'pcarter': ['pcarter'],
+            'wendy': ['wendy']
         };
 
         let filterDealerIds = null;
@@ -196,13 +340,13 @@ router.get('/executive-summary', async (req, res) => {
         // Pacing Run-Rates (MTD and Full Year Pacing)
         const currentMonthNum = month + 1;
         const daysInCurrentMonth = new Date(Date.UTC(year, currentMonthNum, 0)).getUTCDate();
-        const daysElapsedCurrentMonth = Math.max(1, now.getUTCDate());
+        const daysElapsedCurrentMonth = Math.max(1, maxReportDate.getUTCDate());
 
         // MTD actuals
         const mtdStart = new Date(Date.UTC(year, month, 1));
         const mtdStats = await getNetworkAggregateStats({
             startDate: mtdStart,
-            endDate: now,
+            endDate: maxReportDate,
             rep: repFilter,
             state: stateFilter,
             groupSlug: groupSlugFilter
@@ -214,7 +358,7 @@ router.get('/executive-summary', async (req, res) => {
         const ytdStart = new Date(Date.UTC(year, 0, 1));
         const ytdStats = await getNetworkAggregateStats({
             startDate: ytdStart,
-            endDate: now,
+            endDate: maxReportDate,
             rep: repFilter,
             state: stateFilter,
             groupSlug: groupSlugFilter
@@ -303,7 +447,12 @@ router.get('/historical/mom', async (req, res) => {
             'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
             'steve': ['skimble', 'steve'],
             'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony']
+            'tony': ['gcoulombe', 'tony'],
+            'dzilberchtein': ['dzilberchtein'],
+            'ljablonoski': ['ljablonoski'],
+            'jrubi': ['jrubi'],
+            'pcarter': ['pcarter'],
+            'wendy': ['wendy']
         };
 
         let filterDealerLocationIds = null;
@@ -418,16 +567,26 @@ router.get('/historical/mom', async (req, res) => {
                 comp = i > 0 ? monthResults[i - 1] : null;
             }
 
-            const compStats = comp ? comp.stats : { apps: 0, approvals: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 };
-
-            curr.trends = {
-                apps: computeMetricTrend(curr.stats.apps, compStats.apps),
-                approvals: computeMetricTrend(curr.stats.approvals, compStats.approvals),
-                booked: computeMetricTrend(curr.stats.booked, compStats.booked),
-                bookedDollars: computeMetricTrend(curr.stats.bookedDollars, compStats.bookedDollars),
-                lookToBook: computeMetricTrend(curr.stats.lookToBook, compStats.lookToBook),
-                approvalToBook: computeMetricTrend(curr.stats.approvalToBook, compStats.approvalToBook),
-            };
+            if (!comp) {
+                curr.trends = {
+                    apps: null,
+                    approvals: null,
+                    booked: null,
+                    bookedDollars: null,
+                    lookToBook: null,
+                    approvalToBook: null,
+                };
+            } else {
+                const compStats = comp.stats;
+                curr.trends = {
+                    apps: computeMetricTrend(curr.stats.apps, compStats.apps),
+                    approvals: computeMetricTrend(curr.stats.approvals, compStats.approvals),
+                    booked: computeMetricTrend(curr.stats.booked, compStats.booked),
+                    bookedDollars: computeMetricTrend(curr.stats.bookedDollars, compStats.bookedDollars),
+                    lookToBook: computeMetricTrend(curr.stats.lookToBook, compStats.lookToBook),
+                    approvalToBook: computeMetricTrend(curr.stats.approvalToBook, compStats.approvalToBook),
+                };
+            }
         }
 
         res.status(200).json({
@@ -447,17 +606,47 @@ function formatShortDate(d) {
     return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-function getComparisonDateRange(startDateStr, endDateStr, trendPeriod) {
+let cachedMaxReportDate = null;
+let lastMaxFetchTime = 0;
+
+async function getMaxReportDate() {
+    const now = Date.now();
+    if (cachedMaxReportDate && (now - lastMaxFetchTime < 60000)) {
+        return cachedMaxReportDate;
+    }
+    try {
+        const snap = await DailyDealerSnapshot.findOne({}).sort({ reportDate: -1 }).select('reportDate').lean();
+        if (snap && snap.reportDate) {
+            cachedMaxReportDate = new Date(snap.reportDate);
+        } else {
+            cachedMaxReportDate = new Date();
+        }
+    } catch (e) {
+        cachedMaxReportDate = new Date();
+    }
+    lastMaxFetchTime = now;
+    return cachedMaxReportDate;
+}
+
+async function getComparisonDateRange(startDateStr, endDateStr, trendPeriod) {
     if (trendPeriod === 'none' || (!startDateStr && !endDateStr && trendPeriod === 'none')) {
         return { compStart: null, compEnd: null, comparisonLabel: null };
     }
 
-    const now = new Date();
-    let start = startDateStr ? new Date(startDateStr) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    let end = endDateStr ? new Date(endDateStr) : now;
+    const maxDate = await getMaxReportDate();
+    const year = maxDate.getUTCFullYear();
+    const month = maxDate.getUTCMonth();
 
-    if (isNaN(start.getTime())) start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    if (isNaN(end.getTime())) end = now;
+    let start = startDateStr ? new Date(startDateStr) : new Date(Date.UTC(year, month, 1));
+    let end = endDateStr ? new Date(endDateStr) : new Date(maxDate);
+
+    if (isNaN(start.getTime())) start = new Date(Date.UTC(year, month, 1));
+    if (isNaN(end.getTime())) end = new Date(maxDate);
+
+    // Hard cap end date to max DB report date
+    if (end > maxDate) {
+        end = new Date(maxDate);
+    }
 
     const durationMs = Math.max(86400000, end.getTime() - start.getTime() + 86400000);
     const durationDays = Math.round(durationMs / 86400000);
@@ -711,7 +900,7 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
         const endDate = req.query.end || req.query.endDate;
         const trendPeriod = req.query.trend || req.query.trendPeriod || 'mom';
 
-        const { compStart, compEnd } = getComparisonDateRange(startDate, endDate, trendPeriod);
+        const { compStart, compEnd } = await getComparisonDateRange(startDate, endDate, trendPeriod);
 
         const dealerKeys = locations.map(d => (d.clientDealerId || d.dealerId || '').trim().toUpperCase()).filter(Boolean);
         const statsMap = await getDealerStatsMap({
@@ -797,7 +986,12 @@ router.get('/groups', async (req, res) => {
             'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
             'steve': ['skimble', 'steve'],
             'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony']
+            'tony': ['gcoulombe', 'tony'],
+            'dzilberchtein': ['dzilberchtein'],
+            'ljablonoski': ['ljablonoski'],
+            'jrubi': ['jrubi'],
+            'pcarter': ['pcarter'],
+            'wendy': ['wendy']
         };
 
         // If filtering by states or rep, get matching location IDs
@@ -958,7 +1152,7 @@ router.get('/groups', async (req, res) => {
         const trendPeriod = req.query.trend || req.query.trendPeriod || 'mom';
         const statusParam = req.query.status;
 
-        const { compStart, compEnd } = getComparisonDateRange(startDate, endDate, trendPeriod);
+        const { compStart, compEnd } = await getComparisonDateRange(startDate, endDate, trendPeriod);
 
         // Optional status filter set
         let matchingStatusLocationSet = null;
@@ -1193,7 +1387,12 @@ router.get('/dealers/small', async (req, res) => {
             'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
             'steve': ['skimble', 'steve'],
             'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony']
+            'tony': ['gcoulombe', 'tony'],
+            'dzilberchtein': ['dzilberchtein'],
+            'ljablonoski': ['ljablonoski'],
+            'jrubi': ['jrubi'],
+            'pcarter': ['pcarter'],
+            'wendy': ['wendy']
         };
 
         const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
@@ -1398,18 +1597,13 @@ router.get('/dealers/small', async (req, res) => {
 
             const matchingLocations = await DealerLocation.aggregate(locationPipeline);
 
-            // Helper to find stats for a location using multi-key lookup
+            // Helper to find stats for a location using exact key lookup
             function getStatsForLoc(loc) {
                 const k1 = (loc.clientDealerId || '').trim().toUpperCase();
                 if (k1 && statsMap.has(k1)) return statsMap.get(k1);
                 const k2 = (loc.dealerId || '').trim().toUpperCase();
                 if (k2 && statsMap.has(k2)) return statsMap.get(k2);
                 
-                const nameMatch = (loc.dealerName || loc.name || loc.dealerId || '').match(/([A-Z]{2}\d+)/i);
-                if (nameMatch) {
-                    const code = nameMatch[1].toUpperCase();
-                    if (statsMap.has(code)) return statsMap.get(code);
-                }
                 return { apps: 0, approvals: 0, inHouse: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 };
             }
 
@@ -1643,7 +1837,7 @@ router.get('/dealers/small', async (req, res) => {
 
         // Trend Comparison Period Calculation
         const trendPeriod = req.query.trend || req.query.trendPeriod || 'mom';
-        const { compStart, compEnd, comparisonLabel } = getComparisonDateRange(startDate, endDate, trendPeriod);
+        const { compStart, compEnd, comparisonLabel } = await getComparisonDateRange(startDate, endDate, trendPeriod);
 
         const pageDealerKeys = dealers.map(d => (d.clientDealerId || d.dealerId || '').trim().toUpperCase()).filter(Boolean);
         
@@ -1882,13 +2076,14 @@ router.get('/rep-scorecard', async (req, res) => {
             ? String(req.query.status).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
             : null;
         const mode = ['application', 'approval', 'booking'].includes(req.query.mode) ? req.query.mode : 'application';
+        const finPeriod = ['mtd', '30d', '90d', 'ytd', 'all'].includes(req.query.finPeriod) ? req.query.finPeriod : 'mtd';
         const debug = req.query.debug === 'true';
 
-        const cacheKey = `rs:${windowSize}:${(statusParam || []).join(',')}:${mode}`;
+        const cacheKey = `rs:${windowSize}:${(statusParam || []).join(',')}:${mode}:${finPeriod}`;
         let result = getCached(cacheKey);
 
         if (!result) {
-            result = await computeRepScorecard(windowSize, statusParam, mode);
+            result = await computeRepScorecard(windowSize, statusParam, mode, finPeriod);
             setCache(cacheKey, result);
         }
 

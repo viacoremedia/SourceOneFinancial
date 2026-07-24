@@ -13,8 +13,8 @@ import { ExecutiveSummaryBanner } from '../components/ExecutiveSummaryBanner/Exe
 import { AnalyticsDrawer } from '../components/AnalyticsDrawer/AnalyticsDrawer';
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
-import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState } from '../../../core/services/api';
-import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../core/services/api';
+import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
+import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
 import type { DealerLocation, RollingWindow, HeatClass } from '../types';
 
 // Map frontend sort keys to server sort keys
@@ -47,6 +47,7 @@ export function Dashboard() {
   // ── Filter state ──
   const [stateRepMap, setStateRepMap] = useState<StateRepMap>({});
   const [budgets, setBudgets] = useState<StateBudget[]>([]);
+  const [repMappings, setRepMappings] = useState<RepMappings | null>(null);
   const [selectedRep, setSelectedRep] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -57,21 +58,27 @@ export function Dashboard() {
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
   const [selectedDealerIdForDrawer, setSelectedDealerIdForDrawer] = useState<string | null>(null);
 
-  // Fetch state-rep map + budgets on mount
+  // Fetch state-rep map + budgets + rep mappings on mount
   useEffect(() => {
     getStateRepMap().then(setStateRepMap).catch(console.error);
     getBudgetByState().then(setBudgets).catch(console.error);
+    getRepMappings().then(setRepMappings).catch(console.error);
   }, []);
 
-  // Build reverse map: rep → states[]
+  // Build reverse map: rep → states[] from actual DealerLocation data (source of truth)
   const repStatesMap = useMemo(() => {
+    // Use repMappings (derived from DealerLocation.dealerRepresentative) as source of truth
+    if (repMappings?.repStates && Object.keys(repMappings.repStates).length > 0) {
+      return repMappings.repStates;
+    }
+    // Fallback to budget-based map while repMappings is loading
     const map: Record<string, string[]> = {};
     for (const [state, rep] of Object.entries(stateRepMap)) {
       if (!map[rep]) map[rep] = [];
       map[rep].push(state);
     }
     return map;
-  }, [stateRepMap]);
+  }, [stateRepMap, repMappings]);
 
   // Compute target states from current filter
   const targetStates = useMemo(() => {
@@ -101,6 +108,17 @@ export function Dashboard() {
   const [endDate, setEndDate] = useState<string | undefined>(defaultEndDate);
   const startDateRef = useRef<string | undefined>(defaultStartDate);
   const endDateRef = useRef<string | undefined>(defaultEndDate);
+
+  // Auto-clamp default MTD end date to actual latest report date in DB (e.g. July 22 instead of today July 24)
+  useEffect(() => {
+    if (overview?.latestReportDate && datePreset === 'this_month') {
+      const latestStr = new Date(overview.latestReportDate).toISOString().split('T')[0];
+      if (latestStr && latestStr < defaultEndDate && endDate !== latestStr) {
+        setEndDate(latestStr);
+        endDateRef.current = latestStr;
+      }
+    }
+  }, [overview, datePreset, defaultEndDate, endDate]);
 
   // ── Trend state (defaults to vs Last Month / MoM) ──
   const [trend, setTrend] = useState<'mom' | 'yoy' | '30d' | '60d' | 'prior' | 'none'>('mom');
@@ -155,6 +173,7 @@ export function Dashboard() {
   const sortStateRef = useRef({ sorts: ['apps'], dirs: ['desc'] as ('asc' | 'desc')[] });
   const statusRef = useRef<string | null>(null);
   const statesRef = useRef<string[] | undefined>(undefined);
+  const repRef = useRef('');
   const searchRef = useRef('');
 
   const scopeForTab = (tab: TabId): 'ungrouped' | 'all' | undefined =>
@@ -176,7 +195,7 @@ export function Dashboard() {
         const result = await getSmallDealers({
           sort: sorts.join(','), dir: dirs.join(',') as any,
           page, limit: 50, status, scope, states,
-          rep: selectedRep || undefined,
+          rep: repRef.current || undefined,
           activityMode: activityModeRef.current,
           search: searchRef.current || undefined,
           transition: transitionRef.current || undefined,
@@ -208,7 +227,7 @@ export function Dashboard() {
         setSmallDealersLoadingMore(false);
       }
     },
-    [selectedRep]
+    []
   );
 
 
@@ -263,12 +282,18 @@ export function Dashboard() {
   // Rep change — update state and re-fetch for flat tabs
   const handleRepChange = useCallback((rep: string) => {
     setSelectedRep(rep);
+    repRef.current = rep;
     setTransitionFilter(null);
     transitionRef.current = null;
-    if (!selectedState) {
-      statesRef.current = rep && repStatesMap[rep] ? repStatesMap[rep] : undefined;
-      refetchFlatTab();
+    // Clear state selection if it's not valid for the new rep
+    if (selectedState && rep && repStatesMap[rep] && !repStatesMap[rep].includes(selectedState)) {
+      setSelectedState('');
     }
+    // Always update statesRef to the rep's states (or clear if no rep)
+    if (!selectedState || (rep && repStatesMap[rep] && !repStatesMap[rep].includes(selectedState))) {
+      statesRef.current = rep && repStatesMap[rep] ? repStatesMap[rep] : undefined;
+    }
+    refetchFlatTab();
   }, [selectedState, repStatesMap, refetchFlatTab]);
 
   // State change — update state and re-fetch for flat tabs
@@ -292,34 +317,53 @@ export function Dashboard() {
     refetchFlatTab();
   }, [refetchFlatTab]);
 
-  // Helper to compute start & end dates from preset
+  // Helper to compute start & end dates from preset, anchored to latest DB report date
   const computeDateRange = useCallback((preset: DatePreset, cStart?: string, cEnd?: string): { startDate?: string; endDate?: string } => {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
+    // Anchor to overview.latestReportDate if available, otherwise current date
+    const anchorDate = overview?.latestReportDate ? new Date(overview.latestReportDate) : new Date();
+    const year = anchorDate.getUTCFullYear();
+    const month = anchorDate.getUTCMonth();
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    const maxEndStr = formatDate(anchorDate);
 
     switch (preset) {
       case 'this_month':
-        return { startDate: formatDate(new Date(Date.UTC(year, month, 1))), endDate: formatDate(now) };
+        return { startDate: formatDate(new Date(Date.UTC(year, month, 1))), endDate: maxEndStr };
       case 'last_30':
-        return { startDate: formatDate(new Date(now.getTime() - 30 * 86400000)), endDate: formatDate(now) };
+        return { startDate: formatDate(new Date(anchorDate.getTime() - 29 * 86400000)), endDate: maxEndStr };
       case 'last_60':
-        return { startDate: formatDate(new Date(now.getTime() - 60 * 86400000)), endDate: formatDate(now) };
+        return { startDate: formatDate(new Date(anchorDate.getTime() - 59 * 86400000)), endDate: maxEndStr };
       case 'last_month':
         return { startDate: formatDate(new Date(Date.UTC(year, month - 1, 1))), endDate: formatDate(new Date(Date.UTC(year, month, 0))) };
       case 'ytd':
-        return { startDate: formatDate(new Date(Date.UTC(year, 0, 1))), endDate: formatDate(now) };
+        return { startDate: formatDate(new Date(Date.UTC(year, 0, 1))), endDate: maxEndStr };
       case 'last_year':
         return { startDate: formatDate(new Date(Date.UTC(year - 1, 0, 1))), endDate: formatDate(new Date(Date.UTC(year - 1, 11, 31))) };
       case 'all_time':
-        return { startDate: '2025-01-01', endDate: formatDate(now) };
-      case 'custom':
-        return { startDate: cStart || undefined, endDate: cEnd || undefined };
+        return { startDate: '2025-01-01', endDate: maxEndStr };
+      case 'custom': {
+        const start = cStart || undefined;
+        let end = cEnd || undefined;
+        if (end && end > maxEndStr) end = maxEndStr;
+        return { startDate: start, endDate: end };
+      }
       default:
-        return { startDate: '2025-01-01' };
+        return { startDate: '2025-01-01', endDate: maxEndStr };
     }
-  }, []);
+  }, [overview]);
+
+  // Re-sync date range whenever overview arrives (updates latestReportDate)
+  useEffect(() => {
+    if (overview?.latestReportDate) {
+      const range = computeDateRange(datePreset, customStartDate, customEndDate);
+      if (range.startDate !== startDateRef.current || range.endDate !== endDateRef.current) {
+        startDateRef.current = range.startDate;
+        endDateRef.current = range.endDate;
+        setStartDate(range.startDate);
+        setEndDate(range.endDate);
+      }
+    }
+  }, [overview, datePreset, customStartDate, customEndDate, computeDateRange]);
 
   // Date range preset change
   const handleDatePresetChange = useCallback((preset: DatePreset) => {
@@ -367,18 +411,19 @@ export function Dashboard() {
     refetchFlatTab();
   }, [refetchFlatTab]);
 
-  // Reset filters when switching tabs
+  // Reset filters and sort when switching tabs
   const handleTabChange = useCallback((tab: TabId) => {
     setStatusFilter(null);
     statusRef.current = null;
     setTransitionFilter(null);
     transitionRef.current = null;
+    searchRef.current = '';
     setActiveTab(tab);
     const scope = scopeForTab(tab);
     if (scope) {
       pageRef.current = 1;
-      sortStateRef.current = { sorts: ['dealerName'], dirs: ['asc'] };
-      fetchDealers(1, ['dealerName'], ['asc'], false, null, scope, statesRef.current);
+      sortStateRef.current = { sorts: ['apps'], dirs: ['desc'] };
+      fetchDealers(1, ['apps'], ['desc'], false, null, scope, statesRef.current);
     }
   }, [fetchDealers]);
 
@@ -569,7 +614,7 @@ export function Dashboard() {
           dealerCount={smallDealerCount}
           allDealerCount={totalAllDealers || overview?.totalDealers}
         />
-        {Object.keys(stateRepMap).length > 0 && (
+        {(Object.keys(stateRepMap).length > 0 || repMappings) && (
           <FilterBar
             stateRepMap={stateRepMap}
             budgets={budgets}
@@ -593,6 +638,7 @@ export function Dashboard() {
             statusTransitions={statusTransitions}
             transitionFilter={transitionFilter}
             onTransitionFilterChange={handleTransitionFilterChange}
+            repStatesMap={repStatesMap}
           />
         )}
       </div>
@@ -642,8 +688,10 @@ export function Dashboard() {
       <AnalyticsDrawer
         isOpen={momDrawerOpen}
         onClose={() => setMomDrawerOpen(false)}
-        availableStates={Object.keys(stateRepMap)}
-        availableGroups={groups.map((g) => ({ name: g.name, slug: g.slug }))}
+        availableStates={repMappings?.allStates || Object.keys(stateRepMap)}
+        availableGroups={repMappings?.allGroups || groups.map((g) => ({ name: g.name, slug: g.slug }))}
+        repMappings={repMappings}
+        repStatesMap={repStatesMap}
       />
     </AppShell>
   );

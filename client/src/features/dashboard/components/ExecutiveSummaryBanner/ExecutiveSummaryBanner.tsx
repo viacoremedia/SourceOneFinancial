@@ -27,24 +27,32 @@ function formatPercent(val: number): string {
   return `${(val * 100).toFixed(1)}%`;
 }
 
-function renderTrendTag(trendObj?: MetricTrend, isPct = false) {
+function renderTrendTag(trendObj?: MetricTrend, type: 'count' | 'dollar' | 'percent' = 'count') {
   if (!trendObj) return null;
-  const { pct, diff } = trendObj;
+  const { pct, baseline } = trendObj;
+  if (pct === 0 && (!baseline || baseline === 0)) return null;
+
   const isUp = pct > 0;
   const isDown = pct < 0;
   const sign = isUp ? '+' : '';
-  const formattedDiff = isPct
-    ? `${(diff * 100).toFixed(1)}%`
-    : typeof diff === 'number' && Math.abs(diff) >= 1000
-    ? formatCurrency(diff)
-    : diff;
+
+  let formattedBaseline = '—';
+  if (typeof baseline === 'number' && baseline > 0) {
+    if (type === 'dollar') {
+      formattedBaseline = formatCurrency(baseline);
+    } else if (type === 'percent') {
+      formattedBaseline = `${(baseline * 100).toFixed(1)}%`;
+    } else {
+      formattedBaseline = baseline >= 1000 ? `${(baseline / 1000).toFixed(1)}k` : baseline.toLocaleString();
+    }
+  }
 
   const trendClass = isUp ? styles.trendUp : isDown ? styles.trendDown : styles.trendFlat;
   const arrow = isUp ? '↑' : isDown ? '↓' : '→';
 
   return (
     <span className={`${styles.trendTag} ${trendClass}`}>
-      {arrow} {sign}{pct}% ({formattedDiff})
+      {arrow} {sign}{pct}% ({formattedBaseline})
     </span>
   );
 }
@@ -97,14 +105,13 @@ export function ExecutiveSummaryBanner({
 
   return (
     <div className={styles.bannerContainer}>
+      {/* Top Title & Context Bar */}
       <div className={styles.topRow}>
-        <div className={styles.dateRangeTitle}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc' }}>
-            NETWORK PERFORMANCE
-          </span>
+        <div className={styles.titleGroup}>
+          <span className={styles.liveText}>NETWORK PERFORMANCE</span>
           <span className={styles.dateBadge}>{dateRange?.label}</span>
         </div>
-        {comparisonLabel && <span className={styles.comparisonLabel}>{comparisonLabel}</span>}
+        {comparisonLabel && <div className={styles.comparisonLabel}>{comparisonLabel}</div>}
       </div>
 
       {/* 6 Network KPI Cards */}
@@ -112,8 +119,8 @@ export function ExecutiveSummaryBanner({
         {/* Apps */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>Apps</span>
-            {renderTrendTag(trends?.apps)}
+            <span className={styles.kpiLabel}>APPS</span>
+            {renderTrendTag(trends?.apps, 'count')}
           </div>
           <div className={styles.kpiValue}>{totals?.apps?.toLocaleString() || 0}</div>
         </div>
@@ -121,8 +128,8 @@ export function ExecutiveSummaryBanner({
         {/* Approvals */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>Approvals</span>
-            {renderTrendTag(trends?.approvals)}
+            <span className={styles.kpiLabel}>APPROVALS</span>
+            {renderTrendTag(trends?.approvals, 'count')}
           </div>
           <div className={styles.kpiValue}>{totals?.approvals?.toLocaleString() || 0}</div>
         </div>
@@ -130,17 +137,17 @@ export function ExecutiveSummaryBanner({
         {/* Booked */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>Booked</span>
-            {renderTrendTag(trends?.booked)}
+            <span className={styles.kpiLabel}>BOOKED</span>
+            {renderTrendTag(trends?.booked, 'count')}
           </div>
           <div className={styles.kpiValue}>{totals?.booked?.toLocaleString() || 0}</div>
         </div>
 
-        {/* Booked $ */}
+        {/* Booked Volume */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>Booked Volume</span>
-            {renderTrendTag(trends?.bookedDollars)}
+            <span className={styles.kpiLabel}>BOOKED VOLUME</span>
+            {renderTrendTag(trends?.bookedDollars, 'dollar')}
           </div>
           <div className={styles.kpiValue}>{formatCurrency(totals?.bookedDollars || 0)}</div>
         </div>
@@ -148,8 +155,8 @@ export function ExecutiveSummaryBanner({
         {/* Look-to-Book */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>Look-to-Book</span>
-            {renderTrendTag(trends?.lookToBook, true)}
+            <span className={styles.kpiLabel}>LOOK-TO-BOOK</span>
+            {renderTrendTag(trends?.lookToBook, 'percent')}
           </div>
           <div className={styles.kpiValue}>{formatPercent(totals?.lookToBook || 0)}</div>
         </div>
@@ -157,50 +164,12 @@ export function ExecutiveSummaryBanner({
         {/* Approval-to-Book */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>Approval-to-Book</span>
-            {renderTrendTag(trends?.approvalToBook, true)}
+            <span className={styles.kpiLabel}>APPROVAL-TO-BOOK</span>
+            {renderTrendTag(trends?.approvalToBook, 'percent')}
           </div>
           <div className={styles.kpiValue}>{formatPercent(totals?.approvalToBook || 0)}</div>
         </div>
       </div>
-
-      {/* Executive Row: Budget Variance & Pacing Run-Rates (hidden for now) */}
-      {/* 
-      <div className={styles.executiveGrid}>
-        <div className={styles.execCard}>
-          <div className={styles.execTitle}>Budget Target & Variance</div>
-          <div className={styles.execValue}>
-            {formatCurrency(budget?.actualBookedDollars || 0)}{' '}
-            <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#94a3b8' }}>
-              / {formatCurrency(budget?.targetBookedDollars || 0)} Goal
-            </span>
-          </div>
-          <div className={styles.execSub}>
-            Variance:{' '}
-            <strong className={budget?.isOverBudget ? styles.overBudget : styles.underBudget}>
-              {budget?.isOverBudget ? '+' : ''}
-              {formatCurrency(budget?.varianceDollars || 0)} ({budget?.percentAchieved}%)
-            </strong>
-          </div>
-        </div>
-
-        <div className={styles.execCard}>
-          <div className={styles.execTitle}>Current Month Run-Rate Pace</div>
-          <div className={styles.execValue}>{formatCurrency(pacing?.mtdPace || 0)}</div>
-          <div className={styles.execSub}>
-            Actual: {formatCurrency(pacing?.mtdActualBookedDollars || 0)} ({pacing?.daysElapsedCurrentMonth}/{pacing?.daysInCurrentMonth} days)
-          </div>
-        </div>
-
-        <div className={styles.execCard}>
-          <div className={styles.execTitle}>Full Year 2026 Pacing (Seasonally Weighted)</div>
-          <div className={styles.execValue}>{formatCurrency(pacing?.fullYearPace || 0)}</div>
-          <div className={styles.execSub}>
-            2026 Target: {formatCurrency(pacing?.annualBudget || 0)} | YTD Actual: {formatCurrency(pacing?.ytdActualBookedDollars || 0)}
-          </div>
-        </div>
-      </div>
-      */}
     </div>
   );
 }

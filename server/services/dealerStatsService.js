@@ -32,7 +32,12 @@ const REP_ALIAS_MAP = {
     'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
     'steve': ['skimble', 'steve'],
     'mandi': ['mschultz1', 'mandi'],
-    'tony': ['gcoulombe', 'tony']
+    'tony': ['gcoulombe', 'tony'],
+    'dzilberchtein': ['dzilberchtein'],
+    'ljablonoski': ['ljablonoski'],
+    'jrubi': ['jrubi'],
+    'pcarter': ['pcarter'],
+    'wendy': ['wendy']
 };
 
 function getRepHandles(repInput) {

@@ -41,12 +41,33 @@ function renderStackedStatCell(
   trend: MetricTrend | undefined,
   type: 'count' | 'dollar' | 'percent'
 ) {
+  const currentFormatted = formatStatValue(val, type);
+  const baselineFormatted = trend ? formatStatValue(trend.baseline, type) : null;
+  const hasBaselineData = trend && typeof trend.baseline === 'number' && trend.baseline > 0;
+
   if (val == null || val === 0) {
+    if (hasBaselineData && baselineFormatted !== '—') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
+          <span className={styles.emptyValue}>—</span>
+          <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <span style={{
+              color: '#f87171',
+              fontWeight: 700,
+              background: 'rgba(248, 113, 113, 0.18)',
+              padding: '1px 4px',
+              borderRadius: '4px'
+            }}>
+              -100%
+            </span>
+            <span style={{ color: '#94a3b8', fontWeight: 500 }}>({baselineFormatted})</span>
+          </span>
+        </div>
+      );
+    }
     return <span className={styles.emptyValue}>—</span>;
   }
 
-  const currentFormatted = formatStatValue(val, type);
-  const baselineFormatted = trend ? formatStatValue(trend.baseline, type) : null;
   const isUp = trend ? trend.diff > 0 : false;
   const isDown = trend ? trend.diff < 0 : false;
   const pctSign = trend && trend.pct > 0 ? '+' : '';
@@ -273,6 +294,13 @@ export function DealerTable({
   const [sortTarget, setSortTarget] = useState<'groups' | 'locations'>('groups');
   // Single/multi-column sort for dealer/all tabs (server-side)
   const [dealerSort, setDealerSort] = useState<SortColumn[]>([{ key: 'apps', dir: 'desc' }]);
+
+  // Reset search, sort, and expanded groups when tab mode changes
+  useEffect(() => {
+    setSearchQuery('');
+    setDealerSort([{ key: 'apps', dir: 'desc' }]);
+    setExpandedSlugs(new Set());
+  }, [mode]);
 
   // Toggle expand
   const toggleGroup = useCallback(

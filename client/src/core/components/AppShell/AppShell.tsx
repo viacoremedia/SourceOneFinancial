@@ -83,61 +83,72 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
         <div className={styles.headerRight}>
           {formattedDate && (
             <div className={styles.reportDate}>
+              <span className={styles.livePulse} />
               <span className={styles.reportDateLabel}>Latest Report:</span>
-              {formattedDate}
+              <strong>{formattedDate}</strong>
             </div>
           )}
+
+          {onOpenMoMAnalytics && (
+            <button
+              className={styles.headerActionButton}
+              onClick={onOpenMoMAnalytics}
+              title="Month-over-Month Historical Analytics"
+              id="mom-analytics-btn"
+              aria-label="Historical MoM Analytics"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <span>Historical MoM</span>
+            </button>
+          )}
+
+          {user && (
+            <>
+              <button
+                className={styles.headerActionButton}
+                onClick={() => setScorecardOpen(true)}
+                title="Rep Leaderboard & Scorecard"
+                id="scorecard-btn"
+                aria-label="Rep Scorecard"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                <span>Rep Scorecard</span>
+              </button>
+
+              <button
+                className={styles.headerActionButton}
+                onClick={() => setDigestOpen(true)}
+                title="Daily Digest & Email Reports"
+                id="digest-btn"
+                aria-label="Daily Digest"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>Daily Digest</span>
+              </button>
+
+              <button
+                className={styles.headerActionButton}
+                onClick={() => setSettingsOpen(true)}
+                title="Settings & System Config"
+                id="settings-btn"
+                aria-label="Settings"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Settings</span>
+              </button>
+            </>
+          )}
+
           <button
-            className={styles.themeToggle}
+            className={styles.themeTogglePill}
             onClick={toggleTheme}
             title={THEME_LABELS[mode]}
             id="theme-toggle-btn"
             aria-label={`Theme: ${THEME_LABELS[mode]}`}
           >
             {(THEME_ICON_MAP[mode] || SunIcon)()}
+            <span>{mode === 'dark' ? 'Dark' : 'Light'}</span>
           </button>
-          {onOpenMoMAnalytics && (
-            <button
-              className={styles.settingsBtn}
-              onClick={onOpenMoMAnalytics}
-              title="Month-over-Month Historical Analytics"
-              id="mom-analytics-btn"
-              aria-label="MoM Analytics"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            </button>
-          )}
-          {user && (
-            <>
-              <button
-                className={styles.settingsBtn}
-                onClick={() => setScorecardOpen(true)}
-                title="Rep Scorecard"
-                id="scorecard-btn"
-                aria-label="Rep Scorecard"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-              </button>
-              <button
-                className={styles.settingsBtn}
-                onClick={() => setDigestOpen(true)}
-                title="Daily Digest"
-                id="digest-btn"
-                aria-label="Daily Digest"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              </button>
-              <button
-                className={styles.settingsBtn}
-                onClick={() => setSettingsOpen(true)}
-                title="Settings"
-                id="settings-btn"
-                aria-label="Settings"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </>
-          )}
         </div>
       </header>
       <main className={styles.content}>{children}</main>

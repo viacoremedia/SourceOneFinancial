@@ -281,6 +281,23 @@ export type HeatClass = 'strong' | 'average' | 'overburdened' | 'underperforming
 export type CapacityFlag = 'overburdened' | 'underperforming' | null;
 
 /** Single rep row in the scorecard */
+/** Financial metrics from Application data */
+export interface RepFinancials {
+  totalApps: number;
+  approvedCount: number;
+  bookedCount: number;
+  bookedVolume: number;
+  avgDealSize: number | null;
+  lookToBookPct: number | null;       // booked / totalApps * 100
+  approvalToBookPct: number | null;   // booked / approvedCount * 100
+  avgReserveAmt: number | null;
+  avgReservePct: number | null;
+  avgAPR: number | null;
+  avgTimeToBookDays: number | null;   // converted from minutes
+}
+
+export type FinPeriod = 'mtd' | '30d' | '90d' | 'ytd' | 'all';
+
 export interface RepScorecardEntry {
   rep: string;
 
@@ -314,6 +331,9 @@ export interface RepScorecardEntry {
     weighted: number | null;
   }>;
 
+  // Financial metrics (Application data)
+  financials: RepFinancials;
+
   // Per-state rolling averages breakdown
   stateBreakdown?: StateBreakdown[];
 }
@@ -329,12 +349,14 @@ export interface StateBreakdown {
   reactivatedCount: number;
   rollingAvg: RollingAvgMetrics;
   statusFlows?: StatusFlowData;
+  financials?: RepFinancials;
 }
 
 /** Full response from GET /analytics/rep-scorecard */
 export interface RepScorecardResponse {
   reps: RepScorecardEntry[];
   networkAvgDealersPerRep: number;
+  finPeriod: FinPeriod;
   reportDateRange: ReportDateRange;
   insufficientData: boolean;
   windowSize: number;

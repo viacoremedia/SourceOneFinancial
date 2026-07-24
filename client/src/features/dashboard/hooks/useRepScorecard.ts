@@ -1,12 +1,12 @@
 /**
- * useRepScorecard — Fetches per-rep rolling averages, dealer counts, and churn.
+ * useRepScorecard — Fetches per-rep rolling averages, dealer counts, churn, and financials.
  * Only fetches when `enabled` is true (lazy loading — drawer must be open).
- * Accepts optional statusFilter and activityMode.
+ * Accepts optional statusFilter, activityMode, and finPeriod.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { getRepScorecard } from '../../../core/services/api';
-import type { RepScorecardResponse, RollingWindow } from '../types';
+import type { RepScorecardResponse, RollingWindow, FinPeriod } from '../types';
 
 interface UseRepScorecardResult {
   data: RepScorecardResponse | null;
@@ -18,7 +18,8 @@ export function useRepScorecard(
   windowSize: RollingWindow,
   enabled: boolean,
   statusFilter?: string[],
-  activityMode?: string
+  activityMode?: string,
+  finPeriod?: FinPeriod
 ): UseRepScorecardResult {
   const [data, setData] = useState<RepScorecardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,11 +28,12 @@ export function useRepScorecard(
 
   const statusKey = statusFilter ? statusFilter.sort().join(',') : '';
   const modeKey = activityMode || 'application';
+  const finKey = finPeriod || 'mtd';
 
   useEffect(() => {
     if (!enabled) return;
 
-    const key = `${windowSize}:${statusKey}:${modeKey}`;
+    const key = `${windowSize}:${statusKey}:${modeKey}:${finKey}`;
     if (key === prevKeyRef.current && data) return;
     prevKeyRef.current = key;
 
@@ -39,7 +41,7 @@ export function useRepScorecard(
     setIsLoading(true);
     setError(null);
 
-    getRepScorecard(windowSize, statusFilter, activityMode)
+    getRepScorecard(windowSize, statusFilter, activityMode, finPeriod)
       .then((result) => {
         if (!cancelled) {
           setData(result);
@@ -56,7 +58,7 @@ export function useRepScorecard(
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowSize, enabled, statusKey, modeKey]);
+  }, [windowSize, enabled, statusKey, modeKey, finKey]);
 
   return { data, isLoading, error };
 }

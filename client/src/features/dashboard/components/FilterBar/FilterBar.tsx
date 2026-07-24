@@ -34,6 +34,7 @@ interface FilterBarProps {
   statusTransitions?: { from: string; to: string; count: number }[];
   transitionFilter?: string | null;
   onTransitionFilterChange?: (key: string | null) => void;
+  repStatesMap?: Record<string, string[]>;
 }
 
 function formatDollar(n: number): string {
@@ -52,14 +53,8 @@ function heatClassColor(hc: HeatClass): string {
   }
 }
 
-function heatDotSymbol(hc: HeatClass): string {
-  switch (hc) {
-    case 'strong': return '🟢';
-    case 'average': return '🟡';
-    case 'overburdened': return '🟠';
-    case 'underperforming': return '🔴';
-    default: return '⚪';
-  }
+function heatDotSymbol(_hc?: HeatClass): string {
+  return '●';
 }
 
 const STATUS_LABEL_MAP: Record<string, string> = {
@@ -103,6 +98,7 @@ export function FilterBar({
   statusTransitions = [],
   transitionFilter = null,
   onTransitionFilterChange,
+  repStatesMap = {},
 }: FilterBarProps) {
   const [localCustomStart, setLocalCustomStart] = useState(customStartDate);
   const [localCustomEnd, setLocalCustomEnd] = useState(customEndDate);
@@ -113,13 +109,22 @@ export function FilterBar({
   }, [customStartDate, customEndDate]);
 
   const reps = useMemo(() => {
+    // Use repStatesMap keys (data-driven from DealerLocation) — only reps with actual data
+    const repKeys = Object.keys(repStatesMap);
+    if (repKeys.length > 0) return repKeys.sort();
+    // Fallback to budget while data loads
     const repSet = new Set(Object.values(stateRepMap));
     return [...repSet].sort();
-  }, [stateRepMap]);
+  }, [repStatesMap, stateRepMap]);
 
   const states = useMemo(() => {
+    // When a rep is selected, only show that rep's states
+    if (selectedRep && repStatesMap[selectedRep]) {
+      return [...repStatesMap[selectedRep]].sort();
+    }
+    // Fall back to all states from stateRepMap
     return Object.keys(stateRepMap).sort();
-  }, [stateRepMap]);
+  }, [stateRepMap, selectedRep, repStatesMap]);
 
   const budgetByState = useMemo(() => {
     const map: Record<string, StateBudget> = {};
@@ -185,32 +190,33 @@ export function FilterBar({
 
   const stats = mode !== 'groups' ? dealerStats : groupStats;
 
-  // Budget summary — only when rep/state selected
+  // Filter summary — only when rep/state selected
   const summary = useMemo(() => {
-    if (selectedState) {
-      const b = budgetByState[selectedState];
-      if (!b) return null;
-      return {
-        type: 'state' as const,
-        label: selectedState,
-        rep: b.rep,
-        states: [selectedState],
-        annualBudget: b.annualTotal,
-      };
-    }
     if (selectedRep) {
       const repBudgets = budgets.filter((b) => b.rep.toLowerCase() === selectedRep.toLowerCase());
       const annualBudget = repBudgets.reduce((sum, b) => sum + b.annualTotal, 0);
+      // Get states from repStatesMap (data-driven) for the summary banner chips
+      const repStates = repStatesMap[selectedRep] || [];
       return {
         type: 'rep' as const,
         label: selectedRep,
         rep: selectedRep,
-        states: [],
+        states: selectedState ? [selectedState] : repStates,
         annualBudget,
       };
     }
+    if (selectedState) {
+      const b = budgetByState[selectedState];
+      return {
+        type: 'state' as const,
+        label: selectedState,
+        rep: b?.rep || '',
+        states: [selectedState],
+        annualBudget: b?.annualTotal || 0,
+      };
+    }
     return null;
-  }, [selectedRep, selectedState, budgets, budgetByState]);
+  }, [selectedRep, selectedState, budgets, budgetByState, repStatesMap]);
 
   const handleRepChange = (rep: string) => {
     onRepChange(rep);

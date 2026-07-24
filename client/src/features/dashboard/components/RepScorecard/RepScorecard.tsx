@@ -8,7 +8,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom';
 import { useRepScorecard } from '../../hooks/useRepScorecard';
 import styles from './RepScorecard.module.css';
-import type { RepScorecardEntry, RollingWindow } from '../../types';
+import type { RepScorecardEntry, RollingWindow, FinPeriod } from '../../types';
 
 /** Human-readable labels for heat breakdown keys */
 const HEAT_LABELS: Record<string, string> = {
@@ -51,6 +51,17 @@ const COLUMN_DESCRIPTIONS: Record<string, string> = {
   gained: 'Average dealers gained to "active" status per day in this window.',
   lost: 'Average dealers lost from "active" status per day in this window.',
   net: 'Net daily active dealer change (gained minus lost).',
+
+  // Financial
+  totalApps: 'Total applications submitted in the selected financial period.',
+  approvedCount: 'Total approvals (Approved + Conditional + Auto) in the selected financial period.',
+  bookedVolume: 'Total dollar amount financed on booked deals for the selected financial period.',
+  bookedCount: 'Number of booked deals in the selected financial period.',
+  avgDealSize: 'Average amount financed per booked deal.',
+  lookToBookPct: 'Look-to-Book rate — booked deals as a percentage of all applications submitted.',
+  approvalToBookPct: 'Approval-to-Book rate — booked deals as a percentage of approved deals.',
+  avgReserveAmt: 'Average dealer reserve amount (margin) per booked deal.',
+  avgTimeToBookDays: 'Average time from application to booking in days.',
 };
 
 /**
@@ -365,6 +376,73 @@ const COLUMNS: ScorecardColumn[] = [
     },
     reverseHeat: true,
   },
+
+  // ── Financial Metrics ──
+  {
+    key: 'totalApps', label: 'Applications', short: 'Apps',
+    align: 'center',
+    getValue: (r) => r.financials?.totalApps ?? null,
+    format: (v) => v != null && v > 0 ? v.toLocaleString() : '—',
+  },
+  {
+    key: 'approvedCount', label: 'Approvals', short: 'Appr',
+    align: 'center',
+    getValue: (r) => r.financials?.approvedCount ?? null,
+    format: (v) => v != null && v > 0 ? v.toLocaleString() : '—',
+  },
+  {
+    key: 'bookedCount', label: 'Booked Deals', short: 'Bkd #',
+    align: 'center',
+    getValue: (r) => r.financials?.bookedCount ?? null,
+    format: (v) => v != null && v > 0 ? String(v) : '—',
+    reverseHeat: true,
+  },
+  {
+    key: 'bookedVolume', label: 'Booked Volume', short: 'Vol $',
+    align: 'right',
+    getValue: (r) => r.financials?.bookedVolume ?? null,
+    format: (v) => {
+      if (v == null || v === 0) return '—';
+      if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+      if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+      return `$${v}`;
+    },
+    reverseHeat: true,
+  },
+  {
+    key: 'avgDealSize', label: 'Avg Deal Size', short: 'Avg $',
+    align: 'right',
+    getValue: (r) => r.financials?.avgDealSize ?? null,
+    format: (v) => v != null ? `$${Math.round(v).toLocaleString()}` : '—',
+  },
+  {
+    key: 'lookToBookPct', label: 'Look to Book', short: 'L2B %',
+    align: 'center',
+    getValue: (r) => r.financials?.lookToBookPct ?? null,
+    format: (v) => v != null ? `${v.toFixed(1)}%` : '—',
+    reverseHeat: true,
+  },
+  {
+    key: 'approvalToBookPct', label: 'Approval to Book', short: 'A2B %',
+    align: 'center',
+    getValue: (r) => r.financials?.approvalToBookPct ?? null,
+    format: (v) => v != null ? `${v.toFixed(1)}%` : '—',
+    reverseHeat: true,
+  },
+  {
+    key: 'avgReserveAmt', label: 'Avg Reserve', short: 'Rsv $',
+    align: 'right',
+    getValue: (r) => r.financials?.avgReserveAmt ?? null,
+    format: (v) => v != null ? `$${Math.round(v).toLocaleString()}` : '—',
+    reverseHeat: true,
+  },
+  {
+    key: 'avgTimeToBookDays', label: 'Avg Time to Book', short: 'TTB',
+    align: 'center',
+    getValue: (r) => r.financials?.avgTimeToBookDays ?? null,
+    format: (v) => v != null ? `${v.toFixed(0)}d` : '—',
+    heatmap: true,
+  },
 ];
 
 /**
@@ -433,7 +511,8 @@ export function RepScorecard({
     ? { active: ['active'], '30d': ['30d_inactive'], '60d': ['60d_inactive'], long: ['long_inactive'] }[drawerStatusFilter] || undefined
     : undefined;
 
-  const { data, isLoading } = useRepScorecard(windowSize, open, statusFilterValues, activityMode);
+  const [finPeriod, setFinPeriod] = useState<FinPeriod>('mtd');
+  const { data, isLoading } = useRepScorecard(windowSize, open, statusFilterValues, activityMode, finPeriod);
   const [sortKey, setSortKey] = useState('rep');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showInfo, setShowInfo] = useState(false);
@@ -543,6 +622,21 @@ export function RepScorecard({
                 </select>
               </div>
             )}
+            <div className={styles.statusByToggle}>
+              <label className={styles.statusByLabel}>Financial Period</label>
+              <select
+                className={styles.statusBySelect}
+                value={finPeriod}
+                onChange={(e) => setFinPeriod(e.target.value as FinPeriod)}
+                id="scorecard-fin-period"
+              >
+                <option value="mtd">MTD</option>
+                <option value="30d">Last 30d</option>
+                <option value="90d">Last 90d</option>
+                <option value="ytd">YTD</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
             {data && (
               <span className={styles.headerMeta}>
                 {data.reps.length} reps · {data.reportDateRange.count} report dates
@@ -761,6 +855,31 @@ export function RepScorecard({
                               const v = st.statusFlows.netDelta;
                               val = v != null ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}` : '—';
                               if (typeof v === 'number') cellColor = reverseHeatColor(v);
+                            // ── Financial columns for state sub-rows ──
+                            } else if (col.key === 'totalApps' && st.financials) {
+                              val = st.financials.totalApps > 0 ? st.financials.totalApps.toLocaleString() : '—';
+                            } else if (col.key === 'approvedCount' && st.financials) {
+                              val = st.financials.approvedCount > 0 ? st.financials.approvedCount.toLocaleString() : '—';
+                            } else if (col.key === 'bookedVolume' && st.financials) {
+                              const v = st.financials.bookedVolume;
+                              if (v == null || v === 0) val = '—';
+                              else if (v >= 1_000_000) val = `$${(v / 1_000_000).toFixed(1)}M`;
+                              else if (v >= 1_000) val = `$${(v / 1_000).toFixed(0)}K`;
+                              else val = `$${v}`;
+                            } else if (col.key === 'bookedCount' && st.financials) {
+                              val = st.financials.bookedCount > 0 ? String(st.financials.bookedCount) : '—';
+                            } else if (col.key === 'avgDealSize' && st.financials) {
+                              val = st.financials.avgDealSize != null ? `$${Math.round(st.financials.avgDealSize).toLocaleString()}` : '—';
+                            } else if (col.key === 'lookToBookPct' && st.financials) {
+                              val = st.financials.lookToBookPct != null ? `${st.financials.lookToBookPct.toFixed(1)}%` : '—';
+                            } else if (col.key === 'approvalToBookPct' && st.financials) {
+                              val = st.financials.approvalToBookPct != null ? `${st.financials.approvalToBookPct.toFixed(1)}%` : '—';
+                            } else if (col.key === 'avgReserveAmt' && st.financials) {
+                              val = st.financials.avgReserveAmt != null ? `$${Math.round(st.financials.avgReserveAmt).toLocaleString()}` : '—';
+                            } else if (col.key === 'avgTimeToBookDays' && st.financials) {
+                              const v = st.financials.avgTimeToBookDays;
+                              val = v != null ? `${v.toFixed(0)}d` : '—';
+                              if (typeof v === 'number') cellColor = daysHeatColor(v);
                             } else {
                               val = '—';
                             }

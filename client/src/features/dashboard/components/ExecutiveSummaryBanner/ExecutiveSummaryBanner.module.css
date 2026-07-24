@@ -1,13 +1,14 @@
 .bannerContainer {
-  background: var(--bg-card, #121824);
-  border: 1px solid var(--border-default, #1f293d);
-  border-radius: var(--radius-lg, 12px);
+  background: linear-gradient(180deg, rgba(18, 24, 38, 0.95) 0%, rgba(13, 17, 28, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
   padding: 16px 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  margin-bottom: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  backdrop-filter: blur(16px);
 }
 
 .topRow {
@@ -16,12 +17,36 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.dateRangeTitle {
+.titleGroup {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.liveIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 10px #3b82f6;
+}
+
+.liveText {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .dateBadge {
@@ -29,77 +54,98 @@
   color: #60a5fa;
   border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 0.85rem;
+  padding: 3px 9px;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .comparisonLabel {
-  color: var(--text-tertiary, #94a3b8);
-  font-size: 0.8rem;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .kpiGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
 
 .kpiCard {
-  background: var(--bg-surface, #1e293b);
-  border: 1px solid var(--border-default, #334155);
-  border-radius: 8px;
+  background: var(--bg-surface, rgba(30, 41, 59, 0.4));
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.kpiCard:hover {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
 .kpiHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
 }
 
 .kpiLabel {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-tertiary, #94a3b8);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .kpiValue {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #f8fafc;
-  line-height: 1.2;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .trendTag {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 5px;
+  white-space: nowrap;
 }
 
 .trendUp {
-  background: rgba(34, 197, 94, 0.15);
+  background: rgba(34, 197, 94, 0.14);
   color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.25);
 }
 
 .trendDown {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.14);
   color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 .trendFlat {
-  background: rgba(148, 163, 184, 0.15);
+  background: rgba(148, 163, 184, 0.12);
   color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .executiveGrid {

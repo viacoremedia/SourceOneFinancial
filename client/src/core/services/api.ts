@@ -217,6 +217,26 @@ export async function getStateRepMap(year?: number): Promise<StateRepMap> {
   return data.stateRepMap;
 }
 
+// ── Rep → States/Groups Mappings (from actual DealerLocation data) ──
+export interface RepMappings {
+  repStates: Record<string, string[]>;
+  repGroups: Record<string, { name: string; slug: string }[]>;
+  allReps: string[];
+  allStates: string[];
+  allGroups: { name: string; slug: string }[];
+}
+
+export async function getRepMappings(): Promise<RepMappings> {
+  const { data } = await api.get('/analytics/rep-mappings');
+  return {
+    repStates: data.repStates,
+    repGroups: data.repGroups,
+    allReps: data.allReps,
+    allStates: data.allStates,
+    allGroups: data.allGroups,
+  };
+}
+
 // ── Budget by State ──
 export interface StateBudget {
   state: string;
@@ -257,11 +277,13 @@ export async function getRollingAverages(
 export async function getRepScorecard(
   windowSize: RollingWindow = 7,
   statusFilter?: string[],
-  activityMode?: string
+  activityMode?: string,
+  finPeriod?: string
 ): Promise<RepScorecardResponse> {
   const params: Record<string, string | number> = { window: windowSize };
   if (statusFilter && statusFilter.length > 0) params.status = statusFilter.join(',');
   if (activityMode && activityMode !== 'application') params.mode = activityMode;
+  if (finPeriod && finPeriod !== 'mtd') params.finPeriod = finPeriod;
   const { data } = await api.get('/analytics/rep-scorecard', { params });
   return data;
 }
