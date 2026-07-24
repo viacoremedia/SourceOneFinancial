@@ -102,6 +102,18 @@ export function FilterBar({
 }: FilterBarProps) {
   const [localCustomStart, setLocalCustomStart] = useState(customStartDate);
   const [localCustomEnd, setLocalCustomEnd] = useState(customEndDate);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedRep) count++;
+    if (selectedState) count++;
+    if (statusFilter) count++;
+    if (datePreset && datePreset !== 'all_time') count++;
+    if (activityMode && activityMode !== 'application') count++;
+    if (transitionFilter) count++;
+    return count;
+  }, [selectedRep, selectedState, statusFilter, datePreset, activityMode, transitionFilter]);
 
   useEffect(() => {
     setLocalCustomStart(customStartDate);
@@ -228,8 +240,12 @@ export function FilterBar({
     onStatusFilterChange(null);
   };
 
-  const handleStatClick = (statKey: string) => {
-    onStatusFilterChange(statusFilter === statKey ? null : statKey);
+  const handleStatClick = (statKey: string | null) => {
+    if (statKey === null) {
+      onStatusFilterChange(null);
+    } else {
+      onStatusFilterChange(statusFilter === statKey ? null : statKey);
+    }
     // Clear transition filter when a status filter is clicked
     if (onTransitionFilterChange) onTransitionFilterChange(null);
   };
@@ -490,6 +506,159 @@ export function FilterBar({
               ✕
             </button>
           )}
+        </div>
+      )}
+
+      {/* Mobile Filter Drawer Trigger Button Bar */}
+      <div className={styles.mobileFilterTriggerRow}>
+        <button
+          className={styles.mobileFilterBtn}
+          onClick={() => setMobileFilterOpen(true)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            <span>Filter Parameters & Date</span>
+          </div>
+          {activeFilterCount > 0 ? (
+            <span className={styles.mobileActiveBadge}>{activeFilterCount} Active</span>
+          ) : (
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Tap to customize ⚙️</span>
+          )}
+        </button>
+      </div>
+
+      {/* Mobile Filter Sheet (Bottom Drawer) */}
+      {mobileFilterOpen && (
+        <div className={styles.mobileFilterDrawerBackdrop} onClick={() => setMobileFilterOpen(false)}>
+          <div className={styles.mobileFilterDrawer} onClick={(e) => e.stopPropagation()}>
+            <div className="mobileDragHandleRow">
+              <div className="mobileDragHandle" />
+            </div>
+
+            <div className={styles.mobileFilterBody}>
+              {/* Rep & State Pickers */}
+              <div className={styles.mobileFilterSection}>
+                <span className={styles.mobileSectionTitle}>Rep & State Filters</span>
+                <div className={styles.mobileSelectRow}>
+                  <div className={styles.mobileSelectGroup}>
+                    <select value={selectedRep} onChange={(e) => onRepChange(e.target.value)}>
+                      <option value="">All Reps ({reps.length})</option>
+                      {reps.map((rep) => (
+                        <option key={rep} value={rep}>
+                          {rep}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.mobileSelectGroup}>
+                    <select value={selectedState} onChange={(e) => onStateChange(e.target.value)}>
+                      <option value="">All States ({states.length})</option>
+                      {states.map((state) => (
+                        <option key={state} value={state}>
+                          {state}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity Mode Segmented Control */}
+              {onActivityModeChange && (
+                <div className={styles.mobileFilterSection}>
+                  <span className={styles.mobileSectionTitle}>Activity Mode</span>
+                  <div className={styles.mobilePresetGrid}>
+                    <button
+                      className={`${styles.mobileChip} ${activityMode === 'application' ? styles.mobileChipActive : ''}`}
+                      onClick={() => onActivityModeChange('application')}
+                    >
+                      Applications
+                    </button>
+                    <button
+                      className={`${styles.mobileChip} ${activityMode === 'approval' ? styles.mobileChipActive : ''}`}
+                      onClick={() => onActivityModeChange('approval')}
+                    >
+                      Approvals
+                    </button>
+                    <button
+                      className={`${styles.mobileChip} ${activityMode === 'booking' ? styles.mobileChipActive : ''}`}
+                      onClick={() => onActivityModeChange('booking')}
+                    >
+                      Bookings
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Date Presets */}
+              {onDatePresetChange && (
+                <div className={styles.mobileFilterSection}>
+                  <span className={styles.mobileSectionTitle}>Date Range</span>
+                  <div className={styles.mobilePresetGrid}>
+                    {[
+                      { key: 'this_month', label: 'This Month' },
+                      { key: 'last_30', label: 'Last 30d' },
+                      { key: 'last_60', label: 'Last 60d' },
+                      { key: 'ytd', label: 'YTD' },
+                      { key: 'all_time', label: 'All Time' },
+                    ].map((p) => (
+                      <button
+                        key={p.key}
+                        className={`${styles.mobileChip} ${datePreset === p.key ? styles.mobileChipActive : ''}`}
+                        onClick={() => onDatePresetChange(p.key as DatePreset)}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Status Filter */}
+              <div className={styles.mobileFilterSection}>
+                <span className={styles.mobileSectionTitle}>Status Filter</span>
+                <div className={styles.mobilePresetGrid}>
+                  {[
+                    { key: null, label: 'All Locations' },
+                    { key: 'active', label: `Active (${stats.activeCount})` },
+                    { key: '30d_inactive', label: `30d Inactive (${stats.inactive30})` },
+                    { key: '60d_inactive', label: `60d Inactive (${stats.inactive60})` },
+                    { key: 'long_inactive', label: `Long Inactive (${stats.longInactive})` },
+                  ].map((s) => (
+                    <button
+                      key={s.key || 'all'}
+                      className={`${styles.mobileChip} ${statusFilter === s.key ? styles.mobileChipActive : ''}`}
+                      onClick={() => handleStatClick(s.key)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Filter Footer */}
+            <div className={styles.mobileFilterFooter}>
+              <button
+                className={styles.mobileResetBtn}
+                onClick={() => {
+                  onRepChange('');
+                  onStateChange('');
+                  onStatusFilterChange(null);
+                  if (onDatePresetChange) onDatePresetChange('all_time');
+                  if (onTransitionFilterChange) onTransitionFilterChange(null);
+                }}
+              >
+                Reset All
+              </button>
+              <button
+                className={styles.mobileApplyBtn}
+                onClick={() => setMobileFilterOpen(false)}
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

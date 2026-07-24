@@ -70,6 +70,8 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
       })()
     : null;
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className={styles.appShell}>
       <header className={styles.header} id="app-header">
@@ -89,68 +91,138 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
             </div>
           )}
 
-          {onOpenMoMAnalytics && (
+          <div className={styles.desktopHeaderButtons}>
+            {onOpenMoMAnalytics && (
+              <button
+                className={styles.headerActionButton}
+                onClick={onOpenMoMAnalytics}
+                title="Month-over-Month Historical Analytics"
+                id="mom-analytics-btn"
+                aria-label="Historical MoM Analytics"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                <span>Historical MoM</span>
+              </button>
+            )}
+
+            {user && (
+              <>
+                <button
+                  className={styles.headerActionButton}
+                  onClick={() => setScorecardOpen(true)}
+                  title="Rep Leaderboard & Scorecard"
+                  id="scorecard-btn"
+                  aria-label="Rep Scorecard"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                  <span>Rep Scorecard</span>
+                </button>
+
+                <button
+                  className={styles.headerActionButton}
+                  onClick={() => setDigestOpen(true)}
+                  title="Daily Digest & Email Reports"
+                  id="digest-btn"
+                  aria-label="Daily Digest"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  <span>Daily Digest</span>
+                </button>
+
+                <button
+                  className={styles.headerActionButton}
+                  onClick={() => setSettingsOpen(true)}
+                  title="Settings & System Config"
+                  id="settings-btn"
+                  aria-label="Settings"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  <span>Settings</span>
+                </button>
+              </>
+            )}
+
             <button
-              className={styles.headerActionButton}
-              onClick={onOpenMoMAnalytics}
-              title="Month-over-Month Historical Analytics"
-              id="mom-analytics-btn"
-              aria-label="Historical MoM Analytics"
+              className={styles.themeTogglePill}
+              onClick={toggleTheme}
+              title={THEME_LABELS[mode]}
+              id="theme-toggle-btn"
+              aria-label={`Theme: ${THEME_LABELS[mode]}`}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              <span>Historical MoM</span>
+              {(THEME_ICON_MAP[mode] || SunIcon)()}
+              <span>{mode === 'dark' ? 'Dark' : 'Light'}</span>
             </button>
-          )}
+          </div>
 
-          {user && (
-            <>
-              <button
-                className={styles.headerActionButton}
-                onClick={() => setScorecardOpen(true)}
-                title="Rep Leaderboard & Scorecard"
-                id="scorecard-btn"
-                aria-label="Rep Scorecard"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-                <span>Rep Scorecard</span>
-              </button>
-
-              <button
-                className={styles.headerActionButton}
-                onClick={() => setDigestOpen(true)}
-                title="Daily Digest & Email Reports"
-                id="digest-btn"
-                aria-label="Daily Digest"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                <span>Daily Digest</span>
-              </button>
-
-              <button
-                className={styles.headerActionButton}
-                onClick={() => setSettingsOpen(true)}
-                title="Settings & System Config"
-                id="settings-btn"
-                aria-label="Settings"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                <span>Settings</span>
-              </button>
-            </>
-          )}
-
+          {/* Mobile Quick Menu Button */}
           <button
-            className={styles.themeTogglePill}
-            onClick={toggleTheme}
-            title={THEME_LABELS[mode]}
-            id="theme-toggle-btn"
-            aria-label={`Theme: ${THEME_LABELS[mode]}`}
+            className={styles.mobileMenuTrigger}
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open Quick Actions Menu"
           >
-            {(THEME_ICON_MAP[mode] || SunIcon)()}
-            <span>{mode === 'dark' ? 'Dark' : 'Light'}</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
           </button>
         </div>
       </header>
+
+      {/* Mobile Quick Actions Bottom Sheet */}
+      {mobileMenuOpen && (
+        <div className={styles.mobileDrawerBackdrop} onClick={() => setMobileMenuOpen(false)}>
+          <div className={styles.mobileDrawer} onClick={(e) => e.stopPropagation()}>
+            <div className="mobileDragHandleRow">
+              <div className="mobileDragHandle" />
+            </div>
+            <div className={styles.mobileDrawerHeader}>
+              <h3 className={styles.mobileDrawerTitle}>Quick Actions</h3>
+              <button className={styles.mobileDrawerClose} onClick={() => setMobileMenuOpen(false)}>✕</button>
+            </div>
+            <div className={styles.mobileDrawerGrid}>
+              {onOpenMoMAnalytics && (
+                <button
+                  className={styles.mobileDrawerItem}
+                  onClick={() => { setMobileMenuOpen(false); onOpenMoMAnalytics(); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                  <span>Historical MoM Analytics</span>
+                </button>
+              )}
+              {user && (
+                <>
+                  <button
+                    className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setScorecardOpen(true); }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>
+                    <span>Rep Scorecard</span>
+                  </button>
+                  <button
+                    className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setDigestOpen(true); }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Daily Digest</span>
+                  </button>
+                  <button
+                    className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setSettingsOpen(true); }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>Settings</span>
+                  </button>
+                </>
+              )}
+              <button
+                className={styles.mobileDrawerItem}
+                onClick={() => { toggleTheme(); }}
+              >
+                {(THEME_ICON_MAP[mode] || SunIcon)()}
+                <span>{mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className={styles.content}>{children}</main>
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />

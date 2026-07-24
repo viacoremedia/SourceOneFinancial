@@ -53,6 +53,9 @@ export function DealerDrawer({ dealerId, onClose }: DealerDrawerProps) {
   return (
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.drawer} onClick={(e) => e.stopPropagation()}>
+        <div className="mobileDragHandleRow">
+          <div className="mobileDragHandle" />
+        </div>
         {/* Drawer Header */}
         <div className={styles.header}>
           <div className={styles.headerInfo}>

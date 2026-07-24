@@ -755,6 +755,103 @@ export function DealerTable({
         </div>
       </div>
 
+      {/* Mobile Card View (<768px) */}
+      <div className={styles.mobileCardList}>
+        {isEmpty ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyTitle}>No results found</div>
+          </div>
+        ) : mode === 'groups' ? (
+          sortedGroups.map((g) => (
+            <div
+              key={g.slug}
+              className={styles.mobileCard}
+              onClick={() => toggleGroup(g.slug)}
+            >
+              <div className={styles.mobileCardHeader}>
+                <div>
+                  <h4 className={styles.mobileCardTitle}>{g.name}</h4>
+                  <div className={styles.mobileCardSub}>
+                    <span>{g.summary?.locationCount || 0} Locations</span>
+                    {g.states && g.states.length > 0 && <span> · {g.states.join(', ')}</span>}
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                  {g.summary?.activeCount || 0}/{g.summary?.locationCount || 0} Active
+                </span>
+              </div>
+              <div className={styles.mobileCardMetrics}>
+                <div className={styles.mobileMetricBox}>
+                  <span className={styles.mobileMetricVal}>{g.stats?.apps?.toLocaleString() || 0}</span>
+                  <span className={styles.mobileMetricLbl}>Apps</span>
+                </div>
+                <div className={styles.mobileMetricBox}>
+                  <span className={styles.mobileMetricVal}>{g.stats?.approvals?.toLocaleString() || 0}</span>
+                  <span className={styles.mobileMetricLbl}>Appr</span>
+                </div>
+                <div className={styles.mobileMetricBox}>
+                  <span className={styles.mobileMetricVal}>{g.stats?.booked?.toLocaleString() || 0}</span>
+                  <span className={styles.mobileMetricLbl}>Booked</span>
+                </div>
+                <div className={styles.mobileMetricBox}>
+                  <span className={styles.mobileMetricVal}>${(g.stats?.bookedDollars || 0).toLocaleString()}</span>
+                  <span className={styles.mobileMetricLbl}>Vol</span>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          sortedDealers.map((loc) => {
+            const snap = loc.latestSnapshot;
+            const stats = loc.stats;
+            const repName = loc.statePrefix ? stateRepMap[loc.statePrefix] : undefined;
+            return (
+              <div
+                key={loc._id}
+                className={styles.mobileCard}
+                onClick={() => onSelectDealer?.(loc.dealerId)}
+              >
+                <div className={styles.mobileCardHeader}>
+                  <div>
+                    <h4 className={styles.mobileCardTitle}>{loc.dealerName}</h4>
+                    <div className={styles.mobileCardSub}>
+                      <span>ID: {loc.dealerId}</span>
+                      {loc.statePrefix && <span> · {loc.statePrefix}</span>}
+                      {repName && <span> · Rep: {repName}</span>}
+                    </div>
+                  </div>
+                  <StatusBadge status={deriveStatus(snap)} />
+                </div>
+                <div className={styles.mobileCardMetrics}>
+                  <div className={styles.mobileMetricBox}>
+                    <span className={styles.mobileMetricVal}>{stats?.apps?.toLocaleString() || 0}</span>
+                    <span className={styles.mobileMetricLbl}>Apps</span>
+                  </div>
+                  <div className={styles.mobileMetricBox}>
+                    <span className={styles.mobileMetricVal}>{stats?.approvals?.toLocaleString() || 0}</span>
+                    <span className={styles.mobileMetricLbl}>Appr</span>
+                  </div>
+                  <div className={styles.mobileMetricBox}>
+                    <span className={styles.mobileMetricVal}>{stats?.booked?.toLocaleString() || 0}</span>
+                    <span className={styles.mobileMetricLbl}>Booked</span>
+                  </div>
+                  <div className={styles.mobileMetricBox}>
+                    <span className={styles.mobileMetricVal}>${(stats?.bookedDollars || 0).toLocaleString()}</span>
+                    <span className={styles.mobileMetricLbl}>Vol</span>
+                  </div>
+                </div>
+                <div className={styles.mobileCardFooter}>
+                  <span>Tap for details & app history ➔</span>
+                  {snap?.daysSinceLastApplication != null && (
+                    <span>Last App: {snap.daysSinceLastApplication}d ago</span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {/* Table */}
       <div className={styles.tableScroll} ref={scrollRef}>
         {isEmpty ? (

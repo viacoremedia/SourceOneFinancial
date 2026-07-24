@@ -28,8 +28,28 @@ body {
   color: var(--text-primary);
   background-color: var(--bg-app);
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   transition: background-color var(--transition-base), color var(--transition-base);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Mobile bottom drawer handle helper */
+.mobileDragHandleRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 4px;
+  width: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.mobileDragHandle {
+  width: 42px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.4);
 }
 
 #root {

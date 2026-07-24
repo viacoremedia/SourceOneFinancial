@@ -109,6 +109,9 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
       {/* Panel */}
       <div className={styles.panel}>
+        <div className="mobileDragHandleRow">
+          <div className="mobileDragHandle" />
+        </div>
         <div className={styles.panelHeader}>
           <h2>Settings</h2>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>

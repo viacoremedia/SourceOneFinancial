@@ -576,6 +576,9 @@ export function RepScorecard({
 
       {/* Drawer */}
       <div className={styles.drawer} id="rep-scorecard-drawer">
+        <div className="mobileDragHandleRow">
+          <div className="mobileDragHandle" />
+        </div>
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.headerLeft}>

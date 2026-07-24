@@ -60,10 +60,14 @@
 @media (max-width: 768px) {
   .tabBar {
     width: 100%;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
   }
   .tab {
     flex: 1;
-    text-align: center;
-    padding: var(--space-2) var(--space-3);
+    min-height: 44px;
+    justify-content: center;
+    padding: 8px 12px;
   }
 }

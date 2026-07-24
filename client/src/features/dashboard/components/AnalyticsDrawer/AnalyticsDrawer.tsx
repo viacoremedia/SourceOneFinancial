@@ -407,6 +407,7 @@ export function AnalyticsDrawer({
                   return (
                     <svg
                       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                      className={styles.chartSvg}
                       style={{ width: '100%', height: '180px', cursor: 'pointer' }}
                       onMouseLeave={() => setHoveredIndex(null)}
                     >

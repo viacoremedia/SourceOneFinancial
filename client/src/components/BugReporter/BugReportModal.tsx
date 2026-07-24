@@ -304,8 +304,31 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
       <div style={{ ...S.backdrop, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }} onClick={handleClose} />
 
       {/* Modal */}
-      <div style={{ ...S.wrapper, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }}>
-        <div style={S.card}>
+      <div style={{
+        ...S.wrapper,
+        opacity: isHiding ? 0 : 1,
+        pointerEvents: isHiding ? 'none' : 'auto',
+        ...(typeof window !== 'undefined' && window.innerWidth <= 768 ? {
+          top: 'auto',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          transform: 'none',
+          maxWidth: '100%',
+          padding: 0,
+        } : {})
+      }}>
+        <div style={{
+          ...S.card,
+          ...(typeof window !== 'undefined' && window.innerWidth <= 768 ? {
+            borderRadius: '20px 20px 0 0',
+            maxHeight: '85dvh',
+            paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          } : {})
+        }}>
+          <div className="mobileDragHandleRow">
+            <div className="mobileDragHandle" />
+          </div>
 
           {/* Header */}
           <div style={S.header}>

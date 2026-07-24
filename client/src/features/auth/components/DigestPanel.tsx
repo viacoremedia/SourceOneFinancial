@@ -151,6 +151,9 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
     <>
       <div className={styles.backdrop} onClick={onClose} />
       <div className={styles.panel}>
+        <div className="mobileDragHandleRow">
+          <div className="mobileDragHandle" />
+        </div>
         {/* Header */}
         <div className={styles.panelHeader}>
           <div>

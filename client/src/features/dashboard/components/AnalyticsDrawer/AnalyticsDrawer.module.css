@@ -16,18 +16,18 @@
 
 .drawer {
   background: var(--bg-card, #0f172a);
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
   border: 1px solid var(--border-default, #1e293b);
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
-  height: 88vh;
-  max-height: 88vh;
+  max-height: 88dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overscroll-behavior: contain;
   touch-action: pan-y;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @keyframes fadeIn {
@@ -269,6 +269,27 @@
   padding: 10px 14px;
   border-bottom: 1px solid #1e293b;
   box-shadow: 0 1px 0 #1e293b;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+  white-space: nowrap;
+}
+
+/* Sticky first column (Month) on mobile horizontal scroll */
+.table th:first-child,
+.table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 25;
+  background: #0f172a;
+}
+
+.totalsRow td:first-child {
+  background: #0f223a !important;
 }
 
 .totalsRow {
@@ -278,12 +299,6 @@
   background: #0f223a !important;
   border-bottom: 2px solid #3b82f6 !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-}
-
-.table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: #f8fafc;
 }
 
 .table tr:hover {
@@ -314,4 +329,43 @@
 .trendFlat {
   background: rgba(148, 163, 184, 0.15);
   color: #cbd5e1;
+}
+
+@media (max-width: 768px) {
+  .drawer {
+    max-height: 92dvh;
+  }
+  .filterControls {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .filterGroup {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .selectInput {
+    padding: 4px 8px;
+    font-size: 0.78rem;
+  }
+  .drawerContent {
+    padding: 12px;
+    gap: 14px;
+  }
+  .chartCard {
+    padding: 10px;
+  }
+  .chartSvg {
+    height: 140px !important;
+  }
+  .tableWrapper {
+    max-height: none;
+    border-radius: 8px;
+  }
+  .hoverMetricsBar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+  }
 }

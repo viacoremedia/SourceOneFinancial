@@ -192,3 +192,25 @@
 .underBudget {
   color: #f87171;
 }
+
+@media (max-width: 768px) {
+  .bannerContainer {
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+  }
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .kpiCard {
+    padding: 10px 12px;
+  }
+  .kpiValue {
+    font-size: 1.15rem;
+  }
+  .executiveGrid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
