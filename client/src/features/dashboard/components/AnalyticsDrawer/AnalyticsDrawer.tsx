@@ -1,7 +1,13 @@
-import { useEffect, useState, useMemo } from 'react';
-import { getHistoricalMoM } from '../../../../core/services/api';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { getHistoricalMoM, getDealerApplicationsHistory, searchDealers } from '../../../../core/services/api';
 import type { RepMappings } from '../../../../core/services/api';
-import type { HistoricalMoMItem, HistoricalMoMResponse, MetricTrend } from '../../types';
+import type {
+  HistoricalMoMItem,
+  HistoricalMoMResponse,
+  MetricTrend,
+  DealerApplicationHistoryResponse,
+  ApplicationHistoryItem
+} from '../../types';
 import styles from './AnalyticsDrawer.module.css';
 
 interface AnalyticsDrawerProps {
@@ -11,6 +17,11 @@ interface AnalyticsDrawerProps {
   availableGroups?: { name: string; slug: string }[];
   repMappings?: RepMappings | null;
   repStatesMap?: Record<string, string[]>;
+  initialDealerId?: string | null;
+  initialGroupSlug?: string | null;
+  initialTab?: 'mom' | 'applications';
+  onSelectDealerId?: (dealerId: string | null) => void;
+  onSelectGroupSlug?: (groupSlug: string | null) => void;
 }
 
 function formatCurrency(val: number): string {
@@ -64,69 +75,96 @@ export function AnalyticsDrawer({
   availableGroups = [],
   repMappings = null,
   repStatesMap = {},
+  initialDealerId = null,
+  initialGroupSlug = null,
+  initialTab = 'mom',
+  onSelectDealerId,
+  onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
+  // Active Tab: 'mom' | 'applications'
+  const [activeTab, setActiveTab] = useState<'mom' | 'applications'>(initialTab);
+
+  // Selected Dealer Filter (ID or Mongo _id)
+  const [selectedDealerId, setSelectedDealerId] = useState<string | null>(initialDealerId);
+  const [selectedDealerObj, setSelectedDealerObj] = useState<{
+    _id: string;
+    dealerName: string;
+    dealerId: string;
+    clientDealerId: string;
+    statePrefix: string;
+  } | null>(null);
+
+  // Search dropdown state for dealers
+  const [dealerSearchOpen, setDealerSearchOpen] = useState(false);
+  const [dealerSearchQuery, setDealerSearchQuery] = useState('');
+  const [dealerSearchResults, setDealerSearchResults] = useState<Array<{
+    _id: string;
+    dealerName: string;
+    dealerId: string;
+    clientDealerId: string;
+    statePrefix: string;
+  }>>([]);
+
+  // Historical MoM State
   const [data, setData] = useState<HistoricalMoMResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [trendMode, setTrendMode] = useState<'mom' | 'yoy'>('mom');
   const [timeframeMode, setTimeframeMode] = useState<'all' | 'ytd'>('all');
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedRep, setSelectedRep] = useState<string>('');
-  const [selectedGroup, setSelectedGroup] = useState<string>('');
+  const [selectedGroup, setSelectedGroup] = useState<string>(initialGroupSlug || '');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  // Application History State
+  const [appHistoryData, setAppHistoryData] = useState<DealerApplicationHistoryResponse | null>(null);
+  const [appHistoryLoading, setAppHistoryLoading] = useState(false);
+  const [appHistoryPage, setAppHistoryPage] = useState(1);
 
   // Active series toggles for line chart
   const [activeSeriesKeys, setActiveSeriesKeys] = useState<SeriesKey[]>(['apps', 'bookedDollars']);
 
-  const toggleSeries = (key: SeriesKey) => {
-    setActiveSeriesKeys((prev) => {
-      if (prev.includes(key)) {
-        if (prev.length === 1) return prev; // Keep at least 1 series active
-        return prev.filter((k) => k !== key);
-      }
-      return [...prev, key];
-    });
-  };
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Rep list: from budget-based repStatesMap (territory ownership), fallback to repMappings
-  const repList = useMemo(() => {
-    const budgetReps = Object.keys(repStatesMap);
-    if (budgetReps.length > 0) return budgetReps.sort();
-    if (repMappings?.allReps && repMappings.allReps.length > 0) return repMappings.allReps;
-    return ['Bruce', 'George', 'Janet', 'Jeff', 'John', 'Pam/Ward', 'Steve', 'Mandi', 'Tony'];
-  }, [repStatesMap, repMappings]);
-
-  // Filtered states: use budget-based territory (repStatesMap)
-  const filteredStates = useMemo(() => {
-    if (selectedRep && repStatesMap[selectedRep]) {
-      return [...repStatesMap[selectedRep]].sort();
-    }
-    return availableStates;
-  }, [selectedRep, repStatesMap, availableStates]);
-
-  // Filtered groups: use repMappings
-  const filteredGroups = useMemo(() => {
-    if (selectedRep && repMappings?.repGroups?.[selectedRep]) {
-      return repMappings.repGroups[selectedRep];
-    }
-    return availableGroups;
-  }, [selectedRep, repMappings, availableGroups]);
-
-  // Clear invalid state/group when rep changes
+  // Sync initial props whenever drawer opens or props change
   useEffect(() => {
-    if (selectedRep && repStatesMap[selectedRep]) {
-      const validStates = repStatesMap[selectedRep];
-      if (selectedState && !validStates.includes(selectedState)) {
-        setSelectedState('');
-      }
+    if (isOpen) {
+      setActiveTab(initialTab);
+      setSelectedDealerId(initialDealerId);
+      setSelectedGroup(initialGroupSlug || '');
+      setAppHistoryPage(1);
     }
-    if (selectedRep && repMappings?.repGroups?.[selectedRep]) {
-      const validSlugs = repMappings.repGroups[selectedRep].map(g => g.slug);
-      if (selectedGroup && !validSlugs.includes(selectedGroup)) {
-        setSelectedGroup('');
-      }
-    }
-  }, [selectedRep, repStatesMap, repMappings, selectedState, selectedGroup]);
+  }, [isOpen, initialDealerId, initialGroupSlug, initialTab]);
 
+  // Click outside to close dealer search dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDealerSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search dealers when query changes
+  useEffect(() => {
+    if (!dealerSearchOpen) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      searchDealers(dealerSearchQuery, 50).then((res) => {
+        if (active && res?.dealers) {
+          setDealerSearchResults(res.dealers);
+        }
+      }).catch(console.error);
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [dealerSearchQuery, dealerSearchOpen]);
+
+  // Load Historical MoM data
   useEffect(() => {
     if (!isOpen) return;
     const originalOverflow = document.body.style.overflow;
@@ -134,7 +172,13 @@ export function AnalyticsDrawer({
 
     let active = true;
     setIsLoading(true);
-    getHistoricalMoM(trendMode, selectedState || undefined, selectedRep || undefined, selectedGroup || undefined)
+    getHistoricalMoM(
+      trendMode,
+      selectedState || undefined,
+      selectedRep || undefined,
+      selectedGroup || undefined,
+      selectedDealerId || undefined
+    )
       .then((res) => {
         if (active) {
           setData(res);
@@ -150,416 +194,670 @@ export function AnalyticsDrawer({
       active = false;
       document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup]);
+  }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup, selectedDealerId]);
 
-  // Displayed months based on Timeframe Scope Toggle
-  const displayedMonths = useMemo(() => {
-    const list = data?.months || [];
-    if (timeframeMode === 'ytd') {
-      return list.filter((m) => m.year === 2026);
-    }
-    return list;
-  }, [data, timeframeMode]);
-
-  // Aggregate Totals across current items displayed in table/chart
-  const totals = useMemo(() => {
-    let apps = 0;
-    let approvals = 0;
-    let booked = 0;
-    let bookedDollars = 0;
-
-    for (const m of displayedMonths) {
-      apps += (m.stats?.apps || 0);
-      approvals += (m.stats?.approvals || 0);
-      booked += (m.stats?.booked || 0);
-      bookedDollars += (m.stats?.bookedDollars || 0);
+  // Load Application History data when dealer/group or page changes
+  useEffect(() => {
+    if (!isOpen) return;
+    const targetId = selectedDealerId || selectedGroup;
+    if (!targetId) {
+      setAppHistoryData(null);
+      return;
     }
 
-    const lookToBook = apps > 0 ? booked / apps : 0;
-    const approvalToBook = approvals > 0 ? booked / approvals : 0;
-    const latestCohort = displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null;
+    let active = true;
+    setAppHistoryLoading(true);
 
-    return {
-      apps,
-      approvals,
-      booked,
-      bookedDollars,
-      lookToBook,
-      approvalToBook,
-      latestCohort
+    getDealerApplicationsHistory(targetId, appHistoryPage, 15)
+      .then((res) => {
+        if (active) {
+          setAppHistoryData(res);
+          if (res.location && selectedDealerId) {
+            setSelectedDealerObj(res.location);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load application history:', err);
+      })
+      .finally(() => {
+        if (active) setAppHistoryLoading(false);
+      });
+
+    return () => {
+      active = false;
     };
-  }, [displayedMonths]);
+  }, [isOpen, selectedDealerId, selectedGroup, appHistoryPage]);
+
+  const toggleSeries = (key: SeriesKey) => {
+    setActiveSeriesKeys((prev) => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((k) => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
+
+  // Rep list
+  const repList = useMemo(() => {
+    const budgetReps = Object.keys(repStatesMap);
+    if (budgetReps.length > 0) return budgetReps.sort();
+    if (repMappings?.allReps && repMappings.allReps.length > 0) return repMappings.allReps;
+    return ['Bruce', 'George', 'Janet', 'Jeff', 'John', 'Pam/Ward', 'Steve', 'Mandi', 'Tony'];
+  }, [repStatesMap, repMappings]);
+
+  // Filtered states
+  const filteredStates = useMemo(() => {
+    if (selectedRep && repStatesMap[selectedRep]) {
+      return [...repStatesMap[selectedRep]].sort();
+    }
+    return availableStates;
+  }, [selectedRep, repStatesMap, availableStates]);
+
+  // Filtered groups
+  const filteredGroups = useMemo(() => {
+    if (selectedRep && repMappings?.repGroups?.[selectedRep]) {
+      return repMappings.repGroups[selectedRep];
+    }
+    return availableGroups;
+  }, [selectedRep, repMappings, availableGroups]);
 
   if (!isOpen) return null;
 
-  const months = displayedMonths;
+  const months = data?.months || [];
+  const displayedMonths = timeframeMode === 'ytd' ? months.filter((m) => m.year === 2026) : months;
+
+  // Aggregate Totals across current items displayed in table/chart
+  const totals = {
+    apps: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0),
+    approvals: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0),
+    booked: displayedMonths.reduce((acc, m) => acc + (m.stats?.booked || 0), 0),
+    bookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.bookedDollars || 0), 0),
+    lookToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0) > 0
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
+      : 0,
+    approvalToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0) > 0
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
+      : 0,
+    latestCohort: displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null,
+  };
 
   // SVG Line Chart calculations
   const svgWidth = 800;
   const svgHeight = 180;
   const padding = 30;
-  const graphW = svgWidth - padding * 2;
-  const graphH = svgHeight - padding * 2;
 
-  // Compute maximum value per active series for scaling
-  const seriesMaxValues = activeSeriesKeys.reduce((acc, key) => {
-    const option = SERIES_OPTIONS.find((s) => s.key === key);
-    if (!option) return acc;
-    const maxVal = Math.max(0.001, ...months.map((m) => option.getValue(m)));
-    acc[key] = maxVal;
-    return acc;
-  }, {} as Record<SeriesKey, number>);
+  const handleSelectDealer = (dealer: { _id: string; dealerName: string; dealerId: string; clientDealerId: string; statePrefix: string } | null) => {
+    if (!dealer) {
+      setSelectedDealerId(null);
+      setSelectedDealerObj(null);
+      onSelectDealerId?.(null);
+    } else {
+      setSelectedDealerId(dealer.dealerId || dealer._id);
+      setSelectedDealerObj(dealer);
+      onSelectDealerId?.(dealer.dealerId || dealer._id);
+    }
+    setDealerSearchOpen(false);
+    setAppHistoryPage(1);
+  };
 
-  const pointsData = months.map((m, i) => {
-    const x = padding + (i / Math.max(1, months.length - 1)) * graphW;
+  const handleClearDealer = () => {
+    setSelectedDealerId(null);
+    setSelectedDealerObj(null);
+    onSelectDealerId?.(null);
+  };
 
-    const seriesPoints = activeSeriesKeys.reduce((acc, key) => {
-      const option = SERIES_OPTIONS.find((s) => s.key === key);
-      const val = option ? option.getValue(m) : 0;
-      const maxVal = seriesMaxValues[key] || 1;
-      const y = svgHeight - padding - (val / maxVal) * graphH;
-      acc[key] = { y, val };
-      return acc;
-    }, {} as Record<SeriesKey, { y: number; val: number }>);
-
-    return { x, month: m, seriesPoints };
-  });
+  // Header Title derivation
+  const headerLocation = appHistoryData?.location || selectedDealerObj;
+  const isSpecificSelected = Boolean(selectedDealerId || selectedGroup);
 
   return (
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.drawer} onClick={(e) => e.stopPropagation()}>
-        {/* Drag handle */}
-        <div className={styles.dragHandleRow} onClick={onClose}>
-          <div className={styles.dragHandle} />
+        <div className="mobileDragHandleRow">
+          <div className="mobileDragHandle" />
         </div>
 
-        {/* Header */}
+        {/* Drawer Header */}
         <div className={styles.header}>
           <div className={styles.titleGroup}>
-            <span style={{ fontSize: '1.4rem' }}>📊</span>
             <div>
-              <div className={styles.title}>Month-over-Month Historical Analytics</div>
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                Jan 2025 – Present | Dealer Cohorts & Origination Performance
-              </div>
+              <h2 className={styles.title}>
+                {headerLocation?.dealerName || (selectedGroup ? `Group: ${selectedGroup}` : 'Month-over-Month Historical Analytics')}
+              </h2>
+              {headerLocation && (
+                <div className={styles.metaRow}>
+                  {headerLocation.dealerId && <span className={styles.badge}>ID: {headerLocation.dealerId}</span>}
+                  {headerLocation.statePrefix && <span className={styles.badge}>{headerLocation.statePrefix}</span>}
+                </div>
+              )}
             </div>
           </div>
-          <button className={styles.closeBtn} onClick={onClose} title="Close drawer">
+
+          {/* Header Tab Buttons */}
+          <div className={styles.drawerTabs}>
+            <button
+              className={`${styles.tabBtn} ${activeTab === 'mom' ? styles.tabBtnActive : ''}`}
+              onClick={() => setActiveTab('mom')}
+            >
+              📈 Historical MoM
+            </button>
+            <button
+              className={`${styles.tabBtn} ${activeTab === 'applications' ? styles.tabBtnActive : ''}`}
+              onClick={() => setActiveTab('applications')}
+            >
+              📋 Application History
+            </button>
+          </div>
+
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Close drawer">
             ✕
           </button>
         </div>
 
-        {/* Filter Controls Bar */}
-        <div className={styles.filterControls}>
-          {/* Timeframe Scope Toggle */}
-          <div className={styles.filterGroup}>
-            <span className={styles.filterLabel}>Timeframe:</span>
-            <div className={styles.trendToggle}>
-              <button
-                className={`${styles.toggleBtn} ${timeframeMode === 'all' ? styles.toggleActive : ''}`}
-                onClick={() => setTimeframeMode('all')}
-              >
-                All Months (2025–Present)
-              </button>
-              <button
-                className={`${styles.toggleBtn} ${timeframeMode === 'ytd' ? styles.toggleActive : ''}`}
-                onClick={() => setTimeframeMode('ytd')}
-              >
-                YTD Only (2026)
-              </button>
+        {/* TAB 1: HISTORICAL MOM */}
+        {activeTab === 'mom' && (
+          <>
+            {/* Filter Controls Header */}
+            <div className={styles.filterControls}>
+              {/* Timeframe Scope Toggle */}
+              <div className={styles.filterGroup}>
+                <span className={styles.filterLabel}>Timeframe:</span>
+                <div className={styles.trendToggle}>
+                  <button
+                    className={`${styles.toggleBtn} ${timeframeMode === 'all' ? styles.toggleActive : ''}`}
+                    onClick={() => setTimeframeMode('all')}
+                  >
+                    All Months (2025-Present)
+                  </button>
+                  <button
+                    className={`${styles.toggleBtn} ${timeframeMode === 'ytd' ? styles.toggleActive : ''}`}
+                    onClick={() => setTimeframeMode('ytd')}
+                  >
+                    YTD Only (2026)
+                  </button>
+                </div>
+              </div>
+
+              {/* Trend Mode Toggle */}
+              <div className={styles.filterGroup}>
+                <span className={styles.filterLabel}>Trend Mode:</span>
+                <div className={styles.trendToggle}>
+                  <button
+                    className={`${styles.toggleBtn} ${trendMode === 'mom' ? styles.toggleActive : ''}`}
+                    onClick={() => setTrendMode('mom')}
+                  >
+                    Period-over-Period (MoM)
+                  </button>
+                  <button
+                    className={`${styles.toggleBtn} ${trendMode === 'yoy' ? styles.toggleActive : ''}`}
+                    onClick={() => setTrendMode('yoy')}
+                  >
+                    vs Last Year (YoY)
+                  </button>
+                </div>
+              </div>
+
+              {/* State Filter */}
+              <div className={styles.filterGroup}>
+                <span className={styles.filterLabel}>State:</span>
+                <select
+                  className={styles.selectInput}
+                  value={selectedState}
+                  onChange={(e) => setSelectedState(e.target.value)}
+                >
+                  <option value="">All States</option>
+                  {filteredStates.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sales Rep Filter */}
+              <div className={styles.filterGroup}>
+                <span className={styles.filterLabel}>Sales Rep:</span>
+                <select
+                  className={styles.selectInput}
+                  value={selectedRep}
+                  onChange={(e) => setSelectedRep(e.target.value)}
+                >
+                  <option value="">All Reps</option>
+                  {repList.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Dealer Group Filter */}
+              <div className={styles.filterGroup}>
+                <span className={styles.filterLabel}>Dealer Group:</span>
+                <select
+                  className={styles.selectInput}
+                  value={selectedGroup}
+                  onChange={(e) => {
+                    setSelectedGroup(e.target.value);
+                    onSelectGroupSlug?.(e.target.value || null);
+                  }}
+                >
+                  <option value="">All Groups</option>
+                  {filteredGroups.map((g) => (
+                    <option key={g.slug} value={g.slug}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* NEW: Searchable Dealer Selector Filter */}
+              <div className={styles.filterGroup} ref={dropdownRef}>
+                <span className={styles.filterLabel}>Dealer:</span>
+                {selectedDealerId ? (
+                  <div className={styles.dealerSelectBtn}>
+                    <span>{selectedDealerObj?.dealerName || selectedDealerId}</span>
+                    <button
+                      className={styles.clearDealerBtn}
+                      onClick={handleClearDealer}
+                      title="Clear dealer selection"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className={styles.dealerSelectBtn}
+                    onClick={() => {
+                      setDealerSearchOpen(!dealerSearchOpen);
+                      if (!dealerSearchOpen) {
+                        searchDealers('', 50).then((res) => {
+                          if (res?.dealers) setDealerSearchResults(res.dealers);
+                        }).catch(console.error);
+                      }
+                    }}
+                  >
+                    <span>All Dealers (Search...) ▼</span>
+                  </button>
+                )}
+
+                {/* Dealer Search Menu Popup */}
+                {dealerSearchOpen && (
+                  <div className={styles.searchMenu}>
+                    <div className={styles.searchHeader}>
+                      <input
+                        type="text"
+                        className={styles.searchInput}
+                        placeholder="Search 3k+ dealers by name or ID..."
+                        value={dealerSearchQuery}
+                        onChange={(e) => setDealerSearchQuery(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className={styles.searchList}>
+                      <div
+                        className={`${styles.searchOption} ${!selectedDealerId ? styles.searchOptionSelected : ''}`}
+                        onClick={() => handleSelectDealer(null)}
+                      >
+                        <span>All Dealers</span>
+                      </div>
+                      {dealerSearchResults.map((dlr) => (
+                        <div
+                          key={dlr._id}
+                          className={`${styles.searchOption} ${selectedDealerId === dlr.dealerId || selectedDealerId === dlr._id ? styles.searchOptionSelected : ''}`}
+                          onClick={() => handleSelectDealer(dlr)}
+                        >
+                          <div>
+                            <div>{dlr.dealerName}</div>
+                            <span className={styles.optionMeta}>ID: {dlr.dealerId || dlr.clientDealerId}</span>
+                          </div>
+                          {dlr.statePrefix && <span className={styles.badge}>{dlr.statePrefix}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Trend Toggle */}
-          <div className={styles.filterGroup}>
-            <span className={styles.filterLabel}>Trend Mode:</span>
-            <div className={styles.trendToggle}>
-              <button
-                className={`${styles.toggleBtn} ${trendMode === 'mom' ? styles.toggleActive : ''}`}
-                onClick={() => setTrendMode('mom')}
-              >
-                Period-over-Period (MoM)
-              </button>
-              <button
-                className={`${styles.toggleBtn} ${trendMode === 'yoy' ? styles.toggleActive : ''}`}
-                onClick={() => setTrendMode('yoy')}
-              >
-                vs Last Year (YoY)
-              </button>
-            </div>
-          </div>
+            {/* Drawer Body (Chart + Rollup Table) */}
+            <div className={styles.drawerContent}>
+              {isLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  Loading historical analytics...
+                </div>
+              ) : (
+                <>
+                  {/* Performance Line Chart */}
+                  <div className={styles.chartCard}>
+                    <div className={styles.chartHeader}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span className={styles.chartTitle}>Historical Performance Trends</span>
+                        {hoveredIndex !== null && displayedMonths[hoveredIndex] && (
+                          <div className={styles.hoverMetricsBar}>
+                            <strong style={{ color: '#38bdf8' }}>{displayedMonths[hoveredIndex].label}</strong>
+                            <span>Apps: <strong>{displayedMonths[hoveredIndex].stats.apps}</strong></span>
+                            <span>Appr: <strong>{displayedMonths[hoveredIndex].stats.approvals}</strong></span>
+                            <span>Bkd: <strong>{displayedMonths[hoveredIndex].stats.booked}</strong></span>
+                            <span>Vol: <strong>{formatCurrency(displayedMonths[hoveredIndex].stats.bookedDollars)}</strong></span>
+                          </div>
+                        )}
+                      </div>
 
-          {/* State Filter */}
-          <div className={styles.filterGroup}>
-            <span className={styles.filterLabel}>State:</span>
-            <select
-              className={styles.selectInput}
-              value={selectedState}
-              onChange={(e) => setSelectedState(e.target.value)}
-            >
-              <option value="">All States</option>
-              {filteredStates.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Rep Filter */}
-          <div className={styles.filterGroup}>
-            <span className={styles.filterLabel}>Sales Rep:</span>
-            <select
-              className={styles.selectInput}
-              value={selectedRep}
-              onChange={(e) => setSelectedRep(e.target.value)}
-            >
-              <option value="">All Reps</option>
-              {repList.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Group Filter */}
-          <div className={styles.filterGroup}>
-            <span className={styles.filterLabel}>Dealer Group:</span>
-            <select
-              className={styles.selectInput}
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
-            >
-              <option value="">All Groups</option>
-              {filteredGroups.map((g) => (
-                <option key={g.slug} value={g.slug}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Content Body */}
-        <div className={styles.drawerContent}>
-          {isLoading ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-              Loading Historical Analytics...
-            </div>
-          ) : (
-            <>
-              {/* SVG Line Chart Card */}
-              <div className={styles.chartCard}>
-                <div className={styles.chartHeader}>
-                  <div className={styles.chartTitle}>Historical Performance Trends</div>
-
-                  {/* Active Hover / Default Latest Month Summary Bar */}
-                  {months.length > 0 && (() => {
-                    const activeItem = (hoveredIndex !== null && pointsData[hoveredIndex])
-                      ? pointsData[hoveredIndex]
-                      : pointsData[pointsData.length - 1];
-
-                    return (
-                      <div className={styles.hoverMetricsBar}>
-                        <span style={{ fontWeight: 700, color: '#60a5fa' }}>{activeItem.month.label}</span>
-                        {activeSeriesKeys.map((key) => {
-                          const opt = SERIES_OPTIONS.find((s) => s.key === key);
-                          if (!opt) return null;
-                          const val = opt.getValue(activeItem.month);
-                          const trendBadge = renderBadge(activeItem.month.trends?.[key]);
+                      {/* Interactive Metric Series Toggles */}
+                      <div className={styles.legend}>
+                        {SERIES_OPTIONS.map((ser) => {
+                          const isActive = activeSeriesKeys.includes(ser.key);
                           return (
-                            <span key={key} style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
-                              <span style={{ color: '#94a3b8' }}>|</span>
-                              <span style={{ color: opt.color }}>
-                                {opt.label}: <strong>{opt.format(val)}</strong> {trendBadge}
-                              </span>
-                            </span>
+                            <div
+                              key={ser.key}
+                              className={styles.legendItem}
+                              onClick={() => toggleSeries(ser.key)}
+                              style={{
+                                cursor: 'pointer',
+                                opacity: isActive ? 1 : 0.4,
+                                transition: 'opacity 0.2s',
+                              }}
+                            >
+                              <span className={styles.dot} style={{ background: ser.color }} />
+                              <span style={{ fontWeight: isActive ? 600 : 400 }}>{ser.label}</span>
+                            </div>
                           );
                         })}
                       </div>
-                    );
-                  })()}
+                    </div>
 
-                  {/* Dynamic Sleek Series Toggle Legend */}
-                  <div className={styles.legend}>
-                    {SERIES_OPTIONS.map((opt) => {
-                      const isActive = activeSeriesKeys.includes(opt.key);
-                      return (
-                        <div
-                          key={opt.key}
-                          className={styles.legendItem}
-                          style={{
-                            cursor: 'pointer',
-                            opacity: isActive ? 1 : 0.45,
-                            borderBottom: isActive ? `2px solid ${opt.color}` : '2px solid transparent',
-                            paddingBottom: '2px',
-                            transition: 'all 0.15s ease',
-                          }}
-                          onClick={() => toggleSeries(opt.key)}
-                          title={`Toggle ${opt.label} on chart`}
-                        >
-                          <span className={styles.dot} style={{ background: opt.color }} /> {opt.label}
-                        </div>
-                      );
-                    })}
+                    {/* SVG Chart Area */}
+                    <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
+                      <svg
+                        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                        style={{ width: '100%', height: '180px', display: 'block' }}
+                      >
+                        {/* Grid lines */}
+                        <line x1={padding} y1={20} x2={svgWidth - padding} y2={20} stroke="rgba(255,255,255,0.05)" />
+                        <line x1={padding} y1={svgHeight / 2} x2={svgWidth - padding} y2={svgHeight / 2} stroke="rgba(255,255,255,0.05)" />
+                        <line x1={padding} y1={svgHeight - 20} x2={svgWidth - padding} y2={svgHeight - 20} stroke="rgba(255,255,255,0.1)" />
+
+                        {/* Render active series lines */}
+                        {SERIES_OPTIONS.filter((ser) => activeSeriesKeys.includes(ser.key)).map((ser) => {
+                          const values = displayedMonths.map((m) => ser.getValue(m));
+                          const maxVal = Math.max(...values, 1);
+                          const points = displayedMonths.map((m, idx) => {
+                            const x = padding + (idx / Math.max(1, displayedMonths.length - 1)) * (svgWidth - 2 * padding);
+                            const val = ser.getValue(m);
+                            const y = (svgHeight - 20) - (val / maxVal) * (svgHeight - 40);
+                            return `${x},${y}`;
+                          }).join(' ');
+
+                          return (
+                            <polyline
+                              key={ser.key}
+                              fill="none"
+                              stroke={ser.color}
+                              strokeWidth="2.5"
+                              points={points}
+                            />
+                          );
+                        })}
+
+                        {/* Hover Overlay Points */}
+                        {displayedMonths.map((m, idx) => {
+                          const x = padding + (idx / Math.max(1, displayedMonths.length - 1)) * (svgWidth - 2 * padding);
+                          return (
+                            <g key={m.key}>
+                              <line
+                                x1={x}
+                                y1={10}
+                                x2={x}
+                                y2={svgHeight - 10}
+                                stroke={hoveredIndex === idx ? 'rgba(56, 189, 248, 0.4)' : 'transparent'}
+                                strokeWidth="2"
+                                strokeDasharray="3,3"
+                              />
+                              <rect
+                                x={x - 15}
+                                y={0}
+                                width={30}
+                                height={svgHeight}
+                                fill="transparent"
+                                style={{ cursor: 'pointer' }}
+                                onMouseEnter={() => setHoveredIndex(idx)}
+                                onMouseLeave={() => setHoveredIndex(null)}
+                              />
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Monthly Rollup Data Table */}
+                  <div className={styles.tableWrapper}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th>Active Dealers</th>
+                          <th>30d / 60d / 90d+ Inactive</th>
+                          <th>Apps</th>
+                          <th>Approvals</th>
+                          <th>Booked</th>
+                          <th>Booked $</th>
+                          <th>L-B %</th>
+                          <th>A-B %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Summary Totals Row */}
+                        <tr className={styles.totalsRow}>
+                          <td style={{ color: '#60a5fa', fontWeight: 800 }}>
+                            TOTAL / OVERALL ({timeframeMode === 'ytd' ? 'YTD 2026' : '2025–Present'})
+                          </td>
+                          <td>
+                            {totals.latestCohort ? (
+                              <>
+                                <strong>{totals.latestCohort.active}</strong>{' '}
+                                <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                  ({totals.latestCohort.activePct}% of {totals.latestCohort.total})
+                                </span>
+                              </>
+                            ) : '—'}
+                          </td>
+                          <td style={{ color: '#94a3b8' }}>
+                            {totals.latestCohort ? `${totals.latestCohort.inactive30} / ${totals.latestCohort.inactive60} / ${totals.latestCohort.longInactive}` : '—'}
+                          </td>
+                          <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.apps.toLocaleString()}</td>
+                          <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.approvals.toLocaleString()}</td>
+                          <td style={{ color: '#4ade80', fontWeight: 800 }}>{totals.booked.toLocaleString()}</td>
+                          <td style={{ color: '#4ade80', fontWeight: 800 }}>{formatCurrency(totals.bookedDollars)}</td>
+                          <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
+                          <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.approvalToBook * 100).toFixed(1)}%</td>
+                        </tr>
+
+                        {/* Monthly Rows (Most Recent First) */}
+                        {[...displayedMonths].reverse().map((m: HistoricalMoMItem) => (
+                          <tr key={m.key}>
+                            <td style={{ fontWeight: 700, color: '#60a5fa' }}>{m.label}</td>
+                            <td>
+                              <strong>{m.cohorts.active}</strong>{' '}
+                              <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                ({m.cohorts.activePct}% of {m.cohorts.total})
+                              </span>
+                            </td>
+                            <td style={{ color: '#94a3b8' }}>
+                              {m.cohorts.inactive30} / {m.cohorts.inactive60} / {m.cohorts.longInactive}
+                            </td>
+                            <td>
+                              {m.stats.apps} {renderBadge(m.trends?.apps)}
+                            </td>
+                            <td>
+                              {m.stats.approvals} {renderBadge(m.trends?.approvals)}
+                            </td>
+                            <td>
+                              {m.stats.booked} {renderBadge(m.trends?.booked)}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {formatCurrency(m.stats.bookedDollars)}{' '}
+                              {renderBadge(m.trends?.bookedDollars)}
+                            </td>
+                            <td>{(m.stats.lookToBook * 100).toFixed(1)}% {renderBadge(m.trends?.lookToBook)}</td>
+                            <td>{(m.stats.approvalToBook * 100).toFixed(1)}% {renderBadge(m.trends?.approvalToBook)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* TAB 2: APPLICATION HISTORY */}
+        {activeTab === 'applications' && (
+          <div className={styles.drawerContent}>
+            {!isSpecificSelected ? (
+              <div className={styles.emptyPrompt}>
+                <div style={{ fontSize: '2.5rem' }}>📋</div>
+                <h3>No Dealer or Group Selected</h3>
+                <p>Use the Dealer filter above or select any dealer from the main table to view application history records.</p>
+              </div>
+            ) : appHistoryLoading && appHistoryPage === 1 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                Loading application history records...
+              </div>
+            ) : (
+              <>
+                {/* Summary Cards */}
+                <div className={styles.summaryGrid}>
+                  <div className={styles.summaryCard}>
+                    <span className={styles.cardScope}>All-Time</span>
+                    <div className={styles.cardMain}>
+                      <span className={styles.cardValue}>{appHistoryData?.summary?.allTime.apps.toLocaleString() || '0'}</span>
+                      <span className={styles.cardSub}>Apps</span>
+                    </div>
+                    <div className={styles.cardDetails}>
+                      <span>Appr: {appHistoryData?.summary?.allTime.approvals.toLocaleString() || '0'}</span>
+                      <span>Bkd: {appHistoryData?.summary?.allTime.booked.toLocaleString() || '0'}</span>
+                      <span>Dollars: ${(appHistoryData?.summary?.allTime.bookedDollars || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.summaryCard}>
+                    <span className={styles.cardScope}>YTD</span>
+                    <div className={styles.cardMain}>
+                      <span className={styles.cardValue}>{appHistoryData?.summary?.ytd.apps.toLocaleString() || '0'}</span>
+                      <span className={styles.cardSub}>Apps</span>
+                    </div>
+                    <div className={styles.cardDetails}>
+                      <span>Appr: {appHistoryData?.summary?.ytd.approvals.toLocaleString() || '0'}</span>
+                      <span>Bkd: {appHistoryData?.summary?.ytd.booked.toLocaleString() || '0'}</span>
+                      <span>Dollars: ${(appHistoryData?.summary?.ytd.bookedDollars || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.summaryCard}>
+                    <span className={styles.cardScope}>MTD</span>
+                    <div className={styles.cardMain}>
+                      <span className={styles.cardValue}>{appHistoryData?.summary?.mtd.apps.toLocaleString() || '0'}</span>
+                      <span className={styles.cardSub}>Apps</span>
+                    </div>
+                    <div className={styles.cardDetails}>
+                      <span>Appr: {appHistoryData?.summary?.mtd.approvals.toLocaleString() || '0'}</span>
+                      <span>Bkd: {appHistoryData?.summary?.mtd.booked.toLocaleString() || '0'}</span>
+                      <span>Dollars: ${(appHistoryData?.summary?.mtd.bookedDollars || 0).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
 
-                {months.length > 0 && (() => {
-                  const colW = graphW / Math.max(1, months.length - 1);
-                  const activeItem = hoveredIndex !== null ? pointsData[hoveredIndex] : null;
+                {/* Application Records Table */}
+                <div className={styles.tableSection}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h3 className={styles.sectionTitle}>
+                      Application Records ({appHistoryData?.pagination?.totalCount || 0})
+                    </h3>
+                  </div>
 
-                  return (
-                    <svg
-                      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                      className={styles.chartSvg}
-                      style={{ width: '100%', height: '180px', cursor: 'pointer' }}
-                      onMouseLeave={() => setHoveredIndex(null)}
-                    >
-                      {/* Background Grid Lines */}
-                      <line x1={padding} y1={padding} x2={svgWidth - padding} y2={padding} stroke="rgba(255,255,255,0.06)" />
-                      <line x1={padding} y1={svgHeight / 2} x2={svgWidth - padding} y2={svgHeight / 2} stroke="rgba(255,255,255,0.06)" />
-                      <line x1={padding} y1={svgHeight - padding} x2={svgWidth - padding} y2={svgHeight - padding} stroke="rgba(255,255,255,0.1)" />
+                  {appHistoryData?.applications.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                      No application records found.
+                    </div>
+                  ) : (
+                    <div className={styles.tableWrapper} style={{ maxHeight: '360px' }}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th>Application ID</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Days Ago</th>
+                            <th>Financed Amount</th>
+                            <th>Lender</th>
+                            <th>FICO</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {appHistoryData?.applications.map((app: ApplicationHistoryItem) => (
+                            <tr key={app._id}>
+                              <td className={styles.appIdCell}>{app.applicationId}</td>
+                              <td>
+                                <span
+                                  className={`${styles.statusTag} ${
+                                    app.status === 'Booked'
+                                      ? styles.statusBooked
+                                      : app.status === 'Approved' || app.status === 'Auto Approval' || app.status === 'Conditional Approval'
+                                      ? styles.statusApproved
+                                      : styles.statusDefault
+                                  }`}
+                                >
+                                  {app.status || 'Pending'}
+                                </span>
+                              </td>
+                              <td>{app.applicationDate ? new Date(app.applicationDate).toLocaleDateString() : '—'}</td>
+                              <td className={styles.daysAgoCell}>
+                                {app.daysAgo != null ? `${app.daysAgo}d ago` : '—'}
+                              </td>
+                              <td className={styles.amountCell}>
+                                {app.amountFinanced != null ? `$${app.amountFinanced.toLocaleString()}` : '—'}
+                              </td>
+                              <td>{app.lender || '—'}</td>
+                              <td className={styles.ficoCell}>{app.primaryFicoAuto8 || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
-                      {/* Render Polylines for each Active Series */}
-                      {activeSeriesKeys.map((key) => {
-                        const opt = SERIES_OPTIONS.find((s) => s.key === key);
-                        if (!opt) return null;
-                        const pointsStr = pointsData.map((p) => `${p.x},${p.seriesPoints[key]?.y ?? (svgHeight - padding)}`).join(' ');
-                        return (
-                          <polyline
-                            key={key}
-                            fill="none"
-                            stroke={opt.color}
-                            strokeWidth="2.5"
-                            points={pointsStr}
-                          />
-                        );
-                      })}
-
-                      {/* Hover Guide Line and Data Circles */}
-                      {activeItem && (
-                        <g>
-                          <line
-                            x1={activeItem.x}
-                            y1={padding}
-                            x2={activeItem.x}
-                            y2={svgHeight - padding}
-                            stroke="#94a3b8"
-                            strokeDasharray="4 4"
-                          />
-                          {activeSeriesKeys.map((key) => {
-                            const opt = SERIES_OPTIONS.find((s) => s.key === key);
-                            const pt = activeItem.seriesPoints[key];
-                            if (!opt || !pt) return null;
-                            return (
-                              <circle
-                                key={key}
-                                cx={activeItem.x}
-                                cy={pt.y}
-                                r="5"
-                                fill={opt.color}
-                                stroke="#ffffff"
-                                strokeWidth="2"
-                              />
-                            );
-                          })}
-                        </g>
-                      )}
-
-                      {/* Precise Transparent Column Hitboxes */}
-                      {pointsData.map((p, i) => {
-                        const startX = i === 0 ? padding : p.x - colW / 2;
-                        const width = i === 0 || i === pointsData.length - 1 ? colW / 2 + padding / 2 : colW;
-                        return (
-                          <rect
-                            key={p.month.key}
-                            x={startX}
-                            y={0}
-                            width={width}
-                            height={svgHeight}
-                            fill="transparent"
-                            onMouseEnter={() => setHoveredIndex(i)}
-                          />
-                        );
-                      })}
-                    </svg>
-                  );
-                })()}
-              </div>
-
-              {/* Monthly Performance Matrix Table (Budget Columns Completely Removed) */}
-              <div className={styles.tableWrapper}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Month</th>
-                      <th>Active Dealers</th>
-                      <th>30d / 60d / 90d+ Inactive</th>
-                      <th>Apps</th>
-                      <th>Approvals</th>
-                      <th>Booked</th>
-                      <th>Booked $</th>
-                      <th>L-B %</th>
-                      <th>A-B %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Header Totals Summary Row */}
-                    <tr className={styles.totalsRow}>
-                      <td style={{ color: '#60a5fa', fontWeight: 800 }}>TOTAL / OVERALL ({timeframeMode === 'ytd' ? 'YTD 2026' : '2025–Present'})</td>
-                      <td>
-                        {totals.latestCohort ? (
-                          <>
-                            <strong>{totals.latestCohort.active}</strong>{' '}
-                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                              ({totals.latestCohort.activePct}% of {totals.latestCohort.total})
-                            </span>
-                          </>
-                        ) : '—'}
-                      </td>
-                      <td style={{ color: '#94a3b8' }}>
-                        {totals.latestCohort ? `${totals.latestCohort.inactive30} / ${totals.latestCohort.inactive60} / ${totals.latestCohort.longInactive}` : '—'}
-                      </td>
-                      <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.apps.toLocaleString()}</td>
-                      <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.approvals.toLocaleString()}</td>
-                      <td style={{ color: '#4ade80', fontWeight: 800 }}>{totals.booked.toLocaleString()}</td>
-                      <td style={{ color: '#4ade80', fontWeight: 800 }}>{formatCurrency(totals.bookedDollars)}</td>
-                      <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
-                      <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.approvalToBook * 100).toFixed(1)}%</td>
-                    </tr>
-
-                    {/* Monthly Historical Rows (Most Recent First) */}
-                    {[...months].reverse().map((m: HistoricalMoMItem) => (
-                      <tr key={m.key}>
-                        <td style={{ fontWeight: 700, color: '#60a5fa' }}>{m.label}</td>
-                        <td>
-                          <strong>{m.cohorts.active}</strong>{' '}
-                          <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                            ({m.cohorts.activePct}% of {m.cohorts.total})
-                          </span>
-                        </td>
-                        <td style={{ color: '#94a3b8' }}>
-                          {m.cohorts.inactive30} / {m.cohorts.inactive60} / {m.cohorts.longInactive}
-                        </td>
-                        <td>
-                          {m.stats.apps} {renderBadge(m.trends?.apps)}
-                        </td>
-                        <td>
-                          {m.stats.approvals} {renderBadge(m.trends?.approvals)}
-                        </td>
-                        <td>
-                          {m.stats.booked} {renderBadge(m.trends?.booked)}
-                        </td>
-                        <td style={{ fontWeight: 600 }}>
-                          {formatCurrency(m.stats.bookedDollars)}{' '}
-                          {renderBadge(m.trends?.bookedDollars)}
-                        </td>
-                        <td>{(m.stats.lookToBook * 100).toFixed(1)}% {renderBadge(m.trends?.lookToBook)}</td>
-                        <td>{(m.stats.approvalToBook * 100).toFixed(1)}% {renderBadge(m.trends?.approvalToBook)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
+                  {/* Pagination Controls */}
+                  {appHistoryData?.pagination && appHistoryData.pagination.totalPages > 1 && (
+                    <div className={styles.paginationRow}>
+                      <button
+                        className={styles.pageBtn}
+                        disabled={appHistoryPage <= 1 || appHistoryLoading}
+                        onClick={() => setAppHistoryPage((p) => Math.max(1, p - 1))}
+                      >
+                        ← Previous
+                      </button>
+                      <span className={styles.pageInfo}>
+                        Page {appHistoryData.pagination.page} of {appHistoryData.pagination.totalPages}
+                      </span>
+                      <button
+                        className={styles.pageBtn}
+                        disabled={!appHistoryData.pagination.hasMore || appHistoryLoading}
+                        onClick={() => setAppHistoryPage((p) => p + 1)}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

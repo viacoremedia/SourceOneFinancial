@@ -330,13 +330,20 @@ export async function getHistoricalMoM(
   trend: 'mom' | 'yoy' = 'mom',
   state?: string,
   rep?: string,
-  groupSlug?: string
+  groupSlug?: string,
+  dealerId?: string
 ): Promise<HistoricalMoMResponse> {
   const params: Record<string, string> = { trend };
   if (state) params.state = state;
   if (rep) params.rep = rep;
   if (groupSlug) params.groupSlug = groupSlug;
+  if (dealerId) params.dealerId = dealerId;
   const { data } = await api.get('/analytics/historical/mom', { params });
+  return data;
+}
+
+export async function searchDealers(query: string, limit: number = 50): Promise<{ success: boolean; dealers: Array<{ _id: string; dealerName: string; dealerId: string; clientDealerId: string; statePrefix: string }> }> {
+  const { data } = await api.get('/analytics/dealers/search', { params: { q: query, limit } });
   return data;
 }
 

@@ -118,6 +118,7 @@ interface DealerTableProps {
   onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
   onDealerSearch?: (query: string) => void;
   onSelectDealer?: (dealerId: string) => void;
+  onSelectGroup?: (groupSlug: string) => void;
   onDatePresetChange?: (preset: DatePreset) => void;
   onCustomDateChange?: (start?: string, end?: string) => void;
   onTrendChange?: (trend: TrendPeriod) => void;
@@ -251,6 +252,7 @@ export function DealerTable({
   onDealerSortChange,
   onDealerSearch,
   onSelectDealer,
+  onSelectGroup,
   datePreset = 'this_month',
   customStartDate = '',
   customEndDate = '',
@@ -928,6 +930,8 @@ export function DealerTable({
                         renderChildCells={renderChildCells}
                         deriveStatusFn={deriveStatus}
                         visibleColumns={visibleColumns}
+                        onSelectGroup={onSelectGroup}
+                        onSelectDealer={onSelectDealer}
                       />
                     );
                   })
@@ -1049,6 +1053,8 @@ interface GroupRowsProps {
   renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean, stats?: DealerStats) => React.JSX.Element;
   deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
   visibleColumns: TableColumn[];
+  onSelectGroup?: (groupSlug: string) => void;
+  onSelectDealer?: (dealerId: string) => void;
 }
 
 
@@ -1082,7 +1088,7 @@ function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null
   return { best, worst };
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns }: GroupRowsProps) {
+function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns, onSelectGroup, onSelectDealer }: GroupRowsProps) {
   const s = group.summary;
 
   // Aggregate stats across child locations
@@ -1161,8 +1167,20 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
       >
         <td>
           <span className={styles.groupName}>
-            <span className={`${styles.expandIcon} ${isExpanded ? styles.expandIconOpen : ''}`}>▶</span>
-            {group.name}
+            <span
+              className={`${styles.expandIcon} ${isExpanded ? styles.expandIconOpen : ''}`}
+              onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            >▶</span>
+            <span
+              style={{ cursor: 'pointer', color: '#38bdf8', fontWeight: 600 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectGroup?.(group.slug);
+              }}
+              title="Click to view Historical MoM & group application history"
+            >
+              {group.name}
+            </span>
             <span className={styles.locationCount}>({displayCount})</span>
           </span>
         </td>
@@ -1195,7 +1213,16 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
       </tr>
       {isExpanded && locations.map((loc) => (
         <tr key={loc._id} className={styles.childRow}>
-          <td>{loc.dealerName}</td>
+          <td
+            style={{ cursor: 'pointer', paddingLeft: '32px' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectDealer?.(loc.dealerId || loc._id);
+            }}
+            title="Click to view Historical MoM & application history"
+          >
+            <span style={{ color: '#38bdf8', fontWeight: 500 }}>{loc.dealerName}</span>
+          </td>
           {renderChildCells(loc.latestSnapshot, true, loc.stats)}
         </tr>
       ))}

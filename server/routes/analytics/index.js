@@ -430,6 +430,7 @@ router.get('/historical/mom', async (req, res) => {
         const stateFilter = req.query.state || null;
         const repFilter = req.query.rep || null;
         const groupSlugFilter = req.query.groupSlug || null;
+        const dealerFilter = req.query.dealerId || req.query.dealer || null;
 
         const now = new Date();
         const currentYear = now.getUTCFullYear();
@@ -458,8 +459,23 @@ router.get('/historical/mom', async (req, res) => {
         let filterDealerLocationIds = null;
         let filterDealerIds = null;
 
-        if (stateFilter || repFilter || groupSlugFilter) {
+        if (stateFilter || repFilter || groupSlugFilter || dealerFilter) {
             const locMatch = {};
+            if (dealerFilter) {
+                const isObjId = mongoose.Types.ObjectId.isValid(dealerFilter);
+                const dealerOrConds = [
+                    { dealerId: dealerFilter },
+                    { clientDealerId: dealerFilter },
+                    { omniDealerId: dealerFilter }
+                ];
+                if (isObjId) dealerOrConds.push({ _id: dealerFilter });
+                const singleDealerLoc = await DealerLocation.findOne({ $or: dealerOrConds }).select('_id clientDealerId dealerId').lean();
+                if (singleDealerLoc) {
+                    locMatch._id = singleDealerLoc._id;
+                } else {
+                    locMatch._id = new mongoose.Types.ObjectId(); // Mismatch fallback
+                }
+            }
             if (groupSlugFilter) {
                 const grp = await DealerGroup.findOne({ slug: groupSlugFilter }).lean();
                 if (grp) locMatch.dealerGroup = grp._id;
@@ -2158,8 +2174,43 @@ router.get('/dealer-stats', async (req, res) => {
 });
 
 // ==========================================
+// GET /analytics/dealers/search
+// Search dealer locations by name, dealerId, or clientDealerId
+// ==========================================
+router.get('/dealers/search', async (req, res) => {
+    try {
+        const q = String(req.query.q || req.query.query || '').trim();
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+        let match = {};
+        if (q) {
+            const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+            match = {
+                $or: [
+                    { dealerName: regex },
+                    { dealerId: regex },
+                    { clientDealerId: regex }
+                ]
+            };
+        }
+        const dealers = await DealerLocation.find(match, '_id dealerName dealerId clientDealerId statePrefix')
+            .sort({ dealerName: 1 })
+            .limit(limit)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            count: dealers.length,
+            dealers
+        });
+    } catch (error) {
+        console.error('Error searching dealers:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
 // GET /analytics/dealers/:dealerId/applications
-// Bottom-up drawer application history & summary metrics for a dealer
+// Bottom-up drawer application history & summary metrics for a dealer or group
 // ==========================================
 router.get('/dealers/:dealerId/applications', async (req, res) => {
     try {
@@ -2168,8 +2219,11 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
 
-        // Resolve location document to find canonical clientDealerId / dealerId
+        // Resolve location document or group to find canonical clientDealerId(s)
         let location = null;
+        let headerLocation = null;
+        let matchQuery = {};
+
         if (mongoose.Types.ObjectId.isValid(dealerId)) {
             location = await DealerLocation.findById(dealerId).lean();
         }
@@ -2184,13 +2238,39 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
         }
 
         if (!location) {
-            return res.status(404).json({ success: false, message: 'Dealer location not found' });
+            // Check if dealerId is a Dealer Group slug or ID
+            let grp = null;
+            if (mongoose.Types.ObjectId.isValid(dealerId)) {
+                grp = await DealerGroup.findById(dealerId).lean();
+            }
+            if (!grp) {
+                grp = await DealerGroup.findOne({ slug: dealerId }).lean();
+            }
+            if (grp) {
+                const locs = await DealerLocation.find({ dealerGroup: grp._id }).select('clientDealerId dealerId').lean();
+                const ids = locs.map(l => (l.clientDealerId || l.dealerId || '').trim()).filter(Boolean);
+                matchQuery = { clientDealerId: { $in: ids } };
+                headerLocation = {
+                    _id: grp._id,
+                    dealerName: grp.name,
+                    dealerId: `Group (${grp.dealerCount || locs.length} locs)`,
+                    clientDealerId: grp.slug,
+                    statePrefix: (grp.states || []).join(', ')
+                };
+            } else {
+                return res.status(404).json({ success: false, message: 'Dealer location or group not found' });
+            }
+        } else {
+            const canonicalId = (location.clientDealerId || location.dealerId).trim();
+            matchQuery = { clientDealerId: canonicalId };
+            headerLocation = {
+                _id: location._id,
+                dealerName: location.dealerName,
+                dealerId: location.dealerId,
+                clientDealerId: location.clientDealerId,
+                statePrefix: location.statePrefix
+            };
         }
-
-        const canonicalId = (location.clientDealerId || location.dealerId).trim();
-
-        // Match query for applications
-        const matchQuery = { clientDealerId: canonicalId };
 
         const now = new Date();
         const ytdStart = new Date(now.getFullYear(), 0, 1);
@@ -2262,13 +2342,7 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
 
         res.status(200).json({
             success: true,
-            location: {
-                _id: location._id,
-                dealerName: location.dealerName,
-                dealerId: location.dealerId,
-                clientDealerId: location.clientDealerId,
-                statePrefix: location.statePrefix
-            },
+            location: headerLocation,
             summary,
             applications,
             pagination: {

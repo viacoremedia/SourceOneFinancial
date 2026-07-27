@@ -8,7 +8,6 @@ import { AppShell } from '../../../core/components/AppShell';
 import { TabBar, type TabId } from '../components/TabBar';
 import { FilterBar, type DatePreset } from '../components/FilterBar';
 import { DealerTable } from '../components/DealerTable';
-import { DealerDrawer } from '../components/DealerDrawer/DealerDrawer';
 import { ExecutiveSummaryBanner } from '../components/ExecutiveSummaryBanner/ExecutiveSummaryBanner';
 import { AnalyticsDrawer } from '../components/AnalyticsDrawer/AnalyticsDrawer';
 import { useOverview, useDealerGroups } from '../hooks';
@@ -37,7 +36,6 @@ const SORT_KEY_MAP: Record<string, string> = {
 
 export function Dashboard() {
   const { data: overview } = useOverview();
-  const [momDrawerOpen, setMomDrawerOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabId>('all');
   const [groupLocations, setGroupLocations] = useState<
@@ -54,9 +52,33 @@ export function Dashboard() {
   const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
   const activityModeRef = useRef<'application' | 'approval' | 'booking'>('application');
 
-  // ── Drawer state ──
+  // ── Unified Drawer State ──
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
-  const [selectedDealerIdForDrawer, setSelectedDealerIdForDrawer] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
+  const [drawerGroupSlug, setDrawerGroupSlug] = useState<string | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'mom' | 'applications'>('mom');
+
+  const handleOpenDealerDrawer = useCallback((dealerId: string) => {
+    setDrawerDealerId(dealerId);
+    setDrawerGroupSlug(null);
+    setDrawerTab('mom');
+    setDrawerOpen(true);
+  }, []);
+
+  const handleOpenGroupDrawer = useCallback((groupSlug: string) => {
+    setDrawerGroupSlug(groupSlug);
+    setDrawerDealerId(null);
+    setDrawerTab('mom');
+    setDrawerOpen(true);
+  }, []);
+
+  const handleOpenTopMoMDrawer = useCallback(() => {
+    setDrawerDealerId(null);
+    setDrawerGroupSlug(null);
+    setDrawerTab('mom');
+    setDrawerOpen(true);
+  }, []);
 
   // Fetch state-rep map + budgets + rep mappings on mount
   useEffect(() => {
@@ -595,7 +617,7 @@ export function Dashboard() {
       onSelectRepState={handleScorecardRepStateSelect}
       activityMode={activityMode}
       onActivityModeChange={handleActivityModeChange}
-      onOpenMoMAnalytics={() => setMomDrawerOpen(true)}
+      onOpenMoMAnalytics={handleOpenTopMoMDrawer}
     >
 
       <div
@@ -672,26 +694,27 @@ export function Dashboard() {
         onLoadMore={handleLoadMore}
         onDealerSortChange={handleDealerSortChange}
         onDealerSearch={handleDealerSearch}
-        onSelectDealer={setSelectedDealerIdForDrawer}
+        onSelectDealer={handleOpenDealerDrawer}
+        onSelectGroup={handleOpenGroupDrawer}
         onDatePresetChange={handleDatePresetChange}
         onCustomDateChange={handleCustomDateChange}
         onTrendChange={handleTrendChange}
         comparisonLabel={comparisonLabel}
       />
 
-      <DealerDrawer
-        dealerId={selectedDealerIdForDrawer}
-        onClose={() => setSelectedDealerIdForDrawer(null)}
-      />
-
-      {/* Bottom-Up Historical MoM Analytics Drawer */}
+      {/* Unified Tabbed Historical MoM & Application History Drawer */}
       <AnalyticsDrawer
-        isOpen={momDrawerOpen}
-        onClose={() => setMomDrawerOpen(false)}
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
         availableStates={repMappings?.allStates || Object.keys(stateRepMap)}
         availableGroups={repMappings?.allGroups || groups.map((g) => ({ name: g.name, slug: g.slug }))}
         repMappings={repMappings}
         repStatesMap={repStatesMap}
+        initialDealerId={drawerDealerId}
+        initialGroupSlug={drawerGroupSlug}
+        initialTab={drawerTab}
+        onSelectDealerId={setDrawerDealerId}
+        onSelectGroupSlug={setDrawerGroupSlug}
       />
     </AppShell>
   );
