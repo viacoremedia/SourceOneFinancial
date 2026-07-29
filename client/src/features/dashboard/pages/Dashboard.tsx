@@ -264,14 +264,19 @@ export function Dashboard() {
     loadedTabs.current.clear();
   }, [filterVersion]);
 
+  const explicitStates = useMemo(() => {
+    if (selectedState) return [selectedState];
+    return undefined;
+  }, [selectedState]);
+
   // Load first page when a flat-dealer tab activates
   useEffect(() => {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
     if (loadedTabs.current.has(activeTab) || smallDealersLoading) return;
     loadedTabs.current.add(activeTab);
-    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, targetStates);
-  }, [activeTab, smallDealersLoading, fetchDealers, statusFilter, targetStates]);
+    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
+  }, [activeTab, smallDealersLoading, fetchDealers, statusFilter, explicitStates]);
 
   // Fetch transition data for the groups tab
   useEffect(() => {
@@ -280,7 +285,7 @@ export function Dashboard() {
       try {
         const result = await getSmallDealers({
           page: 1, limit: 1, scope: 'all',
-          states: targetStates,
+          states: explicitStates,
           activityMode,
           rep: selectedRep || undefined,
         });
@@ -292,15 +297,15 @@ export function Dashboard() {
         }
       } catch { /* ignore */ }
     })();
-  }, [activeTab, targetStates, activityMode, selectedRep]);
+  }, [activeTab, explicitStates, activityMode, selectedRep]);
 
   // Re-fetch flat tabs when target server params change
   const refetchFlatTab = useCallback(() => {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
     pageRef.current = 1;
-    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, targetStates);
-  }, [activeTab, fetchDealers, statusFilter, targetStates]);
+    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
+  }, [activeTab, fetchDealers, statusFilter, explicitStates]);
 
   // Re-fetch flat tabs whenever store filter version changes
   useEffect(() => {
