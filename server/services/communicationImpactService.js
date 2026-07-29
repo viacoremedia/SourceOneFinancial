@@ -17,67 +17,22 @@ const DealerLocation = require('../models/DealerLocation');
 
 const DailyDealerSnapshot = require('../models/DailyDealerSnapshot');
 
-const REP_DISPLAY_MAP = {
-    'bruce': 'Bruce Sweere',
-    'bsweere': 'Bruce Sweere',
-    'edominguez': 'Ericka Dominguez',
-    'ericka': 'Ericka Dominguez',
-    'genevieve': 'Genevieve Coulombe',
-    'gcoulombe': 'Genevieve Coulombe',
-    'george': 'George Ott',
-    'gott': 'George Ott',
-    'janet': 'Janet Harrington',
-    'jharrington': 'Janet Harrington',
-    'jharrington1': 'Janet Harrington',
-    'jeff': 'Jeff Smith',
-    'jsmith': 'Jeff Smith',
-    'jweller': 'Jeff Weller',
-    'john': 'John Rubi',
-    'jrubi': 'John Rubi',
-    'ward': 'Ward Stoutimore',
-    'wstoutimore': 'Ward Stoutimore',
-    'steve': 'Steve Kimble',
-    'skimble': 'Steve Kimble',
-    'mandi': 'Mandi Schultz',
-    'mandy': 'Mandi Schultz',
-    'mschultz': 'Mandi Schultz',
-    'mschultz1': 'Mandi Schultz',
-    'tony': 'Tony DeRouin',
-    'tderouin': 'Tony DeRouin',
-    'dzilberchtein': 'Dan Zilberchtein',
-    'danillz': 'Dan Zilberchtein',
-    'daniilz': 'Dan Zilberchtein',
-    'ljablonoski': 'Larry Jablonoski',
-    'larryj': 'Larry Jablonoski',
-    'pcarter': 'Paul Carter',
-    'pam': 'Pam Carter',
-    'wendy': 'Wendy',
-    'jkrimker': 'J Krimker',
-    'mrusin': 'M Rusin',
-    'nboly': 'N Boly',
-};
+const { resolveRepName } = require('../config/repConfig');
 
-function resolveRepDisplayName(rawStr) {
-    if (!rawStr) return null;
-    let str = rawStr.trim().toLowerCase();
-    if (str.includes('@')) {
-        str = str.split('@')[0].trim();
-    }
-    const strNoNum = str.replace(/[0-9]/g, '');
-    if (REP_DISPLAY_MAP[str]) return REP_DISPLAY_MAP[str];
-    if (REP_DISPLAY_MAP[strNoNum]) return REP_DISPLAY_MAP[strNoNum];
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
+// Alias for backward compatibility within this file
+const resolveRepDisplayName = resolveRepName;
+
 
 /**
- * Get latest report date capped at 2026-07-22
+ * Get latest report date from the most recent snapshot.
+ * Falls back to today if no snapshots exist.
  */
 async function getMaxReportDate() {
     const snap = await DailyDealerSnapshot.findOne({}).sort({ reportDate: -1 }).select('reportDate').lean();
     if (snap && snap.reportDate) {
         return new Date(snap.reportDate);
     }
-    return new Date(Date.UTC(2026, 6, 22)); // 2026-07-22 fallback
+    return new Date(); // fallback to today if no snapshots
 }
 
 /**

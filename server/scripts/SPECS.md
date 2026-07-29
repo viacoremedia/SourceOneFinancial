@@ -94,3 +94,11 @@ Creates the initial super_admin account for the auth system.
 Re-ingests a specific webhook payload by ID.
 
 **Usage**: `node scripts/reingest.js <payloadId>`
+
+---
+
+### `analyzeImportData.js`
+Pre-import analysis and validation of CSV files. Detects table types, validates headers, counts rows, extracts date ranges, and flags duplicate files for the same table.
+
+**Usage**: `node scripts/analyzeImportData.js <directory>` or `node scripts/analyzeImportData.js <directory> --json`
+**Output**: Color-coded summary report with per-file validation results and overall readiness verdict. Use `--json` for machine-readable output.

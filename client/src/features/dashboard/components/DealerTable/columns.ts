@@ -108,7 +108,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     align: 'right',
     width: '65px',
     sortable: true,
-    hasData: true,
+    hasData: false, // Hidden — in-house tracking data not currently available
   },
   {
     key: 'booked',

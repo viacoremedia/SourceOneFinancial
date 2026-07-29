@@ -23,29 +23,11 @@ const Application = require('../models/Application');
  */
 const SOURCE_ONE_LENDER_REGEX = /^Source One/i;
 
-const REP_ALIAS_MAP = {
-    'bruce': ['edominguez', 'bruce'],
-    'george': ['gott', 'george'],
-    'janet': ['jharrington1', 'janet'],
-    'jeff': ['jweller', 'jeff'],
-    'john': ['jsmith', 'john'],
-    'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-    'steve': ['skimble', 'steve'],
-    'mandi': ['mschultz1', 'mandi'],
-    'tony': ['gcoulombe', 'tony'],
-    'dzilberchtein': ['dzilberchtein'],
-    'ljablonoski': ['ljablonoski'],
-    'jrubi': ['jrubi'],
-    'pcarter': ['pcarter'],
-    'wendy': ['wendy']
-};
+const { getRepAliasMap, getRepHandles } = require('../config/repConfig');
 
-function getRepHandles(repInput) {
-    if (!repInput) return [];
-    const key = repInput.trim().toLowerCase();
-    if (REP_ALIAS_MAP[key]) return REP_ALIAS_MAP[key];
-    return [repInput.trim()];
-}
+// Build alias map once at module load (active reps only for dashboard filtering)
+const REP_ALIAS_MAP = getRepAliasMap();
+
 
 /**
  * Get period statistics for a list of dealer IDs or general filter.

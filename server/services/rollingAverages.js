@@ -17,6 +17,7 @@ const DailyDealerSnapshot = require('../models/DailyDealerSnapshot');
 const DealerLocation = require('../models/DealerLocation');
 const SalesBudget = require('../models/SalesBudget');
 const { computeHeatScores } = require('./heatIndex');
+const { getRepAliasMap, resolveRepName } = require('../config/repConfig');
 
 // ── Helpers ──
 
@@ -438,23 +439,8 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
 
     const Application = require('../models/Application');
 
-    // ── Rep Alias Map (source of truth for rep identity) ──
-    const REP_ALIAS_MAP = {
-        'bruce': ['edominguez', 'bruce'],
-        'george': ['gott', 'george'],
-        'janet': ['jharrington1', 'janet'],
-        'jeff': ['jweller', 'jeff'],
-        'john': ['jsmith', 'john'],
-        'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-        'steve': ['skimble', 'steve'],
-        'mandi': ['mschultz1', 'mandi'],
-        'tony': ['gcoulombe', 'tony'],
-        'dzilberchtein': ['dzilberchtein'],
-        'ljablonoski': ['ljablonoski'],
-        'jrubi': ['jrubi'],
-        'pcarter': ['pcarter'],
-        'wendy': ['wendy']
-    };
+    // ── Rep Alias Map (from centralized config) ──
+    const REP_ALIAS_MAP = getRepAliasMap();
 
     // Build handle → display name lookup
     const handleToDisplay = {};

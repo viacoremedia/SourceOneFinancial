@@ -18,6 +18,7 @@ const DealerLocation = require('../../models/DealerLocation');
 const SalesBudget = require('../../models/SalesBudget');
 const LargeDealerBudget = require('../../models/LargeDealerBudget');
 const { getDealerStatsMap, getNetworkAggregateStats } = require('../../services/dealerStatsService');
+const { getRepAliasMap, getRepDisplayMap } = require('../../config/repConfig');
 const budgetRoutes = require('./budget');
 const communicationRoutes = require('./communication');
 
@@ -63,38 +64,15 @@ async function getMonthlyBudgetsMap2026(stateFilter = null, repFilter = null, gr
 }
 
 // ==========================================
-// Shared REP_ALIAS_MAP — maps display name → array of handles
+// Rep config — centralized in server/config/repConfig.js
 // ==========================================
-const REP_ALIAS_MAP_SHARED = {
-    'bruce': ['edominguez', 'bruce'],
-    'george': ['gott', 'george'],
-    'janet': ['jharrington1', 'janet'],
-    'jeff': ['jweller', 'jeff'],
-    'john': ['jsmith', 'john'],
-    'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-    'steve': ['skimble', 'steve'],
-    'mandi': ['mschultz1', 'mandi'],
-    'tony': ['gcoulombe', 'tony'],
-    'dzilberchtein': ['dzilberchtein'],
-    'ljablonoski': ['ljablonoski'],
-    'jrubi': ['jrubi'],
-    'pcarter': ['pcarter'],
-    'wendy': ['wendy']
-};
+const REP_ALIAS_MAP_SHARED = getRepAliasMap();
 
 /**
  * Build reverse lookup: handle (lowercase) → display name
  */
 function buildHandleToDisplayName() {
-    const reverseMap = {};
-    for (const [displayKey, handles] of Object.entries(REP_ALIAS_MAP_SHARED)) {
-        // Capitalize display name: 'janet' → 'Janet', 'pam/ward' → 'Pam/Ward'
-        const displayName = displayKey.split('/').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('/');
-        for (const handle of handles) {
-            reverseMap[handle.toLowerCase()] = displayName;
-        }
-    }
-    return reverseMap;
+    return getRepDisplayMap();
 }
 
 // ==========================================
@@ -230,22 +208,7 @@ router.get('/executive-summary', async (req, res) => {
 
         const statusFilter = req.query.status || req.query.statusFilter || null;
 
-        const REP_ALIAS_MAP = {
-            'bruce': ['edominguez', 'bruce'],
-            'george': ['gott', 'george'],
-            'janet': ['jharrington1', 'janet'],
-            'jeff': ['jweller', 'jeff'],
-            'john': ['jsmith', 'john'],
-            'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-            'steve': ['skimble', 'steve'],
-            'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony'],
-            'dzilberchtein': ['dzilberchtein'],
-            'ljablonoski': ['ljablonoski'],
-            'jrubi': ['jrubi'],
-            'pcarter': ['pcarter'],
-            'wendy': ['wendy']
-        };
+        const REP_ALIAS_MAP = getRepAliasMap();
 
         let filterDealerIds = null;
 
@@ -441,22 +404,7 @@ router.get('/historical/mom', async (req, res) => {
         const monthlyBudgets2026 = await getMonthlyBudgetsMap2026(stateFilter, repFilter, groupSlugFilter);
 
         // Pre-resolve matching dealer locations and clientDealerIds ONCE to keep query instant
-        const REP_ALIAS_MAP = {
-            'bruce': ['edominguez', 'bruce'],
-            'george': ['gott', 'george'],
-            'janet': ['jharrington1', 'janet'],
-            'jeff': ['jweller', 'jeff'],
-            'john': ['jsmith', 'john'],
-            'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-            'steve': ['skimble', 'steve'],
-            'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony'],
-            'dzilberchtein': ['dzilberchtein'],
-            'ljablonoski': ['ljablonoski'],
-            'jrubi': ['jrubi'],
-            'pcarter': ['pcarter'],
-            'wendy': ['wendy']
-        };
+        const REP_ALIAS_MAP = getRepAliasMap();
 
         let filterDealerLocationIds = null;
         let filterDealerIds = null;
@@ -1018,22 +966,7 @@ router.get('/groups', async (req, res) => {
         const activityMode = req.query.activityMode || 'application'; // 'application' | 'approval' | 'booking'
         const useCustomMode = activityMode !== 'application';
 
-        const REP_ALIAS_MAP = {
-            'bruce': ['edominguez', 'bruce'],
-            'george': ['gott', 'george'],
-            'janet': ['jharrington1', 'janet'],
-            'jeff': ['jweller', 'jeff'],
-            'john': ['jsmith', 'john'],
-            'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-            'steve': ['skimble', 'steve'],
-            'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony'],
-            'dzilberchtein': ['dzilberchtein'],
-            'ljablonoski': ['ljablonoski'],
-            'jrubi': ['jrubi'],
-            'pcarter': ['pcarter'],
-            'wendy': ['wendy']
-        };
+        const REP_ALIAS_MAP = getRepAliasMap();
 
         // If filtering by states or rep, get matching location IDs
         let filteredLocationIds = null;
@@ -1419,22 +1352,7 @@ router.get('/dealers/small', async (req, res) => {
         const searchQuery = req.query.search ? String(req.query.search).trim() : '';
         const transitionParam = req.query.transition || null; // e.g. "active→30d_inactive"
 
-        const REP_ALIAS_MAP = {
-            'bruce': ['edominguez', 'bruce'],
-            'george': ['gott', 'george'],
-            'janet': ['jharrington1', 'janet'],
-            'jeff': ['jweller', 'jeff'],
-            'john': ['jsmith', 'john'],
-            'pam/ward': ['wstoutimore', 'pam/ward', 'ward'],
-            'steve': ['skimble', 'steve'],
-            'mandi': ['mschultz1', 'mandi'],
-            'tony': ['gcoulombe', 'tony'],
-            'dzilberchtein': ['dzilberchtein'],
-            'ljablonoski': ['ljablonoski'],
-            'jrubi': ['jrubi'],
-            'pcarter': ['pcarter'],
-            'wendy': ['wendy']
-        };
+        const REP_ALIAS_MAP = getRepAliasMap();
 
         const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
         if (statesParam && statesParam.length > 0) {
