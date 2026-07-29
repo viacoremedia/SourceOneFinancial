@@ -1,7 +1,7 @@
 /**
  * Heat Index Service
  *
- * Computes a 0–100 composite performance score per rep based on 8 weighted
+ * Computes a 0–100 composite performance score per rep based on 10 weighted
  * sub-scores. Also classifies reps as Strong / Average / Overburdened /
  * Underperforming based on heat index + capacity ratio.
  *
@@ -11,22 +11,27 @@
  * Sub-scores are min/max normalized across all reps so the index is relative.
  * For "days since" metrics, lower = better (inverted before normalization).
  *
+ * Includes Bayesian cohort dampening on conversion rates (L2B >= 8 apps, A2B >= 5 approvals)
+ * to prevent small-sample ranking jumps while maintaining territory-size fairness.
+ *
  * @module services/heatIndex
  */
 
 /**
- * Default weights — sum to 1.0.
- * Heavy on App Days (primary metric) and Active Ratio (outcome).
+ * Default calibrated baseline weights — sum to 1.0.
+ * Operational Recency (65%) + Recovery/Churn (15%) + Efficiency/Productivity (20%).
  */
 const DEFAULT_WEIGHTS = {
-    avgDaysSinceApp: 0.20,
+    avgDaysSinceApp: 0.15,
+    activeRatio: 0.15,
+    avgContactDays: 0.15,
     avgDaysSinceApproval: 0.10,
     avgDaysSinceBooking: 0.10,
-    avgContactDays: 0.15,
-    avgVisitResponse: 0.10,
-    activeRatio: 0.20,
     reactivationRate: 0.10,
     churnNet: 0.05,
+    lookToBookPct: 0.075,
+    approvalToBookPct: 0.075,
+    appsPerActiveDealer: 0.050,
 };
 
 /**
@@ -50,8 +55,9 @@ function normalize(value, min, max) {
 
 /**
  * Extract a numeric sub-score from rep data. Returns null if unavailable.
+ * Applies Bayesian dampening for low-volume conversion rates.
  */
-function extractMetric(rep, key) {
+function extractMetric(rep, key, cohortMeans = {}) {
     switch (key) {
         case 'avgDaysSinceApp':
             return rep.rollingAvg?.avgDaysSinceApp;
@@ -73,6 +79,36 @@ function extractMetric(rep, key) {
                 : null;
         case 'churnNet':
             return rep.statusFlows?.netDelta ?? null;
+        case 'lookToBookPct': {
+            const fin = rep.financials;
+            if (!fin || fin.totalApps === 0) return null;
+            const rawL2B = fin.lookToBookPct != null ? fin.lookToBookPct / 100 : null;
+            if (rawL2B == null) return null;
+            // Floor at 8 apps: if apps < 8, Bayesian dampening toward cohort mean
+            if (fin.totalApps < 8) {
+                const cMean = cohortMeans.lookToBookPct ?? 0.10;
+                return (fin.bookedCount + cMean * (8 - fin.totalApps)) / 8;
+            }
+            return rawL2B;
+        }
+        case 'approvalToBookPct': {
+            const fin = rep.financials;
+            if (!fin || fin.approvedCount === 0) return null;
+            const rawA2B = fin.approvalToBookPct != null ? fin.approvalToBookPct / 100 : null;
+            if (rawA2B == null) return null;
+            // Floor at 5 approvals: if approvals < 5, Bayesian dampening toward cohort mean
+            if (fin.approvedCount < 5) {
+                const cMean = cohortMeans.approvalToBookPct ?? 0.20;
+                return (fin.bookedCount + cMean * (5 - fin.approvedCount)) / 5;
+            }
+            return rawA2B;
+        }
+        case 'appsPerActiveDealer': {
+            const fin = rep.financials;
+            if (!fin || rep.activeCount === 0) return null;
+            // Soft cap at min 3 active dealers to prevent 1-dealer spikes
+            return fin.totalApps / Math.max(3, rep.activeCount);
+        }
         default:
             return null;
     }
@@ -109,11 +145,19 @@ function computeHeatScores(reps, networkAvgDealersPerRep, weights, thresholds) {
 
     if (reps.length === 0) return reps;
 
+    // Compute cohort means for Bayesian conversion rate dampening
+    const l2bValues = reps.map(r => r.financials?.lookToBookPct != null ? r.financials.lookToBookPct / 100 : null).filter(v => v != null);
+    const a2bValues = reps.map(r => r.financials?.approvalToBookPct != null ? r.financials.approvalToBookPct / 100 : null).filter(v => v != null);
+    const cohortMeans = {
+        lookToBookPct: l2bValues.length > 0 ? l2bValues.reduce((a, b) => a + b, 0) / l2bValues.length : 0.10,
+        approvalToBookPct: a2bValues.length > 0 ? a2bValues.reduce((a, b) => a + b, 0) / a2bValues.length : 0.20,
+    };
+
     // Step 1: Extract raw values for each metric across all reps
     const metricKeys = Object.keys(w);
     const rawValues = {};
     for (const key of metricKeys) {
-        rawValues[key] = reps.map(r => extractMetric(r, key));
+        rawValues[key] = reps.map(r => extractMetric(r, key, cohortMeans));
     }
 
     // Step 2: Compute min/max for normalization (ignoring nulls)
@@ -123,7 +167,6 @@ function computeHeatScores(reps, networkAvgDealersPerRep, weights, thresholds) {
         if (valid.length === 0) {
             ranges[key] = { min: 0, max: 0 };
         } else {
-            // Clamp outliers at 2x the IQR above Q3 / below Q1
             const sorted = [...valid].sort((a, b) => a - b);
             ranges[key] = {
                 min: sorted[0],
@@ -145,7 +188,7 @@ function computeHeatScores(reps, networkAvgDealersPerRep, weights, thresholds) {
 
             if (raw == null) {
                 // Skip null metrics — redistribute weight
-                breakdown[key] = { raw: null, normalized: null, weighted: null };
+                breakdown[key] = { raw: null, normalized: null, weighted: null, weight };
                 continue;
             }
 
@@ -164,6 +207,7 @@ function computeHeatScores(reps, networkAvgDealersPerRep, weights, thresholds) {
                 raw: Math.round(raw * 100) / 100,
                 normalized: Math.round(norm * 100) / 100,
                 weighted: Math.round(weighted * 100) / 100,
+                weight,
             };
         }
 
@@ -203,7 +247,7 @@ function computeHeatScores(reps, networkAvgDealersPerRep, weights, thresholds) {
             rep.capacityFlag = null;
         }
 
-        // Attach breakdown for frontend tooltip
+        // Attach breakdown for frontend tooltip & column guide
         rep._heatBreakdown = breakdown;
     }
 

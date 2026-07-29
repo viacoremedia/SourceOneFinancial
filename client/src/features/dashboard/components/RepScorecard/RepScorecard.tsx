@@ -13,24 +13,28 @@ import type { RepScorecardEntry, RollingWindow, FinPeriod } from '../../types';
 /** Human-readable labels for heat breakdown keys */
 const HEAT_LABELS: Record<string, string> = {
   avgDaysSinceApp: 'App Days',
+  activeRatio: 'Active Ratio',
+  avgContactDays: 'Contact Days',
   avgDaysSinceApproval: 'Approval Days',
   avgDaysSinceBooking: 'Booking Days',
-  avgContactDays: 'Contact Days',
-  avgVisitResponse: 'Visit Response',
-  activeRatio: 'Active Ratio',
   reactivationRate: 'Reactivation',
   churnNet: 'Churn Net',
+  lookToBookPct: 'Look-to-Book %',
+  approvalToBookPct: 'Approval-to-Book %',
+  appsPerActiveDealer: 'Apps / Active Dealer',
 };
 
-const HEAT_WEIGHTS: Record<string, number> = {
-  avgDaysSinceApp: 0.20,
+const DEFAULT_HEAT_WEIGHTS: Record<string, number> = {
+  avgDaysSinceApp: 0.15,
+  activeRatio: 0.15,
+  avgContactDays: 0.15,
   avgDaysSinceApproval: 0.10,
   avgDaysSinceBooking: 0.10,
-  avgContactDays: 0.15,
-  avgVisitResponse: 0.10,
-  activeRatio: 0.20,
   reactivationRate: 0.10,
   churnNet: 0.05,
+  lookToBookPct: 0.075,
+  approvalToBookPct: 0.075,
+  appsPerActiveDealer: 0.05,
 };
 
 /** Column info descriptions for the legend */
@@ -145,7 +149,7 @@ function HeatTooltipPortal({
                 <td style={{ color: data.normalized != null && data.normalized >= 0.6 ? '#34d399' : data.normalized != null && data.normalized < 0.3 ? '#ef4444' : undefined }}>
                   {data.normalized != null ? `${Math.round(data.normalized * 100)}` : '—'}
                 </td>
-                <td>{Math.round((HEAT_WEIGHTS[key] || 0) * 100)}%</td>
+                <td>{Math.round(((data as any).weight ?? DEFAULT_HEAT_WEIGHTS[key] ?? 0) * 100)}%</td>
               </tr>
             ))}
           </tbody>
@@ -156,39 +160,169 @@ function HeatTooltipPortal({
   );
 }
 
+/** Sales Manager Custom Weight Configurator Modal */
+function WeightConfiguratorModal({
+  currentWeights,
+  onApply,
+  onReset,
+  onClose,
+}: {
+  currentWeights: Record<string, number>;
+  onApply: (newWeights: Record<string, number>) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  const [weights, setWeights] = useState<Record<string, number>>(() => ({
+    ...DEFAULT_HEAT_WEIGHTS,
+    ...currentWeights,
+  }));
+
+  const totalSumPct = useMemo(() => {
+    return Math.round(Object.values(weights).reduce((a, b) => a + b, 0) * 1000) / 10;
+  }, [weights]);
+
+  const isValid = Math.abs(totalSumPct - 100) < 0.2;
+
+  const handleChange = (key: string, valPct: number) => {
+    const clampedPct = Math.max(0, Math.min(35, valPct));
+    setWeights((prev) => ({ ...prev, [key]: clampedPct / 100 }));
+  };
+
+  return (
+    <div className={styles.configModalOverlay}>
+      <div className={styles.configModal}>
+        <div className={styles.configHeader}>
+          <h3>⚙ Sales Manager Weight Configurator</h3>
+          <button className={styles.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <p className={styles.configSubtext}>
+          Customize Heat Index factor weights for territory management. Weights must sum to 100%. Bayesian volume floors (≥ 8 apps for L2B %, ≥ 5 approvals for A2B %) remain enforced to guarantee cohort fairness.
+        </p>
+
+        <div className={styles.configGrid}>
+          {Object.keys(DEFAULT_HEAT_WEIGHTS).map((key) => {
+            const currentPct = Math.round((weights[key] || 0) * 1000) / 10;
+            return (
+              <div key={key} className={styles.configRow}>
+                <label className={styles.configLabel}>
+                  {HEAT_LABELS[key] || key}
+                </label>
+                <div className={styles.configControls}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="35"
+                    step="0.5"
+                    value={currentPct}
+                    onChange={(e) => handleChange(key, parseFloat(e.target.value))}
+                    className={styles.configSlider}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="35"
+                    step="0.5"
+                    value={currentPct}
+                    onChange={(e) => handleChange(key, parseFloat(e.target.value) || 0)}
+                    className={styles.configNumberInput}
+                  />
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={styles.configFooter}>
+          <div className={styles.sumContainer}>
+            Total Weight: <strong style={{ color: isValid ? '#34d399' : '#ef4444' }}>{totalSumPct}%</strong>
+            {!isValid && <span className={styles.sumError}> (Must sum to 100%)</span>}
+          </div>
+          <div className={styles.configBtnGroup}>
+            <button
+              type="button"
+              className={styles.resetBtn}
+              onClick={() => {
+                setWeights(DEFAULT_HEAT_WEIGHTS);
+                onReset();
+                onClose();
+              }}
+            >
+              Reset Defaults
+            </button>
+            <button
+              type="button"
+              className={styles.applyBtn}
+              disabled={!isValid}
+              onClick={() => {
+                onApply(weights);
+                onClose();
+              }}
+            >
+              Apply Custom Weights
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Column legend/info panel */
-function InfoPanel({ onClose }: { onClose: () => void }) {
+function InfoPanel({
+  activeWeights,
+  isCustom,
+  onResetWeights,
+  onClose,
+}: {
+  activeWeights: Record<string, number>;
+  isCustom: boolean;
+  onResetWeights: () => void;
+  onClose: () => void;
+}) {
   return (
     <div className={styles.infoPanel}>
       <div className={styles.infoPanelHeader}>
-        <span className={styles.infoPanelTitle}>📖 Column Guide</span>
+        <span className={styles.infoPanelTitle}>📖 Column Guide & Scoring Methodology</span>
         <button className={styles.closeBtn} onClick={onClose}>✕</button>
       </div>
       <div className={styles.infoPanelBody}>
+        {isCustom && (
+          <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 600 }}>
+              ⚡ Custom Manager Weights Active — Column Guide displays currently applied weights.
+            </span>
+            <button className={styles.resetBtn} onClick={onResetWeights}>Reset to Company Defaults</button>
+          </div>
+        )}
         <div className={styles.infoSection}>
-          <h4>Heat Index (HI) — How It Works</h4>
-          <p>Composite score 0–100. Each rep is scored across 8 factors, normalized relative to the best and worst rep, then combined using these weights:</p>
-          <table className={styles.tooltipTable} style={{ marginBottom: 8 }}>
+          <h4>Heat Index (HI) — 10-Factor Balanced Scoring Model</h4>
+          <p>Composite score 0–100. Each rep is scored across 10 operational, recovery, and efficiency factors. Scores are min/max normalized relative to the current cohort, then combined using these weights:</p>
+          <table className={styles.tooltipTable} style={{ marginBottom: 12 }}>
             <thead>
-              <tr><th>Factor</th><th>Weight</th><th>Why</th><th>Good</th><th>Bad</th></tr>
+              <tr><th>Factor</th><th>Applied Weight</th><th>Default</th><th>Why Included & Volume Floors</th></tr>
             </thead>
             <tbody>
-              <tr><td>Avg App Days</td><td>20%</td><td>Primary engagement signal — how recently dealers submitted apps</td><td>{'<'}15 days</td><td>40+ days</td></tr>
-              <tr><td>Active Ratio</td><td>20%</td><td>Territory health — what % of dealers are actively engaged</td><td>{'>'} 50%</td><td>{'<'} 25%</td></tr>
-              <tr><td>Contact Days</td><td>15%</td><td>Communication frequency — are they reaching out regularly</td><td>{'<'}20 days</td><td>40+ days</td></tr>
-              <tr><td>Approval Days</td><td>10%</td><td>Pipeline conversion — approvals follow applications</td><td>{'<'}20 days</td><td>60+ days</td></tr>
-              <tr><td>Booking Days</td><td>10%</td><td>Revenue signal — bookings indicate closed business</td><td>{'<'}25 days</td><td>60+ days</td></tr>
-              <tr><td>Visit Response</td><td>10%</td><td>In-person effectiveness — how quickly visits lead to apps</td><td>{'<'}15 days</td><td>30+ days</td></tr>
-              <tr><td>Reactivation</td><td>10%</td><td>Recovery ability — bringing dormant dealers back to active</td><td>{'>'} 5%</td><td>0%</td></tr>
-              <tr><td>Churn Net</td><td>5%</td><td>Net retention — are they gaining or losing active dealers</td><td>Positive</td><td>Negative</td></tr>
+              <tr><td>Avg App Days</td><td>{Math.round((activeWeights.avgDaysSinceApp || 0) * 100)}%</td><td>15%</td><td>Primary engagement recency signal (lower = better)</td></tr>
+              <tr><td>Active Ratio</td><td>{Math.round((activeWeights.activeRatio || 0) * 100)}%</td><td>15%</td><td>Territory health — % of assigned dealers active in 30d</td></tr>
+              <tr><td>Contact Days</td><td>{Math.round((activeWeights.activeRatio || 0) * 100)}%</td><td>15%</td><td>Communication recency (lower = better)</td></tr>
+              <tr><td>Approval Days</td><td>{Math.round((activeWeights.avgDaysSinceApproval || 0) * 100)}%</td><td>10%</td><td>Pipeline conversion recency (lower = better)</td></tr>
+              <tr><td>Booking Days</td><td>{Math.round((activeWeights.avgDaysSinceBooking || 0) * 100)}%</td><td>10%</td><td>Deal closure recency (lower = better)</td></tr>
+              <tr><td>Reactivation</td><td>{Math.round((activeWeights.reactivationRate || 0) * 100)}%</td><td>10%</td><td>Recovery of dormant accounts (higher = better)</td></tr>
+              <tr><td>Net Churn</td><td>{Math.round((activeWeights.churnNet || 0) * 100)}%</td><td>5%</td><td>Net active dealer velocity (gained minus lost)</td></tr>
+              <tr><td>Look-to-Book %</td><td>{Math.round((activeWeights.lookToBookPct || 0) * 100)}%</td><td>7.5%</td><td>Conversion efficiency. <strong>Bayesian Volume Floor:</strong> Require ≥ 8 apps in period (blended with cohort mean if {'<'}8)</td></tr>
+              <tr><td>Approval-to-Book %</td><td>{Math.round((activeWeights.approvalToBookPct || 0) * 100)}%</td><td>7.5%</td><td>Closing efficiency. <strong>Bayesian Volume Floor:</strong> Require ≥ 5 approvals in period (blended with cohort mean if {'<'}5)</td></tr>
+              <tr><td>Apps / Active Dealer</td><td>{Math.round((activeWeights.appsPerActiveDealer || 0) * 100)}%</td><td>5%</td><td>Submission density per active dealer. Soft capped at ≥ 3 active dealers</td></tr>
             </tbody>
           </table>
-          <p>"Days since" factors are <strong>inverted</strong> — lower days = higher score. Each factor is min/max normalized across all reps, so scores are always relative to the current cohort.</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+            * Note: Raw dollar volume ($) is explicitly excluded from Heat Index scoring to ensure territory size fairness — reps working smaller territories are evaluated on conversion efficiency and activity intensity rather than account dollar size.
+          </p>
           <div className={styles.infoLegend}>
-            <span><span className={styles.legendDot} style={{ background: '#34d399' }} /> <strong>Strong (≥70)</strong> — Consistently top performer across most factors</span>
-            <span><span className={styles.legendDot} style={{ background: '#fbbf24' }} /> <strong>Average</strong> — Middle of the pack, some factors strong, others weak</span>
-            <span><span className={styles.legendDot} style={{ background: '#f97316' }} /> <strong>⚡ Overburdened</strong> — HI {'<'} 50 BUT capacity {'>'} 1.3x avg. Has too many dealers, understandably behind</span>
-            <span><span className={styles.legendDot} style={{ background: '#ef4444' }} /> <strong>⚠ Underperforming</strong> — HI {'<'} 40 AND capacity ≤ 1.0x avg. Light load but still behind — performance issue</span>
+            <span><span className={styles.legendDot} style={{ background: '#34d399' }} /> <strong>Strong (≥70)</strong> — Top performer across engagement and conversion</span>
+            <span><span className={styles.legendDot} style={{ background: '#fbbf24' }} /> <strong>Average</strong> — Middle of the pack, balanced performance</span>
+            <span><span className={styles.legendDot} style={{ background: '#f97316' }} /> <strong>⚡ Overburdened</strong> — HI {'<'} 50 BUT capacity {'>'} 1.3x avg. Heavy dealer load, given benefit of doubt</span>
+            <span><span className={styles.legendDot} style={{ background: '#ef4444' }} /> <strong>⚠ Underperforming</strong> — HI {'<'} 40 AND capacity ≤ 1.0x avg. Light load but behind on engagement</span>
           </div>
         </div>
         <div className={styles.infoSection}>
@@ -211,17 +345,6 @@ function InfoPanel({ onClose }: { onClose: () => void }) {
           <p>For "days since" columns: <span style={{ color: '#34d399' }}>green</span> = recent (good), <span style={{ color: '#fbbf24' }}>amber</span> = moderate, <span style={{ color: '#ef4444' }}>red</span> = stale (needs attention).</p>
           <p>For churn (Net, +/d, -/d): <span style={{ color: '#34d399' }}>green</span> = positive trend, <span style={{ color: '#ef4444' }}>red</span> = negative.</p>
           <p>Status columns: <span style={{ color: '#34d399' }}>Active</span> = green, <span style={{ color: '#fbbf24' }}>30d</span> = yellow, <span style={{ color: '#f97316' }}>60d</span> = orange, <span style={{ color: '#ef4444' }}>Long</span> = red.</p>
-        </div>
-        <div className={styles.infoSection}>
-          <h4>Status Filters & Rankings</h4>
-          <p>Rankings and Heat Index scores <strong>change when you switch status filters</strong> — this is by design. Each filter asks a different analytical question:</p>
-          <div className={styles.infoLegend}>
-            <span><strong>All</strong> — "Who manages their entire territory best, including keeping inactive dealers engaged?"</span>
-            <span><strong>Active</strong> — "Among active dealers only, who's performing best day-to-day?"</span>
-            <span><strong>30d / 60d</strong> — "Who's doing the best job re-engaging recently lapsed dealers?"</span>
-            <span><strong>Long</strong> — "Who's making progress with long-dormant accounts?"</span>
-          </div>
-          <p>The Heat Index uses relative scoring (each rep vs. best & worst), so a rep who looks strong on "All" may rank differently on "Active" if other reps outperform them within that specific segment. The +/d and -/d columns also update to show transitions into and out of the selected status.</p>
         </div>
       </div>
     </div>
@@ -516,6 +639,98 @@ export function RepScorecard({
   const [sortKey, setSortKey] = useState('rep');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showInfo, setShowInfo] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [customWeights, setCustomWeights] = useState<Record<string, number> | null>(() => {
+    try {
+      const stored = localStorage.getItem('source_one_custom_weights');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const activeWeights = useMemo(() => {
+    return customWeights ? { ...DEFAULT_HEAT_WEIGHTS, ...customWeights } : DEFAULT_HEAT_WEIGHTS;
+  }, [customWeights]);
+
+  const handleApplyCustomWeights = useCallback((newWeights: Record<string, number>) => {
+    setCustomWeights(newWeights);
+    try {
+      localStorage.setItem('source_one_custom_weights', JSON.stringify(newWeights));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleResetCustomWeights = useCallback(() => {
+    setCustomWeights(null);
+    try {
+      localStorage.removeItem('source_one_custom_weights');
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const repsWithCustomWeights = useMemo(() => {
+    if (!data?.reps) return [];
+    if (!customWeights) return data.reps;
+
+    const w = activeWeights;
+
+    return data.reps.map((rep) => {
+      const breakdown = rep._heatBreakdown;
+      if (!breakdown) return rep;
+
+      let totalScore = 0;
+      let totalWeight = 0;
+      const newBreakdown: Record<string, any> = {};
+
+      for (const key of Object.keys(w)) {
+        const weight = w[key] || 0;
+        const item = breakdown[key];
+        if (!item || item.raw == null || item.normalized == null) {
+          newBreakdown[key] = { ...(item || {}), weight };
+          continue;
+        }
+        const weighted = item.normalized * weight * 100;
+        totalScore += weighted;
+        totalWeight += weight;
+        newBreakdown[key] = {
+          ...item,
+          weighted: Math.round(weighted * 100) / 100,
+          weight,
+        };
+      }
+
+      const heatIndex = totalWeight > 0 ? Math.round((totalScore / totalWeight) * 100) / 100 : 50;
+      const clampedIndex = Math.max(0, Math.min(100, Math.round(heatIndex)));
+
+      let heatClass = rep.heatClass;
+      let capacityFlag = rep.capacityFlag;
+      if (clampedIndex >= 70) {
+        heatClass = 'strong';
+        capacityFlag = null;
+      } else if (rep.capacityRatio != null && rep.capacityRatio > 1.3 && clampedIndex < 50) {
+        heatClass = 'overburdened';
+        capacityFlag = 'overburdened';
+      } else if (rep.capacityRatio != null && rep.capacityRatio <= 1.0 && clampedIndex < 40) {
+        heatClass = 'underperforming';
+        capacityFlag = 'underperforming';
+      } else {
+        heatClass = 'average';
+        capacityFlag = null;
+      }
+
+      return {
+        ...rep,
+        heatIndex: clampedIndex,
+        heatClass,
+        capacityFlag,
+        _heatBreakdown: newBreakdown,
+      };
+    });
+  }, [data, customWeights, activeWeights]);
+
   const [expandedRep, setExpandedRep] = useState<string | null>(null);
   const [tooltipRep, setTooltipRep] = useState<RepScorecardEntry | null>(null);
   const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
@@ -530,9 +745,9 @@ export function RepScorecard({
   }, [sortKey]);
 
   const sortedReps = useMemo(() => {
-    if (!data?.reps) return [];
+    if (!repsWithCustomWeights.length) return [];
     const col = COLUMNS.find((c) => c.key === sortKey);
-    return [...data.reps].sort((a, b) => {
+    return [...repsWithCustomWeights].sort((a, b) => {
       const aVal = col ? col.getValue(a) : a.rep;
       const bVal = col ? col.getValue(b) : b.rep;
       if (aVal == null && bVal == null) return 0;
@@ -544,7 +759,7 @@ export function RepScorecard({
       const diff = (aVal as number) - (bVal as number);
       return sortDir === 'asc' ? diff : -diff;
     });
-  }, [data, sortKey, sortDir]);
+  }, [repsWithCustomWeights, sortKey, sortDir]);
 
   const handleRepClick = useCallback((rep: string) => {
     onSelectRep?.(rep);
@@ -583,6 +798,18 @@ export function RepScorecard({
         <div className={styles.header}>
           <div className={styles.headerLeft}>
             <h2 className={styles.title}>Rep Scorecard</h2>
+            {customWeights && (
+              <div className={styles.customBadge} title="Using custom Sales Manager weights">
+                ⚡ Custom Weights Active
+                <button
+                  className={styles.customBadgeReset}
+                  onClick={handleResetCustomWeights}
+                  title="Reset to Company Defaults"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <div className={styles.windowToggle}>
               <button
                 className={`${styles.windowBtn} ${windowSize === 7 ? styles.windowBtnActive : ''}`}
@@ -649,6 +876,14 @@ export function RepScorecard({
           </div>
           <div className={styles.headerRight}>
             <button
+              className={styles.resetBtn}
+              onClick={() => setShowConfig(true)}
+              title="Customize Heat Index weights"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px' }}
+            >
+              ⚙ Configurator
+            </button>
+            <button
               className={`${styles.infoBtn} ${showInfo ? styles.infoBtnActive : ''}`}
               onClick={() => setShowInfo(!showInfo)}
               title="What do these columns mean?"
@@ -661,7 +896,24 @@ export function RepScorecard({
         </div>
 
         {/* Info Panel (toggled) */}
-        {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
+        {showInfo && (
+          <InfoPanel
+            activeWeights={activeWeights}
+            isCustom={!!customWeights}
+            onResetWeights={handleResetCustomWeights}
+            onClose={() => setShowInfo(false)}
+          />
+        )}
+
+        {/* Sales Manager Weight Configurator Modal */}
+        {showConfig && (
+          <WeightConfiguratorModal
+            currentWeights={activeWeights}
+            onApply={handleApplyCustomWeights}
+            onReset={handleResetCustomWeights}
+            onClose={() => setShowConfig(false)}
+          />
+        )}
 
         {/* Table */}
         <div className={styles.tableWrapper}>

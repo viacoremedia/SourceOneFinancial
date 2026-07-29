@@ -231,7 +231,7 @@ export interface OverviewStats {
 }
 
 // ── Trend Types ──
-export type TrendPeriod = 'yoy' | 'mom' | '30d' | '60d';
+export type TrendPeriod = 'mom' | 'yoy' | '30d' | '60d' | 'prior' | 'none';
 
 export interface TrendResult {
   value: number | null;
@@ -467,3 +467,7 @@ export interface HistoricalMoMResponse {
   count: number;
   months: HistoricalMoMItem[];
 }
+
+export type DatePreset = 'this_month' | 'last_month' | 'last_30' | 'last_60' | 'last_90' | 'ytd' | 'last_year' | 'all_time' | 'custom';
+export type TabId = 'groups' | 'dealers' | 'all';
+

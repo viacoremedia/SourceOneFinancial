@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getGroups, getGroupLocations } from '../../../core/services/api';
 import type { DealerGroup, DealerLocation } from '../types';
 
@@ -14,12 +14,14 @@ export function useDealerGroups(
   const [groups, setGroups] = useState<DealerGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  // Serialize for stable dependency tracking
-  const statesKey = states ? states.sort().join(',') : '';
+  // Immutable serialization for stable dependency tracking
+  const statesKey = states && states.length > 0 ? [...states].sort().join(',') : '';
   const modeKey = activityMode || 'application';
 
   const fetch = useCallback(async () => {
+    const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -32,11 +34,16 @@ export function useDealerGroups(
         status,
         rep
       );
-      setGroups(data);
+      // Discard stale out-of-order responses
+      if (currentRequestId === requestIdRef.current) {
+        setGroups(data);
+        setIsLoading(false);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dealer groups');
-    } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load dealer groups');
+        setIsLoading(false);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statesKey, modeKey, startDate, endDate, trend, status, rep]);
@@ -57,18 +64,24 @@ export function useGroupLocations(
   const [locations, setLocations] = useState<DealerLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const fetch = useCallback(async () => {
     if (!slug) return;
+    const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
       const { locations: locs } = await getGroupLocations(slug, startDate, endDate, trend);
-      setLocations(locs);
+      if (currentRequestId === requestIdRef.current) {
+        setLocations(locs);
+        setIsLoading(false);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load locations');
-    } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load locations');
+        setIsLoading(false);
+      }
     }
   }, [slug, startDate, endDate, trend]);
 

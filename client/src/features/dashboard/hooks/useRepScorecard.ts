@@ -26,7 +26,7 @@ export function useRepScorecard(
   const [error, setError] = useState<string | null>(null);
   const prevKeyRef = useRef('');
 
-  const statusKey = statusFilter ? statusFilter.sort().join(',') : '';
+  const statusKey = statusFilter && statusFilter.length > 0 ? [...statusFilter].sort().join(',') : '';
   const modeKey = activityMode || 'application';
   const finKey = finPeriod || 'mtd';
 

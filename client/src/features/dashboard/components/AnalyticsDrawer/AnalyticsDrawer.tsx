@@ -180,6 +180,7 @@ export function AnalyticsDrawer({
 
     let active = true;
     setIsLoading(true);
+    setData(null);
     getHistoricalMoM(
       trendMode,
       selectedState || undefined,

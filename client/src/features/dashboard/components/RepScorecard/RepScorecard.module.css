@@ -745,3 +745,182 @@
 :global([data-theme="light"]) .stateSubRow:hover {
   background: rgba(99, 102, 241, 0.05) !important;
 }
+
+/* ── Sales Manager Weight Configurator Modal ── */
+.configModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.configModal {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.configHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.configHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.configSubtext {
+  margin: 0;
+  padding: 12px 20px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.configGrid {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.configRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.configLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  min-width: 160px;
+}
+
+.configControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.configSlider {
+  flex: 1;
+  accent-color: #0284c7;
+  cursor: pointer;
+}
+
+.configNumberInput {
+  width: 54px;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #ffffff;
+  padding: 3px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.configFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #090d16;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sumContainer {
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.sumError {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.configBtnGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.resetBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.resetBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.applyBtn {
+  background: #0284c7;
+  border: none;
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.applyBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.customBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.customBadgeReset {
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  margin-left: 2px;
+}
+
