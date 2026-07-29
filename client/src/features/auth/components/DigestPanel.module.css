@@ -418,10 +418,6 @@
 .dealerName {
   color: var(--text-primary, #e2e8f0) !important;
   font-weight: 500;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dealerIdCell {
