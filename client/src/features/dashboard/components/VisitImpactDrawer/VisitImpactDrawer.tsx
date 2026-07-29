@@ -383,13 +383,27 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                           onClick={() => setSelectedCommItem(item)}
                         >
                           <td style={{ whiteSpace: 'nowrap', color: '#94a3b8', fontSize: '12px' }}>
-                            {new Date(item.date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span>{new Date(item.date).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}</span>
+                              <span style={{
+                                fontSize: '10px',
+                                color: '#64748b',
+                                fontWeight: 600,
+                              }}>
+                                {(() => {
+                                  const d = Math.floor((Date.now() - new Date(item.date).getTime()) / 86400000);
+                                  if (d === 0) return 'Today';
+                                  if (d === 1) return '1 day ago';
+                                  return `${d} days ago`;
+                                })()}
+                              </span>
+                            </div>
                           </td>
                           <td style={{ fontWeight: 700, color: '#f8fafc' }}>{item.dealerName}</td>
                           <td>
