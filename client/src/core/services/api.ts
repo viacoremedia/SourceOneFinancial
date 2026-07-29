@@ -351,6 +351,21 @@ export async function searchDealers(query: string, limit: number = 50): Promise<
 }
 
 // ── Communication & Visit Impact ──
+export interface RepDealerBreakdown {
+  clientDealerId: string;
+  dealerName: string;
+  state: string | null;
+  groupName: string | null;
+  touchpoints: number;
+  visitCount: number;
+  callCount: number;
+  preVisitVolume: number;
+  postVisitVolume: number;
+  associatedNetLiftDollars: number;
+  associatedNetLiftApps: number;
+  avgLiftPerVisit: number;
+}
+
 export interface VisitImpactResponse {
   success: boolean;
   windowDays: number;
@@ -377,6 +392,7 @@ export interface VisitImpactResponse {
     associatedNetLiftApps: number;
     avgLiftPerVisit: number;
     hasEnoughData: boolean;
+    dealers?: RepDealerBreakdown[];
   }>;
   insufficientData: boolean;
 }

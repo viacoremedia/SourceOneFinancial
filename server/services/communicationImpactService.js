@@ -93,13 +93,33 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
 
     const maxReportDate = await getMaxReportDate();
 
+    // Active window ending at maxReportDate (e.g. Jul 3 - Jul 17, 2026)
+    const currentWindowStart = new Date(maxReportDate.getTime() - windowMs);
+    const currentWindowEnd = maxReportDate;
+
+    // Prior baseline window (e.g. Jun 19 - Jul 3, 2026)
+    const baselineWindowStart = new Date(maxReportDate.getTime() - 2 * windowMs);
+    const baselineWindowEnd = currentWindowStart;
+
     const formatDateUtc = (d) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
+    };
+    const formatDateFull = (d) => {
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
     };
 
-    // Load all communications with valid dates
-    const commMatch = { communicationEventDatetime: { $ne: null } };
+    const currentWindowLabel = `${formatDateUtc(currentWindowStart)} – ${formatDateFull(currentWindowEnd)}`;
+    const baselineWindowLabel = `${formatDateUtc(baselineWindowStart)} – ${formatDateFull(baselineWindowEnd)}`;
+    const dateRangeLabel = `${currentWindowLabel} vs Baseline: ${baselineWindowLabel}`;
+
+    const ytdStart = new Date(Date.UTC(2026, 0, 1));
+
+    // Load YTD 2026 communications up to maxReportDate
+    const commMatch = {
+        communicationEventDatetime: { $gte: ytdStart, $lte: maxReportDate }
+    };
 
     if (repFilter) {
         const key = repFilter.trim().toLowerCase();
@@ -112,21 +132,6 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
 
     const comms = await DealerCommunication.find(commMatch).lean();
 
-    // Compute dynamic date range of dataset
-    let minCommTime = Infinity;
-    let maxCommTime = -Infinity;
-    for (const c of comms) {
-        if (c.communicationEventDatetime) {
-            const t = new Date(c.communicationEventDatetime).getTime();
-            if (t < minCommTime) minCommTime = t;
-            if (t > maxCommTime) maxCommTime = t;
-        }
-    }
-
-    const startDateObj = minCommTime !== Infinity ? new Date(minCommTime) : new Date(Date.UTC(2025, 0, 1));
-    const endDateObj = maxCommTime !== -Infinity ? new Date(Math.min(maxCommTime, maxReportDate.getTime())) : maxReportDate;
-    const dateRangeLabel = `${formatDateUtc(startDateObj)} – ${formatDateUtc(endDateObj)}`;
-
     if (comms.length === 0) {
         return {
             windowDays: validWindow,
@@ -138,9 +143,9 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
         };
     }
 
-    // Index applications by clientDealerId up to maxReportDate
+    // Index applications by clientDealerId from baselineWindowStart up to maxReportDate
     const apps = await Application.find(
-        { applicationDate: { $gte: startDateObj, $lte: maxReportDate } },
+        { applicationDate: { $gte: baselineWindowStart, $lte: maxReportDate } },
         { clientDealerId: 1, applicationDate: 1, bookedDate: 1, amountFinanced: 1, status: 1 }
     ).lean();
 
@@ -178,19 +183,47 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
                 visitPostVol: 0,
                 visitPreApps: 0,
                 visitPostApps: 0,
+                dealers: {},
             };
         }
 
-        const commTime = new Date(comm.communicationEventDatetime).getTime();
-        const type = (comm.communicationType || '').toLowerCase();
-        const isVisit = type.includes('visit') || type.includes('in-person') || type.includes('meeting');
-        const isCall = type.includes('call') || type.includes('phone');
+        if (!repStats[repName].dealers[dealerKey]) {
+            const recipientName = comm.recipientOrganizationName || 'Unknown Dealer';
+            repStats[repName].dealers[dealerKey] = {
+                clientDealerId: dealerKey,
+                dealerName: recipientName,
+                touchpoints: 0,
+                visitCount: 0,
+                callCount: 0,
+                visitPreVol: 0,
+                visitPostVol: 0,
+                visitPreApps: 0,
+                visitPostApps: 0,
+            };
+        }
 
-        if (isVisit) repStats[repName].visitCount++;
-        if (isCall) repStats[repName].callCount++;
+        const type = (comm.communicationType || '').toLowerCase();
+        const result = (comm.communicationResult1 || '').toLowerCase();
+
+        const isVisit = type.includes('visit') || type.includes('in-person') || type.includes('meeting') ||
+                        result.includes('met with') || result.includes('training') || result.includes('sign up');
+
+        const isCall = type.includes('call') || type.includes('phone') ||
+                       result.includes('spoke with') || result.includes('follow up') || result.includes('returned') || result.includes('not able to speak');
+
+        if (isVisit) {
+            repStats[repName].visitCount++;
+            repStats[repName].dealers[dealerKey].visitCount++;
+        }
+        if (isCall) {
+            repStats[repName].callCount++;
+            repStats[repName].dealers[dealerKey].callCount++;
+        }
         repStats[repName].totalTouchpoints++;
+        repStats[repName].dealers[dealerKey].touchpoints++;
 
         const dealerAppList = appsByDealer.get(dealerKey) || [];
+        const commTime = new Date(comm.communicationEventDatetime).getTime();
 
         // Compute pre and post metrics for visits
         if (isVisit) {
@@ -211,6 +244,31 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
             repStats[repName].visitPostVol += postVol;
             repStats[repName].visitPreApps += preApps;
             repStats[repName].visitPostApps += postApps;
+
+            repStats[repName].dealers[dealerKey].visitPreVol += preVol;
+            repStats[repName].dealers[dealerKey].visitPostVol += postVol;
+            repStats[repName].dealers[dealerKey].visitPreApps += preApps;
+            repStats[repName].dealers[dealerKey].visitPostApps += postApps;
+        }
+    }
+
+    // Pre-fetch location details (dealerName, statePrefix, groupName) for unique dealers
+    const allDealerKeys = new Set();
+    for (const r of Object.values(repStats)) {
+        for (const k of Object.keys(r.dealers)) {
+            allDealerKeys.add(k);
+        }
+    }
+
+    const locs = await DealerLocation.find({ clientDealerId: { $in: Array.from(allDealerKeys) } })
+        .select('clientDealerId dealerName statePrefix dealerGroup')
+        .populate('dealerGroup', 'name')
+        .lean();
+
+    const locMap = new Map();
+    for (const l of locs) {
+        if (l.clientDealerId) {
+            locMap.set(l.clientDealerId.trim().toUpperCase(), l);
         }
     }
 
@@ -227,6 +285,29 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
         const netLiftApps = r.visitPostApps - r.visitPreApps;
         const avgLiftPerVisit = r.visitCount > 0 ? Math.round(netLiftDollars / r.visitCount) : 0;
         const hasEnoughData = r.visitPostApps + r.visitPreApps >= 3;
+
+        // Build per-dealer breakdown array for this rep
+        const dealerBreakdown = Object.values(r.dealers).map(d => {
+            const loc = locMap.get(d.clientDealerId);
+            const netD = Math.round(d.visitPostVol - d.visitPreVol);
+            const netA = d.visitPostApps - d.visitPreApps;
+            const avgL = d.visitCount > 0 ? Math.round(netD / d.visitCount) : 0;
+
+            return {
+                clientDealerId: d.clientDealerId,
+                dealerName: loc ? loc.dealerName : d.dealerName,
+                state: loc ? loc.statePrefix : null,
+                groupName: loc && loc.dealerGroup ? loc.dealerGroup.name : null,
+                touchpoints: d.touchpoints,
+                visitCount: d.visitCount,
+                callCount: d.callCount,
+                preVisitVolume: Math.round(d.visitPreVol),
+                postVisitVolume: Math.round(d.visitPostVol),
+                associatedNetLiftDollars: netD,
+                associatedNetLiftApps: netA,
+                avgLiftPerVisit: avgL,
+            };
+        }).sort((a, b) => b.associatedNetLiftDollars - a.associatedNetLiftDollars);
 
         networkVisits += r.visitCount;
         networkCalls += r.callCount;
@@ -246,6 +327,7 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
             associatedNetLiftApps: netLiftApps,
             avgLiftPerVisit,
             hasEnoughData,
+            dealers: dealerBreakdown,
         };
     }).sort((a, b) => b.associatedNetLiftDollars - a.associatedNetLiftDollars);
 
