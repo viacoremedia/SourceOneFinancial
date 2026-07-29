@@ -142,6 +142,20 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
 
   setDatePreset: (preset: DatePreset) =>
     set((state) => {
+      if (preset === 'custom') {
+        if (state.customStartDate && state.customEndDate) {
+          const dates = computeResolvedDates('custom', state.customStartDate, state.customEndDate, state.latestReportDate);
+          return {
+            datePreset: 'custom',
+            startDate: dates.startDate,
+            endDate: dates.endDate,
+            filterVersion: state.filterVersion + 1,
+          };
+        }
+        return {
+          datePreset: 'custom',
+        };
+      }
       const newTrend = getDefaultTrendForPreset(preset);
       const dates = computeResolvedDates(preset, state.customStartDate, state.customEndDate, state.latestReportDate);
       return {
