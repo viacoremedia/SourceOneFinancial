@@ -619,6 +619,15 @@
   color: #38bdf8;
 }
 
+.clickableRow {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.clickableRow:hover {
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
 .daysAgoCell {
   font-family: var(--font-mono, monospace);
   color: #fbbf24;

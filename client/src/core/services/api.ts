@@ -297,10 +297,13 @@ import type {
 export async function getDealerApplicationsHistory(
   dealerId: string,
   page: number = 1,
-  limit: number = 20
+  limit: number = 20,
+  state?: string,
+  rep?: string,
+  group?: string
 ): Promise<DealerApplicationHistoryResponse> {
   const { data } = await api.get(`/analytics/dealers/${dealerId}/applications`, {
-    params: { page, limit }
+    params: { page, limit, state, rep, group }
   });
   return data;
 }

@@ -8,6 +8,7 @@ import type {
   DealerApplicationHistoryResponse,
   ApplicationHistoryItem
 } from '../../types';
+import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import styles from './AnalyticsDrawer.module.css';
 
 interface AnalyticsDrawerProps {
@@ -120,6 +121,9 @@ export function AnalyticsDrawer({
   const [appHistoryLoading, setAppHistoryLoading] = useState(false);
   const [appHistoryPage, setAppHistoryPage] = useState(1);
 
+  // Application Detail Drawer State
+  const [selectedAppDetail, setSelectedAppDetail] = useState<ApplicationHistoryItem | null>(null);
+
   // Active series toggles for line chart
   const [activeSeriesKeys, setActiveSeriesKeys] = useState<SeriesKey[]>(['apps', 'bookedDollars']);
 
@@ -130,8 +134,12 @@ export function AnalyticsDrawer({
     if (isOpen) {
       setActiveTab(initialTab);
       setSelectedDealerId(initialDealerId);
+      if (!initialDealerId) {
+        setSelectedDealerObj(null);
+      }
       setSelectedGroup(initialGroupSlug || '');
       setAppHistoryPage(1);
+      setAppHistoryData(null);
     }
   }, [isOpen, initialDealerId, initialGroupSlug, initialTab]);
 
@@ -196,19 +204,22 @@ export function AnalyticsDrawer({
     };
   }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup, selectedDealerId]);
 
-  // Load Application History data when dealer/group or page changes
+  // Load Application History data when target, filters or page changes
   useEffect(() => {
     if (!isOpen) return;
-    const targetId = selectedDealerId || selectedGroup;
-    if (!targetId) {
-      setAppHistoryData(null);
-      return;
-    }
+    const targetId = selectedDealerId || selectedGroup || 'all';
 
     let active = true;
     setAppHistoryLoading(true);
 
-    getDealerApplicationsHistory(targetId, appHistoryPage, 15)
+    getDealerApplicationsHistory(
+      targetId,
+      appHistoryPage,
+      15,
+      selectedState || undefined,
+      selectedRep || undefined,
+      selectedGroup || undefined
+    )
       .then((res) => {
         if (active) {
           setAppHistoryData(res);
@@ -227,7 +238,7 @@ export function AnalyticsDrawer({
     return () => {
       active = false;
     };
-  }, [isOpen, selectedDealerId, selectedGroup, appHistoryPage]);
+  }, [isOpen, selectedDealerId, selectedGroup, selectedState, selectedRep, appHistoryPage]);
 
   const toggleSeries = (key: SeriesKey) => {
     setActiveSeriesKeys((prev) => {
@@ -262,6 +273,13 @@ export function AnalyticsDrawer({
     }
     return availableGroups;
   }, [selectedRep, repMappings, availableGroups]);
+
+  // Derived Group Name
+  const groupName = useMemo(() => {
+    if (!selectedGroup) return null;
+    const matched = availableGroups.find((g) => g.slug === selectedGroup);
+    return matched ? matched.name : selectedGroup;
+  }, [selectedGroup, availableGroups]);
 
   if (!isOpen) return null;
 
@@ -308,9 +326,16 @@ export function AnalyticsDrawer({
     onSelectDealerId?.(null);
   };
 
-  // Header Title derivation
-  const headerLocation = appHistoryData?.location || selectedDealerObj;
-  const isSpecificSelected = Boolean(selectedDealerId || selectedGroup);
+  // Header Title & Location derivation
+  const isDealerSelected = Boolean(selectedDealerId);
+  const isGroupSelected = Boolean(selectedGroup);
+  const headerLocation = isDealerSelected ? (selectedDealerObj || appHistoryData?.location) : null;
+
+  const headerTitle = isDealerSelected
+    ? (headerLocation?.dealerName || selectedDealerObj?.dealerName || selectedDealerId)
+    : isGroupSelected
+    ? `Group: ${groupName}`
+    : 'Month-over-Month Historical Analytics';
 
   return (
     <div className={styles.backdrop} onClick={onClose}>
@@ -323,10 +348,8 @@ export function AnalyticsDrawer({
         <div className={styles.header}>
           <div className={styles.titleGroup}>
             <div>
-              <h2 className={styles.title}>
-                {headerLocation?.dealerName || (selectedGroup ? `Group: ${selectedGroup}` : 'Month-over-Month Historical Analytics')}
-              </h2>
-              {headerLocation && (
+              <h2 className={styles.title}>{headerTitle}</h2>
+              {isDealerSelected && headerLocation && (
                 <div className={styles.metaRow}>
                   {headerLocation.dealerId && <span className={styles.badge}>ID: {headerLocation.dealerId}</span>}
                   {headerLocation.statePrefix && <span className={styles.badge}>{headerLocation.statePrefix}</span>}
@@ -404,7 +427,7 @@ export function AnalyticsDrawer({
                 <span className={styles.filterLabel}>State:</span>
                 <select
                   className={styles.selectInput}
-                  value={selectedState}
+                  value={selectedState || ''}
                   onChange={(e) => setSelectedState(e.target.value)}
                 >
                   <option value="">All States</option>
@@ -421,7 +444,7 @@ export function AnalyticsDrawer({
                 <span className={styles.filterLabel}>Sales Rep:</span>
                 <select
                   className={styles.selectInput}
-                  value={selectedRep}
+                  value={selectedRep || ''}
                   onChange={(e) => setSelectedRep(e.target.value)}
                 >
                   <option value="">All Reps</option>
@@ -438,7 +461,7 @@ export function AnalyticsDrawer({
                 <span className={styles.filterLabel}>Dealer Group:</span>
                 <select
                   className={styles.selectInput}
-                  value={selectedGroup}
+                  value={selectedGroup || ''}
                   onChange={(e) => {
                     setSelectedGroup(e.target.value);
                     onSelectGroupSlug?.(e.target.value || null);
@@ -491,7 +514,7 @@ export function AnalyticsDrawer({
                         type="text"
                         className={styles.searchInput}
                         placeholder="Search 3k+ dealers by name or ID..."
-                        value={dealerSearchQuery}
+                        value={dealerSearchQuery || ''}
                         onChange={(e) => setDealerSearchQuery(e.target.value)}
                         autoFocus
                       />
@@ -718,13 +741,7 @@ export function AnalyticsDrawer({
         {/* TAB 2: APPLICATION HISTORY */}
         {activeTab === 'applications' && (
           <div className={styles.drawerContent}>
-            {!isSpecificSelected ? (
-              <div className={styles.emptyPrompt}>
-                <div style={{ fontSize: '2.5rem' }}>📋</div>
-                <h3>No Dealer or Group Selected</h3>
-                <p>Use the Dealer filter above or select any dealer from the main table to view application history records.</p>
-              </div>
-            ) : appHistoryLoading && appHistoryPage === 1 ? (
+            {appHistoryLoading && appHistoryPage === 1 ? (
               <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                 Loading application history records...
               </div>
@@ -790,6 +807,7 @@ export function AnalyticsDrawer({
                         <thead>
                           <tr>
                             <th>Application ID</th>
+                            {!isDealerSelected && <th>Dealer</th>}
                             <th>Status</th>
                             <th>Date</th>
                             <th>Days Ago</th>
@@ -800,8 +818,23 @@ export function AnalyticsDrawer({
                         </thead>
                         <tbody>
                           {appHistoryData?.applications.map((app: ApplicationHistoryItem) => (
-                            <tr key={app._id}>
+                            <tr
+                              key={app._id}
+                              className={styles.clickableRow}
+                              onClick={() => setSelectedAppDetail(app)}
+                              title="Click to view full application details"
+                            >
                               <td className={styles.appIdCell}>{app.applicationId}</td>
+                              {!isDealerSelected && (
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{app.dealerName || '—'}</div>
+                                  {app.dealerState && (
+                                    <span className={styles.badge} style={{ fontSize: '0.65rem', marginTop: '2px', display: 'inline-block' }}>
+                                      {app.dealerState}
+                                    </span>
+                                  )}
+                                </td>
+                              )}
                               <td>
                                 <span
                                   className={`${styles.statusTag} ${
@@ -858,6 +891,12 @@ export function AnalyticsDrawer({
             )}
           </div>
         )}
+
+        {/* Application Detail Modal/Drawer */}
+        <ApplicationDetailDrawer
+          app={selectedAppDetail}
+          onClose={() => setSelectedAppDetail(null)}
+        />
       </div>
     </div>
   );

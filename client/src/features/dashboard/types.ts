@@ -74,12 +74,48 @@ export interface DealerStatusBreakdown {
 export interface ApplicationHistoryItem {
   _id: string;
   applicationId: string;
-  applicationDate: string | null;
   status: string | null;
+  underwriter?: string | null;
+  lender?: string | null;
+  applicationDate: string | null;
+  approvalDate?: string | null;
+  bookedDate?: string | null;
   amountFinanced: number | null;
-  lender: string | null;
-  underwriter: string | null;
+  term?: number | null;
+  apr?: number | null;
+  cashDown?: number | null;
+  totalDown?: number | null;
+  ltv?: number | null;
+  dealerReserveAmount?: number | null;
+  dealerReservePercent?: number | null;
+  backend?: number | null;
+  invoice?: number | null;
+  dealerMinimumRate?: number | null;
+  coficoAuto8?: number | null;
   primaryFicoAuto8: number | null;
+  dti?: number | null;
+  pti?: number | null;
+  collateralYear?: string | null;
+  collateralType?: string | null;
+  collateralNewUsed?: string | null;
+  dealerName?: string | null;
+  dealerGroup?: string | null;
+  dealerState?: string | null;
+  dealerCity?: string | null;
+  dealerRepresentative?: string | null;
+  clientDealerId?: string | null;
+  timeToBook?: number | null;
+  timeToDecision?: number | null;
+  timeToLastFund?: number | null;
+  timeToLastDecisionToLastContract?: number | null;
+  programManual?: string | null;
+  programDefault?: string | null;
+  primaryState?: string | null;
+  applicationSubmittedUser?: string | null;
+  isBusinessApp?: boolean | null;
+  wasApproved?: boolean | null;
+  wasApprovedNotBooked?: boolean | null;
+  applicationClass?: string | null;
   daysAgo: number | null;
 }
 
@@ -97,7 +133,7 @@ export interface DealerApplicationHistoryResponse {
     dealerId: string;
     clientDealerId: string;
     statePrefix: string;
-  };
+  } | null;
   summary: DealerApplicationHistorySummary;
   applications: ApplicationHistoryItem[];
   pagination: {

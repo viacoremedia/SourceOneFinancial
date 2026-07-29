@@ -2224,52 +2224,66 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
         let headerLocation = null;
         let matchQuery = {};
 
-        if (mongoose.Types.ObjectId.isValid(dealerId)) {
-            location = await DealerLocation.findById(dealerId).lean();
-        }
-        if (!location) {
-            location = await DealerLocation.findOne({
-                $or: [
-                    { dealerId: dealerId },
-                    { clientDealerId: dealerId },
-                    { omniDealerId: dealerId }
-                ]
-            }).lean();
-        }
-
-        if (!location) {
-            // Check if dealerId is a Dealer Group slug or ID
-            let grp = null;
-            if (mongoose.Types.ObjectId.isValid(dealerId)) {
-                grp = await DealerGroup.findById(dealerId).lean();
+        if (dealerId === 'all' || dealerId === 'network') {
+            headerLocation = null;
+            matchQuery = {};
+            if (req.query.state) {
+                matchQuery.dealerState = req.query.state.toUpperCase();
             }
-            if (!grp) {
-                grp = await DealerGroup.findOne({ slug: dealerId }).lean();
+            if (req.query.rep) {
+                matchQuery.dealerRepresentative = new RegExp(`^${req.query.rep}$`, 'i');
             }
-            if (grp) {
-                const locs = await DealerLocation.find({ dealerGroup: grp._id }).select('clientDealerId dealerId').lean();
-                const ids = locs.map(l => (l.clientDealerId || l.dealerId || '').trim()).filter(Boolean);
-                matchQuery = { clientDealerId: { $in: ids } };
-                headerLocation = {
-                    _id: grp._id,
-                    dealerName: grp.name,
-                    dealerId: `Group (${grp.dealerCount || locs.length} locs)`,
-                    clientDealerId: grp.slug,
-                    statePrefix: (grp.states || []).join(', ')
-                };
-            } else {
-                return res.status(404).json({ success: false, message: 'Dealer location or group not found' });
+            if (req.query.group) {
+                matchQuery.dealerGroup = new RegExp(req.query.group, 'i');
             }
         } else {
-            const canonicalId = (location.clientDealerId || location.dealerId).trim();
-            matchQuery = { clientDealerId: canonicalId };
-            headerLocation = {
-                _id: location._id,
-                dealerName: location.dealerName,
-                dealerId: location.dealerId,
-                clientDealerId: location.clientDealerId,
-                statePrefix: location.statePrefix
-            };
+            if (mongoose.Types.ObjectId.isValid(dealerId)) {
+                location = await DealerLocation.findById(dealerId).lean();
+            }
+            if (!location) {
+                location = await DealerLocation.findOne({
+                    $or: [
+                        { dealerId: dealerId },
+                        { clientDealerId: dealerId },
+                        { omniDealerId: dealerId }
+                    ]
+                }).lean();
+            }
+
+            if (!location) {
+                // Check if dealerId is a Dealer Group slug or ID
+                let grp = null;
+                if (mongoose.Types.ObjectId.isValid(dealerId)) {
+                    grp = await DealerGroup.findById(dealerId).lean();
+                }
+                if (!grp) {
+                    grp = await DealerGroup.findOne({ slug: dealerId }).lean();
+                }
+                if (grp) {
+                    const locs = await DealerLocation.find({ dealerGroup: grp._id }).select('clientDealerId dealerId').lean();
+                    const ids = locs.map(l => (l.clientDealerId || l.dealerId || '').trim()).filter(Boolean);
+                    matchQuery = { clientDealerId: { $in: ids } };
+                    headerLocation = {
+                        _id: grp._id,
+                        dealerName: grp.name,
+                        dealerId: `Group (${grp.dealerCount || locs.length} locs)`,
+                        clientDealerId: grp.slug,
+                        statePrefix: (grp.states || []).join(', ')
+                    };
+                } else {
+                    return res.status(404).json({ success: false, message: 'Dealer location or group not found' });
+                }
+            } else {
+                const canonicalId = (location.clientDealerId || location.dealerId).trim();
+                matchQuery = { clientDealerId: canonicalId };
+                headerLocation = {
+                    _id: location._id,
+                    dealerName: location.dealerName,
+                    dealerId: location.dealerId,
+                    clientDealerId: location.clientDealerId,
+                    statePrefix: location.statePrefix
+                };
+            }
         }
 
         const now = new Date();
