@@ -10,6 +10,7 @@ import { FilterBar } from '../components/FilterBar';
 import { DealerTable } from '../components/DealerTable';
 import { ExecutiveSummaryBanner } from '../components/ExecutiveSummaryBanner/ExecutiveSummaryBanner';
 import { AnalyticsDrawer } from '../components/AnalyticsDrawer/AnalyticsDrawer';
+import { VisitImpactDrawer } from '../components/VisitImpactDrawer/VisitImpactDrawer';
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
@@ -82,6 +83,7 @@ export function Dashboard() {
   const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
   const [drawerGroupSlug, setDrawerGroupSlug] = useState<string | null>(null);
   const [drawerTab, setDrawerTab] = useState<'mom' | 'applications'>('mom');
+  const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
     setDrawerDealerId(dealerId);
@@ -430,6 +432,7 @@ export function Dashboard() {
       rollingWindow={rollingWindow}
       onRollingWindowChange={setRollingWindow}
       onOpenMoMAnalytics={handleOpenTopMoMDrawer}
+      onOpenVisitImpact={() => setVisitImpactOpen(true)}
       latestReportDate={overview?.latestReportDate}
     >
       <div style={{ marginBottom: '16px' }}>
@@ -514,6 +517,12 @@ export function Dashboard() {
         initialTab={drawerTab}
         onSelectDealerId={setDrawerDealerId}
         onSelectGroupSlug={setDrawerGroupSlug}
+      />
+
+      {/* Sales Visit & Touchpoint Impact Diagnostic Drawer */}
+      <VisitImpactDrawer
+        open={visitImpactOpen}
+        onClose={() => setVisitImpactOpen(false)}
       />
     </AppShell>
   );

@@ -122,7 +122,6 @@ dealerLocationSchema.pre('validate', function () {
     }
 });
 
-dealerLocationSchema.index({ dealerId: 1 }, { unique: true });
 dealerLocationSchema.index({ dealerGroup: 1 });
 dealerLocationSchema.index({ statePrefix: 1 });
 

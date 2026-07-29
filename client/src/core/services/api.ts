@@ -350,4 +350,124 @@ export async function searchDealers(query: string, limit: number = 50): Promise<
   return data;
 }
 
+// ── Communication & Visit Impact ──
+export interface VisitImpactResponse {
+  success: boolean;
+  windowDays: number;
+  dateRangeLabel?: string;
+  maxReportDate?: string;
+  overall: {
+    totalVisits: number;
+    totalCalls: number;
+    totalTouchpoints: number;
+    preVisitVolume: number;
+    postVisitVolume: number;
+    associatedNetLiftDollars: number;
+    associatedNetLiftApps: number;
+    avgNetworkLiftPerVisit: number;
+  };
+  reps: Array<{
+    rep: string;
+    totalTouchpoints: number;
+    visitCount: number;
+    callCount: number;
+    preVisitVolume: number;
+    postVisitVolume: number;
+    associatedNetLiftDollars: number;
+    associatedNetLiftApps: number;
+    avgLiftPerVisit: number;
+    hasEnoughData: boolean;
+  }>;
+  insufficientData: boolean;
+}
+
+export interface EffortVsYieldResponse {
+  success: boolean;
+  windowDays: number;
+  timeSinks: Array<{
+    dealerId: string;
+    clientDealerId: string;
+    dealerName: string;
+    state: string;
+    rep: string;
+    touchpoints: number;
+    bookedVolume: number;
+    flagType: 'time_sink';
+    reason: string;
+  }>;
+  atRiskGems: Array<{
+    dealerId: string;
+    clientDealerId: string;
+    dealerName: string;
+    state: string;
+    rep: string;
+    touchpoints: number;
+    bookedVolume: number;
+    flagType: 'at_risk_gem';
+    reason: string;
+  }>;
+  summary: {
+    timeSinkCount: number;
+    atRiskGemCount: number;
+  };
+}
+
+export async function getVisitImpact(windowDays: number = 30, rep?: string): Promise<VisitImpactResponse> {
+  const params: Record<string, string | number> = { window: windowDays };
+  if (rep) params.rep = rep;
+  const { data } = await api.get('/analytics/communication/impact', { params });
+  return data;
+}
+
+export async function getEffortVsYieldFlags(windowDays: number = 30): Promise<EffortVsYieldResponse> {
+  const { data } = await api.get('/analytics/communication/effort-yield', { params: { window: windowDays } });
+  return data;
+}
+
+export interface RepCommunicationHistoryResponse {
+  success: boolean;
+  items: Array<{
+    id: string;
+    sourceCommunicationId: string;
+    date: string;
+    repName: string;
+    userEmail: string | null;
+    dealerName: string;
+    clientDealerId: string;
+    state: string | null;
+    groupName: string | null;
+    groupSlug: string | null;
+    type: string;
+    result: string | null;
+    feedback: string | null;
+    sourceSystem: string | null;
+    timezone: string | null;
+    isProspect: boolean | null;
+    isActiveRelationship: boolean | null;
+    isInactiveRelationship: boolean | null;
+    lastIngestionDate: string | null;
+  }>;
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
+export async function getRepCommunicationHistory(params: {
+  rep?: string;
+  state?: string;
+  groupSlug?: string;
+  dealerId?: string;
+  type?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<RepCommunicationHistoryResponse> {
+  const { data } = await api.get('/analytics/communication/history', { params });
+  return data;
+}
+
 export default api;

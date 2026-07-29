@@ -19,9 +19,11 @@ const SalesBudget = require('../../models/SalesBudget');
 const LargeDealerBudget = require('../../models/LargeDealerBudget');
 const { getDealerStatsMap, getNetworkAggregateStats } = require('../../services/dealerStatsService');
 const budgetRoutes = require('./budget');
+const communicationRoutes = require('./communication');
 
-// Mount budget sub-routes
+// Mount sub-routes
 router.use('/budget', budgetRoutes);
+router.use('/communication', communicationRoutes);
 
 function formatDateUtcNice(d) {
     if (!d || isNaN(d.getTime())) return '';

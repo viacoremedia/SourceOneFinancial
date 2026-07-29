@@ -17,6 +17,7 @@ interface AppShellProps {
   activityMode?: string;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
   onOpenMoMAnalytics?: () => void;
+  onOpenVisitImpact?: () => void;
 }
 
 // SVG theme icons (Lucide-style, 18px)
@@ -50,7 +51,7 @@ const THEME_LABELS: Record<string, string> = {
   dark: 'Dark mode',
 };
 
-export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode, onActivityModeChange, onOpenMoMAnalytics }: AppShellProps) {
+export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, activityMode, onActivityModeChange, onOpenMoMAnalytics, onOpenVisitImpact }: AppShellProps) {
   const { user } = useAuth();
   const { mode, toggleTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -107,6 +108,19 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
 
             {user && (
               <>
+                {onOpenVisitImpact && (
+                  <button
+                    className={styles.headerActionButton}
+                    onClick={onOpenVisitImpact}
+                    title="Sales Visit & Touchpoint Impact Engine"
+                    id="visit-impact-btn"
+                    aria-label="Visit Impact"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>Visit Impact</span>
+                  </button>
+                )}
+
                 <button
                   className={styles.headerActionButton}
                   onClick={() => setScorecardOpen(true)}

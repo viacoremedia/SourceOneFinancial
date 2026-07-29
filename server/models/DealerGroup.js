@@ -48,6 +48,4 @@ dealerGroupSchema.pre('validate', function () {
     }
 });
 
-dealerGroupSchema.index({ slug: 1 }, { unique: true });
-
 module.exports = mongoose.model('DealerGroup', dealerGroupSchema);
