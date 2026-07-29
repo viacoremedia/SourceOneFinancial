@@ -617,8 +617,11 @@ router.get('/historical/mom', async (req, res) => {
     }
 });
 
-function formatShortDate(d) {
+function formatShortDate(d, showYear = false) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (showYear) {
+        return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+    }
     return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
@@ -674,15 +677,35 @@ async function getComparisonDateRange(startDateStr, endDateStr, trendPeriod) {
         compStart.setUTCFullYear(compStart.getUTCFullYear() - 1);
         compEnd.setUTCFullYear(compEnd.getUTCFullYear() - 1);
     } else if (trendPeriod === 'mom') {
-        compStart.setUTCMonth(compStart.getUTCMonth() - 1);
-        compEnd.setUTCMonth(compEnd.getUTCMonth() - 1);
+        const startDay = start.getUTCDate();
+        const startMonth = start.getUTCMonth();
+        const startYear = start.getUTCFullYear();
+
+        // Check if current range is a full calendar month (e.g. Jun 1 to Jun 30)
+        const nextDayAfterEnd = new Date(end.getTime() + 86400000);
+        const isFullCalendarMonth = startDay === 1 && nextDayAfterEnd.getUTCDate() === 1;
+
+        const prevMonth = startMonth === 0 ? 11 : startMonth - 1;
+        const prevYear = startMonth === 0 ? startYear - 1 : startYear;
+
+        if (isFullCalendarMonth) {
+            // Full prior calendar month (e.g. May 1 to May 31 for June 1 to June 30)
+            compStart = new Date(Date.UTC(prevYear, prevMonth, 1));
+            compEnd = new Date(Date.UTC(prevYear, prevMonth + 1, 0));
+        } else {
+            // Partial month (e.g. MTD Jul 1-22 vs Jun 1-22)
+            compStart = new Date(Date.UTC(prevYear, prevMonth, startDay));
+            const endDay = Math.min(end.getUTCDate(), new Date(Date.UTC(prevYear, prevMonth + 1, 0)).getUTCDate());
+            compEnd = new Date(Date.UTC(prevYear, prevMonth, endDay));
+        }
     } else { // 'prior' or default equal-duration preceding lookback
         compEnd = new Date(start.getTime() - 86400000);
         compStart = new Date(compEnd.getTime() - (durationDays - 1) * 86400000);
     }
 
-    const currLabel = `${formatShortDate(start)}–${formatShortDate(end)}`;
-    const compLabel = `${formatShortDate(compStart)}–${formatShortDate(compEnd)}`;
+    const showYear = start.getUTCFullYear() !== compStart.getUTCFullYear() || start.getUTCFullYear() !== end.getUTCFullYear() || trendPeriod === 'yoy';
+    const currLabel = `${formatShortDate(start, showYear)}–${formatShortDate(end, showYear)}`;
+    const compLabel = `${formatShortDate(compStart, showYear)}–${formatShortDate(compEnd, showYear)}`;
     const comparisonLabel = `${currLabel} vs ${compLabel} (${durationDays}d)`;
 
     return { compStart, compEnd, comparisonLabel };

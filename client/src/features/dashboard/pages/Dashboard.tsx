@@ -390,6 +390,33 @@ export function Dashboard() {
   // Date range preset change
   const handleDatePresetChange = useCallback((preset: DatePreset) => {
     setDatePreset(preset);
+
+    // Set smart default trend period based on preset
+    let newTrend: 'mom' | 'yoy' | '30d' | '60d' | 'prior' | 'none' = 'prior';
+    if (preset === 'all_time') {
+      newTrend = 'none';
+    } else if (preset === 'ytd' || preset === 'last_year') {
+      newTrend = 'yoy';
+    } else if (preset === 'this_month' || preset === 'last_month') {
+      newTrend = 'mom';
+    }
+    setTrend(newTrend);
+    trendRef.current = newTrend;
+
+    if (preset === 'custom') {
+      // If custom dates are already selected, apply them; otherwise wait for user to click Apply
+      if (customStartDate && customEndDate) {
+        const range = computeDateRange(preset, customStartDate, customEndDate);
+        startDateRef.current = range.startDate;
+        endDateRef.current = range.endDate;
+        setStartDate(range.startDate);
+        setEndDate(range.endDate);
+        setGroupLocations({});
+        refetchFlatTab();
+      }
+      return;
+    }
+
     const range = computeDateRange(preset, customStartDate, customEndDate);
     startDateRef.current = range.startDate;
     endDateRef.current = range.endDate;
@@ -399,11 +426,11 @@ export function Dashboard() {
     refetchFlatTab();
   }, [computeDateRange, customStartDate, customEndDate, refetchFlatTab]);
 
-  // Custom date range change
+  // Custom date range change (called when user clicks Apply in CustomDatePicker)
   const handleCustomDateChange = useCallback((start?: string, end?: string) => {
     setCustomStartDate(start || '');
     setCustomEndDate(end || '');
-    if (datePreset === 'custom') {
+    if (start || end) {
       startDateRef.current = start || undefined;
       endDateRef.current = end || undefined;
       setStartDate(start || undefined);
@@ -411,7 +438,7 @@ export function Dashboard() {
       setGroupLocations({});
       refetchFlatTab();
     }
-  }, [datePreset, refetchFlatTab]);
+  }, [refetchFlatTab]);
 
   // Transition filter change — re-fetch with specific from→to transition
   const handleTransitionFilterChange = useCallback((transition: string | null) => {
@@ -647,15 +674,10 @@ export function Dashboard() {
             selectedState={selectedState}
             statusFilter={statusFilter}
             activityMode={activityMode}
-            datePreset={datePreset}
-            customStartDate={customStartDate}
-            customEndDate={customEndDate}
             onRepChange={handleRepChange}
             onStateChange={handleStateChange}
             onStatusFilterChange={handleStatusFilterChange}
             onActivityModeChange={handleActivityModeChange}
-            onDatePresetChange={handleDatePresetChange}
-            onCustomDateChange={handleCustomDateChange}
             repHeatMap={repHeatMap}
             statusTransitions={statusTransitions}
             transitionFilter={transitionFilter}
@@ -690,6 +712,7 @@ export function Dashboard() {
         datePreset={datePreset}
         customStartDate={customStartDate}
         customEndDate={customEndDate}
+        maxReportDate={overview?.latestReportDate}
         onExpandGroup={handleExpandGroup}
         onLoadMore={handleLoadMore}
         onDealerSortChange={handleDealerSortChange}

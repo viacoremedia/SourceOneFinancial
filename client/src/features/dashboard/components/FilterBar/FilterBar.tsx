@@ -4,12 +4,12 @@
  * Budget/rep summary only shows when a rep or state is selected.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import styles from './FilterBar.module.css';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../../core/services/api';
 import type { DealerGroup, HeatClass } from '../../types';
 
-export type DatePreset = 'this_month' | 'last_30' | 'last_60' | 'last_month' | 'ytd' | 'last_year' | 'all_time' | 'custom';
+export type DatePreset = 'this_month' | 'last_30' | 'last_60' | 'last_90' | 'last_month' | 'ytd' | 'last_year' | 'all_time' | 'custom';
 
 interface FilterBarProps {
   stateRepMap: StateRepMap;
@@ -21,15 +21,10 @@ interface FilterBarProps {
   selectedState: string;
   statusFilter: string | null;
   activityMode?: 'application' | 'approval' | 'booking';
-  datePreset?: DatePreset;
-  customStartDate?: string;
-  customEndDate?: string;
   onRepChange: (rep: string) => void;
   onStateChange: (state: string) => void;
   onStatusFilterChange: (status: string | null) => void;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
-  onDatePresetChange?: (preset: DatePreset) => void;
-  onCustomDateChange?: (start?: string, end?: string) => void;
   repHeatMap?: Record<string, HeatClass>;
   statusTransitions?: { from: string; to: string; count: number }[];
   transitionFilter?: string | null;
@@ -85,23 +80,16 @@ export function FilterBar({
   selectedState,
   statusFilter,
   activityMode = 'application',
-  datePreset = 'all_time',
-  customStartDate = '',
-  customEndDate = '',
   onRepChange,
   onStateChange,
   onStatusFilterChange,
   onActivityModeChange,
-  onDatePresetChange,
-  onCustomDateChange,
   repHeatMap,
   statusTransitions = [],
   transitionFilter = null,
   onTransitionFilterChange,
   repStatesMap = {},
 }: FilterBarProps) {
-  const [localCustomStart, setLocalCustomStart] = useState(customStartDate);
-  const [localCustomEnd, setLocalCustomEnd] = useState(customEndDate);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const activeFilterCount = useMemo(() => {
@@ -109,16 +97,10 @@ export function FilterBar({
     if (selectedRep) count++;
     if (selectedState) count++;
     if (statusFilter) count++;
-    if (datePreset && datePreset !== 'all_time') count++;
     if (activityMode && activityMode !== 'application') count++;
     if (transitionFilter) count++;
     return count;
-  }, [selectedRep, selectedState, statusFilter, datePreset, activityMode, transitionFilter]);
-
-  useEffect(() => {
-    setLocalCustomStart(customStartDate);
-    setLocalCustomEnd(customEndDate);
-  }, [customStartDate, customEndDate]);
+  }, [selectedRep, selectedState, statusFilter, activityMode, transitionFilter]);
 
   const reps = useMemo(() => {
     // Use repStatesMap keys (data-driven from DealerLocation) — only reps with actual data
@@ -365,61 +347,6 @@ export function FilterBar({
           </div>
         )}
 
-        {/* Date Range Selector */}
-        {onDatePresetChange && (
-          <div className={styles.statusByGroup}>
-            <label className={styles.statusByLabel}>Date Range</label>
-            <select
-              className={styles.statusBySelect}
-              value={datePreset}
-              onChange={(e) => onDatePresetChange(e.target.value as DatePreset)}
-              id="date-preset-select"
-            >
-              <option value="this_month">This Month (MTD)</option>
-              <option value="last_30">Last 30 Days</option>
-              <option value="last_60">Last 60 Days</option>
-              <option value="last_month">Last Month</option>
-              <option value="ytd">YTD</option>
-              <option value="last_year">Last Year</option>
-              <option value="all_time">All-Time</option>
-              <option value="custom">Custom Range</option>
-            </select>
-            {datePreset === 'custom' && onCustomDateChange && (
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <input
-                  type="date"
-                  value={localCustomStart || ''}
-                  onChange={(e) => setLocalCustomStart(e.target.value)}
-                  className={styles.dateInput}
-                />
-                <span style={{ color: '#64748b' }}>to</span>
-                <input
-                  type="date"
-                  value={localCustomEnd || ''}
-                  onChange={(e) => setLocalCustomEnd(e.target.value)}
-                  className={styles.dateInput}
-                />
-                <button
-                  type="button"
-                  onClick={() => onCustomDateChange(localCustomStart, localCustomEnd)}
-                  style={{
-                    background: '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    padding: '4px 10px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Apply
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
         {mode === 'groups' && (
           <div className={styles.statItem}>
             <span className={styles.statValue}>{stats.groups}</span>
@@ -590,30 +517,6 @@ export function FilterBar({
                 </div>
               )}
 
-              {/* Date Presets */}
-              {onDatePresetChange && (
-                <div className={styles.mobileFilterSection}>
-                  <span className={styles.mobileSectionTitle}>Date Range</span>
-                  <div className={styles.mobilePresetGrid}>
-                    {[
-                      { key: 'this_month', label: 'This Month' },
-                      { key: 'last_30', label: 'Last 30d' },
-                      { key: 'last_60', label: 'Last 60d' },
-                      { key: 'ytd', label: 'YTD' },
-                      { key: 'all_time', label: 'All Time' },
-                    ].map((p) => (
-                      <button
-                        key={p.key}
-                        className={`${styles.mobileChip} ${datePreset === p.key ? styles.mobileChipActive : ''}`}
-                        onClick={() => onDatePresetChange(p.key as DatePreset)}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Status Filter */}
               <div className={styles.mobileFilterSection}>
                 <span className={styles.mobileSectionTitle}>Status Filter</span>
@@ -645,7 +548,6 @@ export function FilterBar({
                   onRepChange('');
                   onStateChange('');
                   onStatusFilterChange(null);
-                  if (onDatePresetChange) onDatePresetChange('all_time');
                   if (onTransitionFilterChange) onTransitionFilterChange(null);
                 }}
               >

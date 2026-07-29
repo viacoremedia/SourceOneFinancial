@@ -27,6 +27,8 @@ import type {
   TableColumn,
 } from '../../types';
 
+import { CustomDatePicker } from '../CustomDatePicker/CustomDatePicker';
+
 // ── Stacked Stat Cell ──
 
 function formatStatValue(val: number | undefined | null, type: 'count' | 'dollar' | 'percent'): string {
@@ -39,11 +41,26 @@ function formatStatValue(val: number | undefined | null, type: 'count' | 'dollar
 function renderStackedStatCell(
   val: number | undefined | null,
   trend: MetricTrend | undefined,
-  type: 'count' | 'dollar' | 'percent'
+  type: 'count' | 'dollar' | 'percent',
+  isAllTime: boolean = false
 ) {
   const currentFormatted = formatStatValue(val, type);
-  const baselineFormatted = trend ? formatStatValue(trend.baseline, type) : null;
-  const hasBaselineData = trend && typeof trend.baseline === 'number' && trend.baseline > 0;
+
+  // If viewing All-Time or trend is disabled, render current value only
+  if (isAllTime || !trend) {
+    if (val == null || val === 0) return <span className={styles.emptyValue}>—</span>;
+    return (
+      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+        {currentFormatted}
+      </span>
+    );
+  }
+
+  const baselineFormatted = formatStatValue(trend.baseline, type);
+  const hasBaselineData = typeof trend.baseline === 'number' && trend.baseline > 0;
+  const currentVal = val || 0;
+  const baseVal = trend.baseline || 0;
+  const totalVolume = currentVal + baseVal;
 
   if (val == null || val === 0) {
     if (hasBaselineData && baselineFormatted !== '—') {
@@ -68,17 +85,53 @@ function renderStackedStatCell(
     return <span className={styles.emptyValue}>—</span>;
   }
 
-  const isUp = trend ? trend.diff > 0 : false;
-  const isDown = trend ? trend.diff < 0 : false;
-  const pctSign = trend && trend.pct > 0 ? '+' : '';
-  const pctText = trend ? `${pctSign}${trend.pct}%` : null;
+  // Volume guard: if baseline is 0 and current > 0 -> render "New"
+  if (baseVal === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
+        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+          {currentFormatted}
+        </span>
+        <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <span style={{
+            color: '#34d399',
+            fontWeight: 700,
+            background: 'rgba(52, 211, 153, 0.18)',
+            padding: '1px 4px',
+            borderRadius: '4px'
+          }}>
+            New
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  // Volume guard: if total volume < 5, render baseline subtext without noisy percentage
+  if (totalVolume < 5 && type === 'count') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
+        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+          {currentFormatted}
+        </span>
+        <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', color: '#94a3b8', fontWeight: 500 }}>
+          ({baselineFormatted})
+        </span>
+      </div>
+    );
+  }
+
+  const isUp = trend.diff > 0;
+  const isDown = trend.diff < 0;
+  const pctSign = trend.pct > 0 ? '+' : '';
+  const pctText = `${pctSign}${trend.pct}%`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
       <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
         {currentFormatted}
       </span>
-      {trend && baselineFormatted !== '—' && (
+      {baselineFormatted !== '—' && (
         <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', display: 'flex', gap: '4px', alignItems: 'center' }}>
           <span style={{
             color: isUp ? '#34d399' : isDown ? '#f87171' : '#94a3b8',
@@ -113,6 +166,7 @@ interface DealerTableProps {
   datePreset?: DatePreset;
   customStartDate?: string;
   customEndDate?: string;
+  maxReportDate?: string;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
   onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
@@ -256,6 +310,7 @@ export function DealerTable({
   datePreset = 'this_month',
   customStartDate = '',
   customEndDate = '',
+  maxReportDate,
   onDatePresetChange,
   onCustomDateChange,
   onTrendChange,
@@ -267,14 +322,6 @@ export function DealerTable({
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [localCustomStart, setLocalCustomStart] = useState(customStartDate);
-  const [localCustomEnd, setLocalCustomEnd] = useState(customEndDate);
-
-  useEffect(() => {
-    setLocalCustomStart(customStartDate);
-    setLocalCustomEnd(customEndDate);
-  }, [customStartDate, customEndDate]);
 
   // Debounced search for server-side mode
   const handleSearchChange = useCallback(
@@ -507,6 +554,7 @@ export function DealerTable({
 
   const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true, stats?: DealerStats) => {
     const trends = stats?.trends;
+    const isAllTime = datePreset === 'all_time';
     return (
       <>
         {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
@@ -522,13 +570,13 @@ export function DealerTable({
         {visibleColumns.some(c => c.key === 'visitToApp') && (
           <td>{renderVisitCell(snap?.daysFromVisitToNextApp)}</td>
         )}
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.apps, trends?.apps, 'count')}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvals, trends?.approvals, 'count')}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.inHouse, trends?.inHouse, 'count')}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.booked, trends?.booked, 'count')}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.bookedDollars, trends?.bookedDollars, 'dollar')}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.lookToBook, trends?.lookToBook, 'percent')}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvalToBook, trends?.approvalToBook, 'percent')}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.apps, trends?.apps, 'count', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvals, trends?.approvals, 'count', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.inHouse, trends?.inHouse, 'count', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.booked, trends?.booked, 'count', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.bookedDollars, trends?.bookedDollars, 'dollar', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.lookToBook, trends?.lookToBook, 'percent', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvalToBook, trends?.approvalToBook, 'percent', isAllTime)}</td>
       </>
     );
   };
@@ -644,6 +692,25 @@ export function DealerTable({
               ✕ {displayStack.length}
             </button>
           )}
+          {/* Data Freshness Badge */}
+          {maxReportDate && (
+            <span
+              style={{
+                fontSize: '11px',
+                color: '#38bdf8',
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.2)',
+                padding: '4px 9px',
+                borderRadius: '6px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+              title="Latest report data date available in database"
+            >
+              📅 Data through {new Date(maxReportDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+            </span>
+          )}
+
           {/* Date Range Selector right next to Trend */}
           {onDatePresetChange && (
             <div className={styles.trendSelect}>
@@ -655,45 +722,22 @@ export function DealerTable({
                 id="dealer-table-date-range-select"
               >
                 <option value="this_month">This Month (MTD)</option>
-                <option value="last_30">Last 30 Days</option>
                 <option value="last_month">Last Month</option>
+                <option value="last_30">Last 30 Days</option>
+                <option value="last_60">Last 60 Days</option>
+                <option value="last_90">Last 90 Days</option>
                 <option value="ytd">YTD</option>
                 <option value="last_year">Last Year</option>
                 <option value="all_time">All-Time</option>
                 <option value="custom">Custom Range</option>
               </select>
               {datePreset === 'custom' && onCustomDateChange && (
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <input
-                    type="date"
-                    value={localCustomStart || ''}
-                    onChange={(e) => setLocalCustomStart(e.target.value)}
-                    className={styles.dateInput}
-                  />
-                  <span style={{ color: '#64748b', fontSize: '12px' }}>to</span>
-                  <input
-                    type="date"
-                    value={localCustomEnd || ''}
-                    onChange={(e) => setLocalCustomEnd(e.target.value)}
-                    className={styles.dateInput}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => onCustomDateChange(localCustomStart, localCustomEnd)}
-                    style={{
-                      background: '#0284c7',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Apply
-                  </button>
-                </div>
+                <CustomDatePicker
+                  startDate={customStartDate}
+                  endDate={customEndDate}
+                  maxDate={maxReportDate}
+                  onApply={(start, end) => onCustomDateChange(start, end)}
+                />
               )}
             </div>
           )}
@@ -713,21 +757,28 @@ export function DealerTable({
             >
               {datePreset === 'all_time' ? (
                 <option value="none">N/A (All-Time)</option>
-              ) : datePreset === 'last_30' || datePreset === 'last_60' ? (
-                <option value="prior">vs Prior Period</option>
-              ) : datePreset === 'ytd' || datePreset === 'last_year' ? (
+              ) : datePreset === 'ytd' ? (
+                <option value="yoy">vs Last Year</option>
+              ) : datePreset === 'last_year' ? (
+                <option value="yoy">vs Prior Year</option>
+              ) : datePreset === 'this_month' ? (
                 <>
-                  <option value="yoy">vs Last Year</option>
                   <option value="mom">vs Last Month</option>
+                  <option value="yoy">vs Last Year</option>
+                </>
+              ) : datePreset === 'last_month' ? (
+                <>
+                  <option value="prior">vs Prior Month</option>
+                  <option value="yoy">vs Last Year</option>
                 </>
               ) : datePreset === 'custom' ? (
                 <>
-                  <option value="prior">vs Preceding Period</option>
+                  <option value="prior">vs Prior Period</option>
                   <option value="yoy">vs Same Period Last Year</option>
                 </>
               ) : (
                 <>
-                  <option value="mom">vs Last Month</option>
+                  <option value="prior">vs Prior Period</option>
                   <option value="yoy">vs Last Year</option>
                 </>
               )}
