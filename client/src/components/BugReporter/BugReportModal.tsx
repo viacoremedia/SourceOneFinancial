@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getBufferedLogs } from './RouteTracker';
 import { AnnotationEditor } from './AnnotationEditor';
 import html2canvas from 'html2canvas';
@@ -17,11 +18,11 @@ interface BugReportModalProps {
 // ── Self-contained styles — works on ANY host app ──
 const S = {
   backdrop: {
-    position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.7)',
-    zIndex: 99998, transition: 'opacity 200ms', backdropFilter: 'blur(4px)',
+    position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.75)',
+    zIndex: 999998, transition: 'opacity 200ms', backdropFilter: 'blur(6px)',
   },
   wrapper: {
-    position: 'fixed' as const, inset: 0, zIndex: 99999,
+    position: 'fixed' as const, inset: 0, zIndex: 999999,
     display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
     padding: '32px 16px', boxSizing: 'border-box' as const, pointerEvents: 'auto' as const,
     overflowY: 'auto' as const,
@@ -300,7 +301,9 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
 
   const hasScreenshot = !!screenshot || !!imagePreview;
 
-  return (
+  if (!isOpen) return null;
+
+  return createPortal(
     <>
       {/* Backdrop */}
       <div style={{ ...S.backdrop, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }} onClick={handleClose} />
@@ -310,15 +313,6 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
         ...S.wrapper,
         opacity: isHiding ? 0 : 1,
         pointerEvents: isHiding ? 'none' : 'auto',
-        ...(typeof window !== 'undefined' && window.innerWidth <= 768 ? {
-          top: 'auto',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          transform: 'none',
-          maxWidth: '100%',
-          padding: 0,
-        } : {})
       }}>
         <div style={{
           ...S.card,
@@ -474,6 +468,7 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
