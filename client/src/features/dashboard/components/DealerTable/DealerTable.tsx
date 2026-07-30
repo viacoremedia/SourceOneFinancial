@@ -27,7 +27,42 @@ import type {
   TableColumn,
 } from '../../types';
 
+import { resolveRepDisplayName } from '../../../../core/utils/repNames';
 import { CustomDatePicker } from '../CustomDatePicker/CustomDatePicker';
+
+const INACTIVE_OR_EXCLUDED_REPS = new Set([
+  'bruce sweere', 'bsweere',
+  'tony derouin', 'tderouin',
+  'steve kimble', 'skimble',
+  'n boly', 'nboly',
+  'mandi schultz', 'mschultz', 'mschultz1', 'mandi',
+  'wendy',
+  's1 house', 's1house'
+]);
+
+function getRepDisplayForDealer(
+  dealerRepresentative?: string | null,
+  repName?: string | null,
+  statePrefix?: string | null,
+  stateRepMap?: StateRepMap
+): string {
+  const raw = (dealerRepresentative || repName || '').trim();
+  if (raw) {
+    const resolved = resolveRepDisplayName(raw);
+    const lower = resolved.trim().toLowerCase();
+    if (resolved && resolved !== 'Unassigned' && !INACTIVE_OR_EXCLUDED_REPS.has(lower)) {
+      return resolved.split(' ').pop() || resolved;
+    }
+  }
+  if (statePrefix && stateRepMap && stateRepMap[statePrefix]) {
+    const stateRep = stateRepMap[statePrefix];
+    const lowerStateRep = stateRep.trim().toLowerCase();
+    if (!INACTIVE_OR_EXCLUDED_REPS.has(lowerStateRep)) {
+      return stateRep.split(' ').pop() || stateRep;
+    }
+  }
+  return '—';
+}
 
 // ── Stacked Stat Cell ──
 
@@ -999,9 +1034,7 @@ export function DealerTable({
                       </td>
                       <td style={{ textAlign: 'left' }}>
                         <span className={styles.repCell}>
-                          {stateRepMap[dealer.statePrefix]
-                            ? stateRepMap[dealer.statePrefix].split(' ').pop()
-                            : <span className={styles.emptyValue}>—</span>}
+                          {getRepDisplayForDealer(dealer.dealerRepresentative, dealer.repName, dealer.statePrefix, stateRepMap)}
                         </span>
                       </td>
                       {renderChildCells(dealer.latestSnapshot, false, dealer.stats)}

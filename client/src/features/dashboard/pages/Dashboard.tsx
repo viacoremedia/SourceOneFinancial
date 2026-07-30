@@ -14,7 +14,7 @@ import { VisitImpactDrawer } from '../components/VisitImpactDrawer/VisitImpactDr
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
-import { AnalyticsProvider, useAnalyticsContext } from '../../../core/contexts/AnalyticsContext';
+import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
 import { Dealer360Modal } from '../../../components/Dealer360Modal/Dealer360Modal';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
@@ -39,7 +39,6 @@ const SORT_KEY_MAP: Record<string, string> = {
 };
 
 function DashboardContent() {
-  const { openDealer360 } = useAnalyticsContext();
   const { data: overview } = useOverview();
 
   // ── Centralized Store Subscription ──
@@ -89,8 +88,11 @@ function DashboardContent() {
   const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
-    openDealer360(dealerId);
-  }, [openDealer360]);
+    setDrawerDealerId(dealerId);
+    setDrawerGroupSlug(null);
+    setDrawerTab('mom');
+    setDrawerOpen(true);
+  }, []);
 
   const handleOpenGroupDrawer = useCallback((groupSlug: string) => {
     setDrawerGroupSlug(groupSlug);

@@ -151,6 +151,9 @@ export interface DealerLocation {
   dealerId: string;
   dealerName: string;
   statePrefix: string;
+  dealerRepresentative?: string | null;
+  repName?: string | null;
+  clientDealerId?: string | null;
   dealerGroup: string | null;
   createdAt: string;
   latestSnapshot: DailySnapshot | null;

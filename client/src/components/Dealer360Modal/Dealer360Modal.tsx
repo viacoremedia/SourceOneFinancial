@@ -434,7 +434,7 @@ export function Dealer360Modal() {
                                   <span>Amount: <strong style={{ color: isBooked ? '#34d399' : '#f8fafc' }}>{e.amountFinanced ? `$${e.amountFinanced.toLocaleString()}` : '$0'}</strong></span>
                                   {e.fico && <span>FICO: <strong>{e.fico}</strong></span>}
 
-                                  {e.attribution && (
+                                  {e.attribution && targetVisit && e.timestamp >= targetVisit.timestamp && (
                                     <span className={styles.attributionBadge} title={`Visit took place on ${new Date(e.attribution.visitDate).toLocaleDateString()}`}>
                                       ⚡ {e.attribution.daysAfterVisit}d post-visit by {e.attribution.repName}
                                     </span>
@@ -472,31 +472,38 @@ export function Dealer360Modal() {
                                       </div>
                                     )}
 
-                                    <div className={styles.horizontalNodeCard} style={{ borderColor: '#34d399', background: 'rgba(6, 78, 59, 0.3)' }}>
-                                      <span className={styles.horizontalNodeLabel} style={{ color: '#34d399' }}>🎯 Reactivation Visit</span>
+                                    <div className={styles.horizontalNodeCard} style={{ borderColor: firstPostVisitApp ? '#34d399' : '#38bdf8', background: firstPostVisitApp ? 'rgba(6, 78, 59, 0.3)' : 'rgba(14, 165, 233, 0.15)' }}>
+                                      <span className={styles.horizontalNodeLabel} style={{ color: firstPostVisitApp ? '#34d399' : '#38bdf8' }}>
+                                        {firstPostVisitApp ? '🎯 Reactivation Visit' : '📍 Rep In-Person Visit'}
+                                      </span>
                                       <span className={styles.horizontalNodeTitle}>by {targetVisit.repName}</span>
                                       <span className={styles.horizontalNodeDate}>
                                         {new Date(targetVisit.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                       </span>
                                     </div>
 
-                                    {firstPostVisitApp && firstPostVisitApp.attribution && (
-                                      <div className={styles.horizontalConnectorConversion}>
-                                        ⚡ {firstPostVisitApp.attribution.daysAfterVisit}d Post-Visit
-                                      </div>
-                                    )}
-
-                                    {firstPostVisitApp && (
-                                      <div className={styles.horizontalNodeCard} style={{ borderColor: '#fbbf24', background: 'rgba(120, 53, 15, 0.3)' }}>
-                                        <span className={styles.horizontalNodeLabel} style={{ color: '#fbbf24' }}>
-                                          {firstPostVisitApp.status === 'Booked' ? '💰 Deal Booked' : '📄 App Submitted'}
-                                        </span>
-                                        <span className={styles.horizontalNodeTitle}>
-                                          {firstPostVisitApp.amountFinanced ? `$${firstPostVisitApp.amountFinanced.toLocaleString()}` : `#${firstPostVisitApp.applicationId}`}
-                                        </span>
-                                        <span className={styles.horizontalNodeDate}>
-                                          {new Date(firstPostVisitApp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </span>
+                                    {firstPostVisitApp ? (
+                                      <>
+                                        {firstPostVisitApp.attribution && (
+                                          <div className={styles.horizontalConnectorConversion}>
+                                            ⚡ {firstPostVisitApp.attribution.daysAfterVisit}d Post-Visit
+                                          </div>
+                                        )}
+                                        <div className={styles.horizontalNodeCard} style={{ borderColor: '#fbbf24', background: 'rgba(120, 53, 15, 0.3)' }}>
+                                          <span className={styles.horizontalNodeLabel} style={{ color: '#fbbf24' }}>
+                                            {firstPostVisitApp.status === 'Booked' ? '💰 Deal Booked' : '📄 App Submitted'}
+                                          </span>
+                                          <span className={styles.horizontalNodeTitle}>
+                                            {firstPostVisitApp.amountFinanced ? `$${firstPostVisitApp.amountFinanced.toLocaleString()}` : `#${firstPostVisitApp.applicationId}`}
+                                          </span>
+                                          <span className={styles.horizontalNodeDate}>
+                                            {new Date(firstPostVisitApp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                          </span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className={styles.horizontalConnectorGap} style={{ color: '#94a3b8', borderStyle: 'dashed' }}>
+                                        ⏳ Awaiting Post-Visit Production
                                       </div>
                                     )}
                                   </div>

@@ -465,6 +465,7 @@ export interface RepCommunicationHistoryResponse {
     id: string;
     sourceCommunicationId: string;
     date: string;
+    daysAgo?: number | null;
     repName: string;
     userEmail: string | null;
     dealerName: string;
@@ -474,6 +475,7 @@ export interface RepCommunicationHistoryResponse {
     groupSlug: string | null;
     type: string;
     result: string | null;
+    notes: string | null;
     feedback: string | null;
     sourceSystem: string | null;
     timezone: string | null;

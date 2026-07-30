@@ -457,17 +457,52 @@ async function getRepCommunicationHistory({
     // Pre-resolve dealer locations if state, group, or dealerId is specified
     const locMatch = {};
     if (state) locMatch.statePrefix = state.toUpperCase();
+
     if (groupSlug) {
         const DealerGroup = require('../models/DealerGroup');
-        const grp = await DealerGroup.findOne({ slug: groupSlug }).lean();
+        const mongoose = require('mongoose');
+        const isGroupObjId = mongoose.Types.ObjectId.isValid(groupSlug);
+        const grp = await DealerGroup.findOne(
+            isGroupObjId ? { _id: groupSlug } : { $or: [{ slug: groupSlug }, { name: groupSlug }] }
+        ).lean();
         if (grp) locMatch.dealerGroup = grp._id;
     }
-    if (dealerId) locMatch.clientDealerId = dealerId.toUpperCase();
+
+    if (dealerId) {
+        const mongoose = require('mongoose');
+        const isObjId = mongoose.Types.ObjectId.isValid(dealerId);
+        if (isObjId) {
+            locMatch._id = dealerId;
+        } else {
+            locMatch.$or = [
+                { clientDealerId: new RegExp('^' + dealerId + '$', 'i') },
+                { dealerId: new RegExp('^' + dealerId + '$', 'i') }
+            ];
+        }
+    }
 
     if (Object.keys(locMatch).length > 0) {
         const locs = await DealerLocation.find(locMatch).select('clientDealerId dealerId').lean();
-        const filterDealerIds = locs.map(l => (l.clientDealerId || l.dealerId || '').trim().toUpperCase()).filter(Boolean);
-        match.internalRelationshipId2 = { $in: filterDealerIds.map(d => new RegExp('^' + d + '$', 'i')) };
+        const filterDealerIds = locs.flatMap(l => [l.clientDealerId, l.dealerId].filter(Boolean).map(x => x.trim().toUpperCase()));
+        const uniqueDealerIds = Array.from(new Set(filterDealerIds));
+
+        if (uniqueDealerIds.length > 0) {
+            const dealerRegexes = uniqueDealerIds.map(d => new RegExp('^' + d + '$', 'i'));
+            const dealerConds = [
+                { internalRelationshipId2: { $in: dealerRegexes } },
+                { internalRelationshipId: { $in: dealerRegexes } }
+            ];
+            if (match.$or) {
+                match.$and = match.$and || [];
+                match.$and.push({ $or: match.$or }, { $or: dealerConds });
+                delete match.$or;
+            } else {
+                match.$or = dealerConds;
+            }
+        } else {
+            const mongoose = require('mongoose');
+            match._id = new mongoose.Types.ObjectId();
+        }
     }
 
     if (search && search.trim()) {
@@ -517,12 +552,17 @@ async function getRepCommunicationHistory({
 
         const commClass = classifyComm(c);
         const resolvedType = commClass === 'visit' ? 'In-Person Visit' : commClass === 'call' ? 'Phone Call' : (c.communicationType ? (c.communicationType.charAt(0).toUpperCase() + c.communicationType.slice(1)) : 'Other');
-        const notesText = c.communicationResult1 || c.communicationFeedback1 || c.communicationNotes || c.notes || null;
+        const resultText = c.communicationResult1 || null;
+        const notesText = c.communicationFeedback1 || c.communicationNotes || c.notes || null;
+        const commDate = c.communicationEventDatetime ? new Date(c.communicationEventDatetime) : null;
+        const now = new Date('2026-07-28T23:59:59Z');
+        const daysAgo = commDate ? Math.max(0, Math.floor((now.getTime() - commDate.getTime()) / (1000 * 60 * 60 * 24))) : null;
 
         return {
             id: c._id.toString(),
             sourceCommunicationId: c.sourceCommunicationId,
             date: c.communicationEventDatetime,
+            daysAgo,
             repName: repDisplayName,
             userEmail: c.communicationUserEmail || null,
             dealerName: loc ? loc.dealerName : (c.recipientOrganizationName || 'Unknown Dealer'),
@@ -531,8 +571,8 @@ async function getRepCommunicationHistory({
             groupName: loc && loc.dealerGroup ? loc.dealerGroup.name : null,
             groupSlug: loc && loc.dealerGroup ? loc.dealerGroup.slug : null,
             type: resolvedType,
-            result: notesText,
-            notes: notesText,
+            result: resultText || notesText || '—',
+            notes: notesText || '—',
             feedback: c.communicationFeedback1 || null,
             sourceSystem: c.sourceSystem || null,
             timezone: c.communicationEventTimezone || null,

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
-import { getHistoricalMoM, getDealerApplicationsHistory, searchDealers } from '../../../../core/services/api';
-import type { RepMappings } from '../../../../core/services/api';
+import { getHistoricalMoM, getDealerApplicationsHistory, searchDealers, getRepCommunicationHistory } from '../../../../core/services/api';
+import type { RepMappings, RepCommunicationHistoryResponse } from '../../../../core/services/api';
 import type {
   HistoricalMoMItem,
   HistoricalMoMResponse,
@@ -21,7 +21,7 @@ interface AnalyticsDrawerProps {
   repStatesMap?: Record<string, string[]>;
   initialDealerId?: string | null;
   initialGroupSlug?: string | null;
-  initialTab?: 'mom' | 'applications';
+  initialTab?: 'mom' | 'applications' | 'communications';
   onSelectDealerId?: (dealerId: string | null) => void;
   onSelectGroupSlug?: (groupSlug: string | null) => void;
 }
@@ -84,8 +84,8 @@ export function AnalyticsDrawer({
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
   const { openDealer360 } = useAnalyticsContext();
-  // Active Tab: 'mom' | 'applications'
-  const [activeTab, setActiveTab] = useState<'mom' | 'applications'>(initialTab);
+  // Active Tab: 'mom' | 'applications' | 'communications'
+  const [activeTab, setActiveTab] = useState<'mom' | 'applications' | 'communications'>(initialTab);
 
   // Selected Dealer Filter (ID or Mongo _id)
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(initialDealerId);
@@ -123,6 +123,12 @@ export function AnalyticsDrawer({
   const [appHistoryLoading, setAppHistoryLoading] = useState(false);
   const [appHistoryPage, setAppHistoryPage] = useState(1);
 
+  // Communication History State
+  const [commHistoryData, setCommHistoryData] = useState<RepCommunicationHistoryResponse | null>(null);
+  const [commHistoryLoading, setCommHistoryLoading] = useState(false);
+  const [commHistoryPage, setCommHistoryPage] = useState(1);
+  const [commTypeFilter, setCommTypeFilter] = useState<'all' | 'visit' | 'call' | 'email'>('all');
+
   // Application Detail Drawer State
   const [selectedAppDetail, setSelectedAppDetail] = useState<ApplicationHistoryItem | null>(null);
 
@@ -142,6 +148,8 @@ export function AnalyticsDrawer({
       setSelectedGroup(initialGroupSlug || '');
       setAppHistoryPage(1);
       setAppHistoryData(null);
+      setCommHistoryPage(1);
+      setCommHistoryData(null);
     }
   }, [isOpen, initialDealerId, initialGroupSlug, initialTab]);
 
@@ -242,6 +250,37 @@ export function AnalyticsDrawer({
       active = false;
     };
   }, [isOpen, selectedDealerId, selectedGroup, selectedState, selectedRep, appHistoryPage]);
+
+  // Load Communication History data when target, filters or page changes
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'communications') return;
+
+    let active = true;
+    setCommHistoryLoading(true);
+
+    getRepCommunicationHistory({
+      dealerId: selectedDealerId || undefined,
+      groupSlug: selectedGroup || undefined,
+      state: selectedState || undefined,
+      rep: selectedRep || undefined,
+      type: commTypeFilter === 'all' ? undefined : commTypeFilter,
+      page: commHistoryPage,
+      limit: 15,
+    })
+      .then((res) => {
+        if (active) setCommHistoryData(res);
+      })
+      .catch((err) => {
+        console.error('Failed to load communication history:', err);
+      })
+      .finally(() => {
+        if (active) setCommHistoryLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, activeTab, selectedDealerId, selectedGroup, selectedState, selectedRep, commTypeFilter, commHistoryPage]);
 
   const toggleSeries = (key: SeriesKey) => {
     setActiveSeriesKeys((prev) => {
@@ -374,6 +413,12 @@ export function AnalyticsDrawer({
               onClick={() => setActiveTab('applications')}
             >
               📋 Application History
+            </button>
+            <button
+              className={`${styles.tabBtn} ${activeTab === 'communications' ? styles.tabBtnActive : ''}`}
+              onClick={() => setActiveTab('communications')}
+            >
+              📍 Communication History
             </button>
           </div>
 
@@ -900,6 +945,158 @@ export function AnalyticsDrawer({
                     </div>
                   )}
                 </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: COMMUNICATION HISTORY */}
+        {activeTab === 'communications' && (
+          <div className={styles.drawerContent}>
+            {/* Header & Sub-filters */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 className={styles.sectionTitle} style={{ margin: 0 }}>
+                  Communication & Visit Logs ({commHistoryData?.pagination?.totalCount || 0})
+                </h3>
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[
+                  { key: 'all', label: 'All Touchpoints' },
+                  { key: 'visit', label: '📍 In-Person Visits' },
+                  { key: 'call', label: '📞 Phone Calls' },
+                  { key: 'email', label: '✉️ Emails / Other' },
+                ].map((tf) => (
+                  <button
+                    key={tf.key}
+                    onClick={() => { setCommTypeFilter(tf.key as any); setCommHistoryPage(1); }}
+                    style={{
+                      background: commTypeFilter === tf.key ? '#2563eb' : '#1e293b',
+                      color: commTypeFilter === tf.key ? '#ffffff' : '#94a3b8',
+                      border: '1px solid #334155',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {commHistoryLoading && commHistoryPage === 1 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                Loading communication history records...
+              </div>
+            ) : commHistoryData?.items.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                No communication records found for the selected filters.
+              </div>
+            ) : (
+              <>
+                <div className={styles.tableWrapper} style={{ maxHeight: '420px' }}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Date & Recency</th>
+                        <th>Rep Name</th>
+                        <th>Type</th>
+                        {!isDealerSelected && <th>Dealer / Location</th>}
+                        <th>State</th>
+                        <th>Outcome / Result</th>
+                        <th>Notes / Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {commHistoryData?.items.map((item) => (
+                        <tr key={item.id}>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: '#f8fafc' }}>
+                              {item.date ? new Date(item.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                            </div>
+                            {item.daysAgo != null && (
+                              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>
+                                ⏱️ {item.daysAgo === 0 ? 'Today' : `${item.daysAgo}d ago`}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ fontWeight: 600, color: '#f8fafc', whiteSpace: 'nowrap' }}>{item.repName || '—'}</td>
+                          <td>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: item.type?.toLowerCase().includes('visit') || item.type?.toLowerCase().includes('meeting')
+                                ? 'rgba(56, 189, 248, 0.2)'
+                                : item.type?.toLowerCase().includes('call')
+                                ? 'rgba(168, 85, 247, 0.2)'
+                                : 'rgba(148, 163, 184, 0.2)',
+                              color: item.type?.toLowerCase().includes('visit') || item.type?.toLowerCase().includes('meeting')
+                                ? '#38bdf8'
+                                : item.type?.toLowerCase().includes('call')
+                                ? '#c084fc'
+                                : '#cbd5e1',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                            }}>
+                              {item.type || 'Touchpoint'}
+                            </span>
+                          </td>
+                          {!isDealerSelected && (
+                            <td>
+                              <div
+                                style={{ fontWeight: 600, color: '#38bdf8', cursor: 'pointer', textDecoration: 'underline' }}
+                                onClick={() => openDealer360(item.clientDealerId || item.dealerName, item.dealerName)}
+                                title={`Click to view 360° inspection for ${item.dealerName}`}
+                              >
+                                {item.dealerName || '—'}
+                              </div>
+                              {item.groupName && (
+                                <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>
+                                  {item.groupName}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          <td>{item.state || '—'}</td>
+                          <td style={{ fontSize: '12px', fontWeight: 600, color: '#34d399', maxWidth: '180px' }}>
+                            {item.result || '—'}
+                          </td>
+                          <td style={{ fontSize: '12px', color: '#cbd5e1', maxWidth: '300px' }}>
+                            {item.notes && item.notes !== item.result ? item.notes : (item.feedback || '—')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {commHistoryData?.pagination && commHistoryData.pagination.totalPages > 1 && (
+                  <div className={styles.paginationRow}>
+                    <button
+                      className={styles.pageBtn}
+                      disabled={commHistoryPage <= 1 || commHistoryLoading}
+                      onClick={() => setCommHistoryPage((p) => Math.max(1, p - 1))}
+                    >
+                      ← Previous
+                    </button>
+                    <span className={styles.pageInfo}>
+                      Page {commHistoryData.pagination.page} of {commHistoryData.pagination.totalPages}
+                    </span>
+                    <button
+                      className={styles.pageBtn}
+                      disabled={!commHistoryData.pagination.hasMore || commHistoryLoading}
+                      onClick={() => setCommHistoryPage((p) => p + 1)}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
