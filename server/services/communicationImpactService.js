@@ -426,7 +426,8 @@ async function getRepCommunicationHistory({
 
     if (rep) {
         const key = rep.trim().toLowerCase();
-        const targetHandles = Object.entries(REP_DISPLAY_MAP)
+        const repDisplayMap = require('../config/repConfig').getRepDisplayMap();
+        const targetHandles = Object.entries(repDisplayMap)
             .filter(([k, v]) => v.toLowerCase() === key || k === key)
             .map(([k]) => k);
         if (targetHandles.length === 0) targetHandles.push(key);

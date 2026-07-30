@@ -121,8 +121,9 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
     console.log(`\n=== SNAPSHOT GENERATION SERVICE ===`);
     console.log(`Date Range: ${startD.toISOString().split('T')[0]} to ${endD.toISOString().split('T')[0]}`);
 
-    // 1. Load all DealerLocation documents
-    const dealerQuery = {};
+    // 1. Load DealerLocation documents (only those enriched by dealer info CSV)
+    //    Excludes ghost/skeleton records that lack omniDealerId
+    const dealerQuery = { omniDealerId: { $exists: true, $ne: null } };
     if (dealerIds && dealerIds.length > 0) {
         dealerQuery.dealerId = { $in: dealerIds };
     }

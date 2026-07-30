@@ -221,35 +221,11 @@ async function resolveDealerBatch(rows) {
                 });
             }
         } else {
-            try {
-                const location = await DealerLocation.findOneAndUpdate(
-                    { dealerId },
-                    {
-                        $set: {
-                            dealerName: rowData.dealerName,
-                            dealerGroup: groupId
-                        }
-                    },
-                    { upsert: true, returnDocument: 'after', lean: true }
-                );
-                result.set(dealerId, {
-                    dealerLocationId: location._id,
-                    dealerGroupId: groupId
-                });
-                newDealers++;
-            } catch (err) {
-                if (err.code === 11000) {
-                    const existing = await DealerLocation.findOne({ dealerId }).lean();
-                    if (existing) {
-                        result.set(dealerId, {
-                            dealerLocationId: existing._id,
-                            dealerGroupId: existing.dealerGroup || groupId
-                        });
-                    }
-                } else {
-                    throw err;
-                }
-            }
+            // Skip unknown dealers — only dealers ingested from the dealer info CSV
+            // should exist in DealerLocation. Creating skeleton records here would
+            // produce ghost dealers with no enrichment data (no name, no isActive, etc.).
+            // Log it as a warning so we can track unmatched dealer IDs from the data.
+            console.warn(`  dealerGroupDetector: skipping unknown dealerId "${dealerId}" (not in DealerLocation — needs dealer info CSV ingestion first)`);
         }
     }
 
