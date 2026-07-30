@@ -166,22 +166,29 @@ async function computeVisitImpact(windowDays = 30, repFilter = null) {
         const isCall = type.includes('call') || type.includes('phone') ||
                        result.includes('spoke with') || result.includes('follow up') || result.includes('returned') || result.includes('not able to speak');
 
-        if (isVisit) {
-            repStats[repName].visitCount++;
-            repStats[repName].dealers[dealerKey].visitCount++;
+        // Only count touchpoints/visits/calls that fall within the active window
+        // (comms outside the window are still loaded for pre-window baseline attribution)
+        const commDate = new Date(comm.communicationEventDatetime);
+        const inActiveWindow = commDate >= currentWindowStart && commDate <= currentWindowEnd;
+
+        if (inActiveWindow) {
+            if (isVisit) {
+                repStats[repName].visitCount++;
+                repStats[repName].dealers[dealerKey].visitCount++;
+            }
+            if (isCall) {
+                repStats[repName].callCount++;
+                repStats[repName].dealers[dealerKey].callCount++;
+            }
+            repStats[repName].totalTouchpoints++;
+            repStats[repName].dealers[dealerKey].touchpoints++;
         }
-        if (isCall) {
-            repStats[repName].callCount++;
-            repStats[repName].dealers[dealerKey].callCount++;
-        }
-        repStats[repName].totalTouchpoints++;
-        repStats[repName].dealers[dealerKey].touchpoints++;
 
         const dealerAppList = appsByDealer.get(dealerKey) || [];
         const commTime = new Date(comm.communicationEventDatetime).getTime();
 
-        // Compute pre and post metrics for visits
-        if (isVisit) {
+        // Compute pre and post metrics for visits within the active window only
+        if (isVisit && inActiveWindow) {
             let preVol = 0, postVol = 0;
             let preApps = 0, postApps = 0;
 
