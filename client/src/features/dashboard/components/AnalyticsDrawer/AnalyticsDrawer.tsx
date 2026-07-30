@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
 import { getHistoricalMoM, getDealerApplicationsHistory, searchDealers } from '../../../../core/services/api';
 import type { RepMappings } from '../../../../core/services/api';
 import type {
@@ -82,6 +83,7 @@ export function AnalyticsDrawer({
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
+  const { openDealer360 } = useAnalyticsContext();
   // Active Tab: 'mom' | 'applications'
   const [activeTab, setActiveTab] = useState<'mom' | 'applications'>(initialTab);
 
@@ -480,32 +482,33 @@ export function AnalyticsDrawer({
               {/* NEW: Searchable Dealer Selector Filter */}
               <div className={styles.filterGroup} ref={dropdownRef}>
                 <span className={styles.filterLabel}>Dealer:</span>
-                {selectedDealerId ? (
-                  <div className={styles.dealerSelectBtn}>
-                    <span>{selectedDealerObj?.dealerName || selectedDealerId}</span>
-                    <button
+                <button
+                  className={styles.dealerSelectBtn}
+                  onClick={() => {
+                    setDealerSearchOpen(!dealerSearchOpen);
+                    if (!dealerSearchOpen) {
+                      searchDealers('', 50).then((res) => {
+                        if (res?.dealers) setDealerSearchResults(res.dealers);
+                      }).catch(console.error);
+                    }
+                  }}
+                >
+                  <span>{selectedDealerId ? (selectedDealerObj?.dealerName || selectedDealerId) : 'All Dealers (Search...)'}</span>
+                  {selectedDealerId ? (
+                    <span
                       className={styles.clearDealerBtn}
-                      onClick={handleClearDealer}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClearDealer();
+                      }}
                       title="Clear dealer selection"
                     >
                       ✕
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className={styles.dealerSelectBtn}
-                    onClick={() => {
-                      setDealerSearchOpen(!dealerSearchOpen);
-                      if (!dealerSearchOpen) {
-                        searchDealers('', 50).then((res) => {
-                          if (res?.dealers) setDealerSearchResults(res.dealers);
-                        }).catch(console.error);
-                      }
-                    }}
-                  >
-                    <span>All Dealers (Search...) ▼</span>
-                  </button>
-                )}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '10px', marginLeft: '4px' }}>▼</span>
+                  )}
+                </button>
 
                 {/* Dealer Search Menu Popup */}
                 {dealerSearchOpen && (
@@ -828,7 +831,16 @@ export function AnalyticsDrawer({
                               <td className={styles.appIdCell}>{app.applicationId}</td>
                               {!isDealerSelected && (
                                 <td>
-                                  <div style={{ fontWeight: 600 }}>{app.dealerName || '—'}</div>
+                                  <div
+                                    style={{ fontWeight: 600, color: '#38bdf8', cursor: 'pointer', textDecoration: 'underline' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openDealer360(app.clientDealerId || app.dealerName || '', app.dealerName);
+                                    }}
+                                    title={`Click to open 360° Inspection Card for ${app.dealerName}`}
+                                  >
+                                    {app.dealerName || '—'}
+                                  </div>
                                   {app.dealerState && (
                                     <span className={styles.badge} style={{ fontSize: '0.65rem', marginTop: '2px', display: 'inline-block' }}>
                                       {app.dealerState}

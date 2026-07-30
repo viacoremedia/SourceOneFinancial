@@ -15,10 +15,11 @@ const DailyDealerSnapshot = require('../../models/DailyDealerSnapshot');
 const MonthlyDealerRollup = require('../../models/MonthlyDealerRollup');
 const DealerGroup = require('../../models/DealerGroup');
 const DealerLocation = require('../../models/DealerLocation');
+const DealerCommunication = require('../../models/DealerCommunication');
 const SalesBudget = require('../../models/SalesBudget');
 const LargeDealerBudget = require('../../models/LargeDealerBudget');
 const { getDealerStatsMap, getNetworkAggregateStats } = require('../../services/dealerStatsService');
-const { getRepAliasMap, getRepDisplayMap } = require('../../config/repConfig');
+const { getRepAliasMap, getRepDisplayMap, getRepHandles, isInactiveRep, isExcludedRep, resolveRepName } = require('../../config/repConfig');
 const budgetRoutes = require('./budget');
 const communicationRoutes = require('./communication');
 
@@ -98,9 +99,12 @@ router.get('/rep-mappings', async (req, res) => {
             const handle = (loc.dealerRepresentative || '').trim().toLowerCase();
             if (!handle) continue;
 
-            // Skip handles not in the alias map — they're system accounts or unmapped
+            if (isInactiveRep(handle) || isExcludedRep(handle)) continue;
+
             const displayName = handleToDisplay[handle];
             if (!displayName) continue;
+
+            if (isInactiveRep(displayName) || isExcludedRep(displayName)) continue;
 
             if (!repStatesMap[displayName]) {
                 repStatesMap[displayName] = new Set();
@@ -145,7 +149,15 @@ router.get('/rep-mappings', async (req, res) => {
         }
 
         // Aggregate all unique values
-        const allReps = Object.keys(repStates).sort();
+        const allReps = Object.keys(repStates)
+            .filter(rep => {
+                // Find any handle for this rep and check if active
+                const handleEntry = Object.entries(getRepDisplayMap()).find(([, name]) => name === rep);
+                if (!handleEntry) return true; // unknown reps still show
+                const handle = handleEntry[0];
+                return !isInactiveRep(handle) && !isExcludedRep(handle);
+            })
+            .sort();
 
         // allStates: union of rep-derived states + budget states (comprehensive)
         const allStatesSet = new Set();
@@ -224,8 +236,7 @@ router.get('/executive-summary', async (req, res) => {
                 locMatch.statePrefix = { $in: targetStates };
             }
             if (repFilter) {
-                const key = repFilter.trim().toLowerCase();
-                const handles = REP_ALIAS_MAP[key] || [repFilter.trim()];
+                const handles = getRepHandles(repFilter);
                 const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
                 locMatch.dealerRepresentative = { $in: handleRegexes };
             }
@@ -435,8 +446,7 @@ router.get('/historical/mom', async (req, res) => {
                 locMatch.statePrefix = stateFilter.toUpperCase();
             }
             if (repFilter) {
-                const key = repFilter.trim().toLowerCase();
-                const handles = REP_ALIAS_MAP[key] || [repFilter.trim()];
+                const handles = getRepHandles(repFilter);
                 const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
                 locMatch.dealerRepresentative = { $in: handleRegexes };
             }
@@ -976,8 +986,7 @@ router.get('/groups', async (req, res) => {
                 locMatch.statePrefix = { $in: targetStates };
             }
             if (repParam) {
-                const key = repParam.trim().toLowerCase();
-                const handles = REP_ALIAS_MAP[key] || [repParam.trim()];
+                const handles = getRepHandles(repParam);
                 const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
                 locMatch.dealerRepresentative = { $in: handleRegexes };
             }
@@ -1359,8 +1368,7 @@ router.get('/dealers/small', async (req, res) => {
             baseMatch.statePrefix = { $in: statesParam };
         }
         if (repParam) {
-            const key = repParam.trim().toLowerCase();
-            const handles = REP_ALIAS_MAP[key] || [repParam.trim()];
+            const handles = getRepHandles(repParam);
             const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
             baseMatch.dealerRepresentative = { $in: handleRegexes };
         }
@@ -2174,7 +2182,9 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
                 matchQuery.dealerState = req.query.state.toUpperCase();
             }
             if (req.query.rep) {
-                matchQuery.dealerRepresentative = new RegExp(`^${req.query.rep}$`, 'i');
+                const handles = getRepHandles(req.query.rep);
+                const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
+                matchQuery.dealerRepresentative = { $in: handleRegexes };
             }
             if (req.query.group) {
                 matchQuery.dealerGroup = new RegExp(req.query.group, 'i');
@@ -2312,6 +2322,259 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching dealer applications history:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /analytics/dealer-360/:dealerId
+ * Returns complete 360° overview data for a single dealer location:
+ * - Location info & assigned rep
+ * - Current activity status
+ * - Days since app, approval, booking, visit
+ * - Historical totals & conversion rates
+ * - Last 12 months volume sparkline
+ */
+router.get('/dealer-360/:dealerId', async (req, res) => {
+    try {
+        const { dealerId } = req.params;
+        let location = null;
+
+        if (mongoose.Types.ObjectId.isValid(dealerId)) {
+            location = await DealerLocation.findById(dealerId).populate('dealerGroup', 'name slug').lean();
+        }
+        if (!location) {
+            location = await DealerLocation.findOne({
+                $or: [
+                    { clientDealerId: dealerId },
+                    { dealerId: dealerId },
+                    { omniDealerId: dealerId }
+                ]
+            }).populate('dealerGroup', 'name slug').lean();
+        }
+
+        if (!location) {
+            return res.status(404).json({ success: false, message: `Dealer location not found for ID: ${dealerId}` });
+        }
+
+        const clientDealerId = location.clientDealerId || location.dealerId;
+        const repName = resolveRepName(location.dealerRepresentative);
+
+        // Fetch latest snapshot for activity status
+        const latestSnap = await DailyDealerSnapshot.findOne({ clientDealerId })
+            .sort({ reportDate: -1 })
+            .lean();
+
+        // Fetch application recencies & totals
+        const apps = await Application.find({ clientDealerId })
+            .sort({ applicationDate: -1 })
+            .lean();
+
+        const latestApp = apps[0] || null;
+        const latestApproval = apps.find(a => a.wasApproved || ['Approved', 'Conditional Approval', 'Auto Approval'].includes(a.status)) || null;
+        const latestBooking = apps.find(a => a.status === 'Booked') || null;
+
+        const maxReportDate = await getMaxReportDate();
+        const nowMs = maxReportDate.getTime();
+
+        const daysSinceApp = latestApp ? Math.floor((nowMs - new Date(latestApp.applicationDate).getTime()) / (1000 * 60 * 60 * 24)) : null;
+        const daysSinceApproval = latestApproval ? Math.floor((nowMs - new Date(latestApproval.applicationDate).getTime()) / (1000 * 60 * 60 * 24)) : null;
+        const daysSinceBooking = latestBooking ? Math.floor((nowMs - new Date(latestBooking.applicationDate).getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+        // Fetch latest visit touchpoint date
+        const lastVisit = await DealerCommunication.collection.findOne(
+            {
+                internalRelationshipId2: new RegExp('^' + clientDealerId + '$', 'i'),
+                $or: [
+                    { communicationType: { $regex: /visit|meeting/i } },
+                    { communicationResult1: { $regex: /met with|training|sign up/i } }
+                ]
+            },
+            { sort: { communicationEventDatetime: -1 } }
+        );
+        const daysSinceVisit = lastVisit && lastVisit.communicationEventDatetime
+            ? Math.floor((nowMs - new Date(lastVisit.communicationEventDatetime).getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+
+        let daysVisitToNextApp = null;
+        if (lastVisit && lastVisit.communicationEventDatetime) {
+            const visitMs = new Date(lastVisit.communicationEventDatetime).getTime();
+            const nextApp = apps
+                .filter(a => new Date(a.applicationDate).getTime() >= visitMs)
+                .sort((a, b) => new Date(a.applicationDate).getTime() - new Date(b.applicationDate).getTime())[0];
+            if (nextApp) {
+                daysVisitToNextApp = Math.floor((new Date(nextApp.applicationDate).getTime() - visitMs) / (1000 * 60 * 60 * 24));
+            }
+        }
+
+        // Totals & conversion
+        const totalApps = apps.length;
+        const totalApproved = apps.filter(a => a.wasApproved || ['Approved', 'Conditional Approval', 'Auto Approval'].includes(a.status)).length;
+        const totalBooked = apps.filter(a => a.status === 'Booked').length;
+        const totalBookedDollars = apps.filter(a => a.status === 'Booked').reduce((sum, a) => sum + (a.amountFinanced || 0), 0);
+
+        const lookToBookPct = totalApps > 0 ? (totalBooked / totalApps) * 100 : 0;
+        const approvalToBookPct = totalApproved > 0 ? (totalBooked / totalApproved) * 100 : 0;
+
+        // 12-Month Sparkline
+        const monthlySparklineMap = {};
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(maxReportDate.getFullYear(), maxReportDate.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            monthlySparklineMap[key] = { month: key, apps: 0, bookedDollars: 0 };
+        }
+
+        for (const app of apps) {
+            const d = new Date(app.applicationDate);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (monthlySparklineMap[key]) {
+                monthlySparklineMap[key].apps++;
+                if (app.status === 'Booked') {
+                    monthlySparklineMap[key].bookedDollars += (app.amountFinanced || 0);
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            location: {
+                _id: location._id,
+                dealerName: location.dealerName,
+                clientDealerId: location.clientDealerId,
+                dealerId: location.dealerId,
+                statePrefix: location.statePrefix,
+                repName,
+                groupName: location.dealerGroup ? location.dealerGroup.name : null,
+                groupSlug: location.dealerGroup ? location.dealerGroup.slug : null,
+            },
+            status: latestSnap ? latestSnap.activityStatus : (daysSinceApp != null && daysSinceApp <= 30 ? 'active' : 'inactive'),
+            recencies: {
+                daysSinceApp,
+                daysSinceApproval,
+                daysSinceBooking,
+                daysSinceVisit,
+                daysVisitToNextApp,
+            },
+            stats: {
+                totalApps,
+                totalApproved,
+                totalBooked,
+                totalBookedDollars: Math.round(totalBookedDollars),
+                lookToBookPct: Math.round(lookToBookPct * 10) / 10,
+                approvalToBookPct: Math.round(approvalToBookPct * 10) / 10,
+            },
+            sparkline: Object.values(monthlySparklineMap),
+        });
+    } catch (error) {
+        console.error('Error in dealer-360 overview:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+/**
+ * GET /analytics/dealer-360/:dealerId/timeline
+ * Merges communications & applications into a single chronological Cause-and-Effect Timeline.
+ */
+router.get('/dealer-360/:dealerId/timeline', async (req, res) => {
+    try {
+        const { dealerId } = req.params;
+        let location = null;
+
+        if (mongoose.Types.ObjectId.isValid(dealerId)) {
+            location = await DealerLocation.findById(dealerId).lean();
+        }
+        if (!location) {
+            location = await DealerLocation.findOne({
+                $or: [
+                    { clientDealerId: dealerId },
+                    { dealerId: dealerId },
+                    { omniDealerId: dealerId }
+                ]
+            }).lean();
+        }
+
+        if (!location) {
+            return res.status(404).json({ success: false, message: `Dealer location not found` });
+        }
+
+        const clientDealerId = (location.clientDealerId || location.dealerId).trim().toUpperCase();
+
+        // 1. Fetch all communications for this dealer
+        const comms = await DealerCommunication.collection.find(
+            { internalRelationshipId2: new RegExp('^' + clientDealerId + '$', 'i') }
+        ).sort({ communicationEventDatetime: -1 }).toArray();
+
+        // 2. Fetch all applications for this dealer
+        const apps = await Application.find({ clientDealerId })
+            .sort({ applicationDate: -1 })
+            .lean();
+
+        // Index visits with timestamps
+        const visitEvents = comms
+            .map(c => {
+                const type = (c.communicationType || '').toLowerCase();
+                const result = (c.communicationResult1 || '').toLowerCase();
+                const isVisit = type === 'meeting' || result.includes('met with') || result.includes('training') || result.includes('sign up');
+                const isCall = type === 'phone call' || result.includes('spoke with') || result.includes('follow up');
+                const rawUser = c.communicationUserEmail || c.communicationUserFullName || c.communicationUserName || '';
+                const repDisplayName = resolveRepName(rawUser) || 'Unassigned';
+
+                return {
+                    id: c._id.toString(),
+                    eventType: 'touchpoint',
+                    date: c.communicationEventDatetime,
+                    timestamp: c.communicationEventDatetime ? new Date(c.communicationEventDatetime).getTime() : 0,
+                    repName: repDisplayName,
+                    touchpointType: isVisit ? 'visit' : isCall ? 'call' : 'other',
+                    typeLabel: isVisit ? 'In-Person Visit' : isCall ? 'Phone Call' : (c.communicationType ? (c.communicationType.charAt(0).toUpperCase() + c.communicationType.slice(1)) : 'Touchpoint'),
+                    notes: c.communicationResult1 || c.communicationFeedback1 || c.communicationNotes || null,
+                };
+            })
+            .filter(e => e.timestamp > 0);
+
+        // Map apps with attribution check
+        const appEvents = apps.map(a => {
+            const appMs = new Date(a.applicationDate).getTime();
+            // Find most recent visit before this application (within 60 days)
+            const priorVisit = visitEvents
+                .filter(v => v.touchpointType === 'visit' && v.timestamp <= appMs && (appMs - v.timestamp) <= 60 * 24 * 60 * 60 * 1000)
+                .sort((x, y) => y.timestamp - x.timestamp)[0];
+
+            let attribution = null;
+            if (priorVisit) {
+                const daysAfter = Math.floor((appMs - priorVisit.timestamp) / (1000 * 60 * 60 * 24));
+                attribution = {
+                    repName: priorVisit.repName,
+                    daysAfterVisit: daysAfter,
+                    visitDate: priorVisit.date,
+                };
+            }
+
+            return {
+                id: a._id.toString(),
+                eventType: 'application',
+                date: a.applicationDate,
+                timestamp: appMs,
+                applicationId: a.applicationId,
+                status: a.status,
+                amountFinanced: a.amountFinanced || 0,
+                fico: a.fico || a.creditScore || null,
+                lender: a.lender || 'Source One Financial',
+                attribution,
+            };
+        });
+
+        // Combine and sort descending
+        const combined = [...visitEvents, ...appEvents].sort((a, b) => b.timestamp - a.timestamp);
+
+        res.json({
+            success: true,
+            timeline: combined,
+            totalVisits: visitEvents.filter(v => v.touchpointType === 'visit').length,
+            totalApps: appEvents.length,
+        });
+    } catch (error) {
+        console.error('Error fetching dealer 360 timeline:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

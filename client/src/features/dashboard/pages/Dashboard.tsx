@@ -14,6 +14,8 @@ import { VisitImpactDrawer } from '../components/VisitImpactDrawer/VisitImpactDr
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
+import { AnalyticsProvider, useAnalyticsContext } from '../../../core/contexts/AnalyticsContext';
+import { Dealer360Modal } from '../../../components/Dealer360Modal/Dealer360Modal';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
 import type { DealerLocation, RollingWindow, HeatClass } from '../types';
@@ -36,7 +38,8 @@ const SORT_KEY_MAP: Record<string, string> = {
   approvalToBook: 'approvalToBook',
 };
 
-export function Dashboard() {
+function DashboardContent() {
+  const { openDealer360 } = useAnalyticsContext();
   const { data: overview } = useOverview();
 
   // ── Centralized Store Subscription ──
@@ -86,11 +89,8 @@ export function Dashboard() {
   const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
-    setDrawerDealerId(dealerId);
-    setDrawerGroupSlug(null);
-    setDrawerTab('mom');
-    setDrawerOpen(true);
-  }, []);
+    openDealer360(dealerId);
+  }, [openDealer360]);
 
   const handleOpenGroupDrawer = useCallback((groupSlug: string) => {
     setDrawerGroupSlug(groupSlug);
@@ -434,6 +434,9 @@ export function Dashboard() {
       onOpenMoMAnalytics={handleOpenTopMoMDrawer}
       onOpenVisitImpact={() => setVisitImpactOpen(true)}
       latestReportDate={overview?.latestReportDate}
+      activityMode={activityMode}
+      onActivityModeChange={handleActivityModeChange}
+      onSelectRep={handleRepChange}
     >
       <div style={{ marginBottom: '16px' }}>
         <TabBar
@@ -524,6 +527,17 @@ export function Dashboard() {
         open={visitImpactOpen}
         onClose={() => setVisitImpactOpen(false)}
       />
+
+      {/* Universal 4-Tab Dealer 360 Inspection Surface */}
+      <Dealer360Modal />
     </AppShell>
+  );
+}
+
+export function Dashboard() {
+  return (
+    <AnalyticsProvider>
+      <DashboardContent />
+    </AnalyticsProvider>
   );
 }

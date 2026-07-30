@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
 import styles from './VisitImpactDrawer.module.css';
 import {
   getVisitImpact,
@@ -25,40 +26,43 @@ interface VisitImpactDrawerProps {
 type CommItem = RepCommunicationHistoryResponse['items'][number];
 type SortField =
   | 'rep'
-  | 'totalTouchpoints'
-  | 'visitCount'
-  | 'preVisitVolume'
-  | 'postVisitVolume'
-  | 'associatedNetLiftDollars'
-  | 'associatedNetLiftApps'
-  | 'avgLiftPerVisit';
+  | 'visits'
+  | 'inactiveDealersVisited'
+  | 'reactivatedCount'
+  | 'reactivationRate'
+  | 'avgDaysToReactivation'
+  | 'growthVisitPct'
+  | 'reactivatedVolume';
 type SortOrder = 'asc' | 'desc';
 
 type SubSortField =
   | 'dealerName'
   | 'state'
+  | 'firstContactDate'
   | 'groupName'
-  | 'touchpoints'
-  | 'visitCount'
-  | 'preVisitVolume'
-  | 'postVisitVolume'
-  | 'associatedNetLiftDollars'
-  | 'associatedNetLiftApps'
-  | 'avgLiftPerVisit';
+  | 'outcome'
+  | 'statusAtVisit'
+  | 'daysToReactivation'
+  | 'reactivatedVolume'
+  | 'visitCount';
 
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
-  const [windowDays, setWindowDays] = useState<number>(14);
+  const { openDealer360 } = useAnalyticsContext();
+  const [windowDays, setWindowDays] = useState<number>(30);
+  const [touchpointMode, setTouchpointMode] = useState<'visits' | 'all'>('visits');
+  const [timeframe, setTimeframe] = useState<'ytd' | '30d' | '60d'>('ytd');
   const [impactData, setImpactData] = useState<VisitImpactResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Sorting state for Rep Performance table
-  const [sortField, setSortField] = useState<SortField>('associatedNetLiftDollars');
+  const [sortField, setSortField] = useState<SortField>('reactivatedCount');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Sub-table sorting & search states for Per-Dealer breakdown
-  const [subSortField, setSubSortField] = useState<SubSortField>('associatedNetLiftDollars');
+  const [subSortField, setSubSortField] = useState<SubSortField>('outcome');
   const [subSortOrder, setSubSortOrder] = useState<SortOrder>('desc');
   const [dealerSearchMap, setDealerSearchMap] = useState<Record<string, string>>({});
+  const [outcomeFilterMap, setOutcomeFilterMap] = useState<Record<string, string>>({});
 
   // Selected Rep for detailed communication history view
   const [selectedRep, setSelectedRep] = useState<string | null>(null);
@@ -94,7 +98,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
     let cancelled = false;
     setLoading(true);
 
-    getVisitImpact(windowDays)
+    getVisitImpact(windowDays, touchpointMode, undefined, timeframe)
       .then((imp) => {
         if (!cancelled) {
           setImpactData(imp);
@@ -109,7 +113,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
       });
 
     return () => { cancelled = true; };
-  }, [open, windowDays]);
+  }, [open, windowDays, touchpointMode, timeframe]);
 
   // Fetch Paginated Rep Communication History when a rep is selected or filters/page change
   const fetchHistory = useCallback(async () => {
@@ -139,13 +143,13 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
     }
   }, [selectedRep, fetchHistory]);
 
-  const handleSelectRep = (repName: string) => {
+  const handleSelectRep = (repName: string, initialSearch?: string, initialType?: string) => {
     setSelectedRep(repName);
     setHistoryPage(1);
     setHistoryState('');
     setHistoryGroup('');
-    setHistoryType('all');
-    setHistorySearch('');
+    setHistoryType(initialType || 'all');
+    setHistorySearch(initialSearch || '');
     setSelectedCommItem(null);
   };
 
@@ -264,7 +268,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
               </div>
             ) : (
               <>
-                <h2 className={styles.title}>📍 Sales Visit & Touchpoint Impact Engine</h2>
+                <h2 className={styles.title}>📍 Sales Visit Reactivation Engine</h2>
                 {impactData?.dateRangeLabel && (
                   <span
                     style={{
@@ -277,21 +281,42 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                       borderRadius: '6px',
                       whiteSpace: 'nowrap',
                     }}
-                    title="Date range of communication data and applications capped through latest report date"
+                    title="Analysis period for visit data"
                   >
-                    📅 Data Range: {impactData.dateRangeLabel}
+                    📅 {impactData.dateRangeLabel}
                   </span>
                 )}
                 <div className={styles.windowToggle}>
+                  {/* Visit Timeframe Selector */}
+                  <select
+                    value={timeframe}
+                    onChange={(e) => setTimeframe(e.target.value as any)}
+                    className={styles.filterSelect}
+                    style={{ background: '#0f172a', borderColor: '#38bdf8', color: '#38bdf8', fontWeight: 600, padding: '4px 8px', borderRadius: '6px' }}
+                    title="Select timeframe of visits to analyze"
+                  >
+                    <option value="ytd">📅 YTD 2026</option>
+                    <option value="30d">📅 Last 30 Days Visits</option>
+                    <option value="60d">📅 Last 60 Days Visits</option>
+                  </select>
+
                   {[14, 30, 60].map((w) => (
                     <button
                       key={w}
                       className={`${styles.windowBtn} ${windowDays === w ? styles.windowBtnActive : ''}`}
                       onClick={() => setWindowDays(w)}
+                      title={`Attribute app to visit if submitted within ${w} days post-visit`}
                     >
-                      {w}d Window {w === 14 ? '(Default)' : ''}
+                      ⚡ {w}d Conversion Window {w === 30 ? '(Default)' : ''}
                     </button>
                   ))}
+                  <button
+                    className={`${styles.windowBtn} ${touchpointMode === 'all' ? styles.windowBtnActive : ''}`}
+                    onClick={() => setTouchpointMode(touchpointMode === 'visits' ? 'all' : 'visits')}
+                    style={{ marginLeft: '8px' }}
+                  >
+                    {touchpointMode === 'visits' ? '📍 Visits Only' : '📞 All Touchpoints'}
+                  </button>
                 </div>
               </>
             )}
@@ -459,10 +484,10 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
               )}
             </div>
           ) : (
-            /* ── Default Rep Visit Lift Table View ── */
+            /* ── Rep Reactivation Performance View ── */
             loading ? (
               <div style={{ color: '#94a3b8', padding: '40px 0', textAlign: 'center' }}>
-                Analyzing touchpoints and volume lift…
+                Analyzing visit reactivation data…
               </div>
             ) : !impactData ? (
               <div style={{ color: '#94a3b8', padding: '40px 0', textAlign: 'center' }}>
@@ -473,44 +498,46 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                 {/* KPI Summary Cards Banner */}
                 <div className={styles.kpiGrid}>
                   <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Total Visits & Calls ({windowDays}d)</span>
-                    <span className={styles.kpiValue}>{impactData.overall.totalTouchpoints.toLocaleString()}</span>
+                    <span className={styles.kpiLabel}>Total In-Person Visits</span>
+                    <span className={styles.kpiValue}>{impactData.overall.totalVisits.toLocaleString()}</span>
                     <span className={styles.kpiSubtext}>
-                      {impactData.overall.totalVisits} In-Person Visits · {impactData.overall.totalCalls} Calls
+                      {touchpointMode === 'all' ? `${impactData.overall.totalCalls} Calls included` : 'In-person visits only'}
                     </span>
                   </div>
                   <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Associated {windowDays}d Net Dollar Lift</span>
-                    <span className={styles.kpiValue} style={{ color: impactData.overall.associatedNetLiftDollars >= 0 ? '#34d399' : '#f87171' }}>
-                      {impactData.overall.associatedNetLiftDollars >= 0 ? '+' : ''}
-                      {formatDollar(impactData.overall.associatedNetLiftDollars)}
+                    <span className={styles.kpiLabel}>Network Reactivation Rate</span>
+                    <span className={styles.kpiValue} style={{ color: '#34d399' }}>
+                      {impactData.overall.reactivationRate != null
+                        ? `${(impactData.overall.reactivationRate * 100).toFixed(1)}%`
+                        : '—'}
                     </span>
                     <span className={styles.kpiSubtext}>
-                      Volume change in {windowDays}d post-visit vs {windowDays}d pre-visit
+                      {impactData.overall.reactivatedCount} of {impactData.overall.inactiveDealersVisited} inactive dealers reactivated
                     </span>
                   </div>
                   <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Avg Net Lift per In-Person Visit</span>
+                    <span className={styles.kpiLabel}>Avg Days to Reactivation</span>
                     <span className={styles.kpiValue}>
-                      {formatDollar(impactData.overall.avgNetworkLiftPerVisit)}
+                      {impactData.overall.avgDaysToReactivation != null
+                        ? `${Math.round(impactData.overall.avgDaysToReactivation)} days`
+                        : '—'}
                     </span>
                     <span className={styles.kpiSubtext}>
-                      Network-wide average dollar volume gain per visit
+                      Time from visit to first application
                     </span>
                   </div>
                   <div className={styles.kpiCard}>
-                    <span className={styles.kpiLabel}>Associated Application Lift</span>
-                    <span className={styles.kpiValue} style={{ color: impactData.overall.associatedNetLiftApps >= 0 ? '#34d399' : '#f87171' }}>
-                      {impactData.overall.associatedNetLiftApps >= 0 ? '+' : ''}
-                      {impactData.overall.associatedNetLiftApps} apps
+                    <span className={styles.kpiLabel}>Reactivated Volume</span>
+                    <span className={styles.kpiValue} style={{ color: '#34d399' }}>
+                      +{formatDollar(impactData.overall.reactivatedVolume)}
                     </span>
                     <span className={styles.kpiSubtext}>
-                      Net app count change following visits
+                      Booked $ from dealers reactivated following visits
                     </span>
                   </div>
                 </div>
 
-                {/* Analytical Insight Callout */}
+                {/* Methodology Note */}
                 <div
                   style={{
                     background: 'rgba(2, 132, 199, 0.08)',
@@ -523,11 +550,11 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                     lineHeight: '1.4',
                   }}
                 >
-                  💡 <strong style={{ color: '#38bdf8' }}>Methodology Note for Sales Managers:</strong> Net $ Lift compares dealer booked volume {windowDays} days <em>after</em> a visit to {windowDays} days <em>before</em> a visit. For high-frequency reps visiting accounts monthly, 30d pre-visit baselines overlap with prior visit gains. Toggle to <strong>14d Window</strong> for tighter attribution, or sort by <strong>Post-Visit Vol</strong> or <strong>Avg $ Lift / Visit</strong>.
+                  💡 <strong style={{ color: '#38bdf8' }}>Methodology:</strong> A dealer is marked <strong>"Inactive"</strong> if zero applications were submitted in the 60 days prior to a visit. <strong>"Reactivated"</strong> = dealer submitted a new application within <strong>{windowDays} days post-visit</strong>. <strong>Visit Date</strong> in the table shows the exact date when the reactivation visit occurred. Select a <strong>Visit Timeframe</strong> above (e.g. Last 30 Days) to focus on recent visits.
                 </div>
 
                 <h3 className={styles.sectionTitle} style={{ marginTop: '12px' }}>
-                  📊 Rep Visit Lift Performance ({windowDays}-Day Window)
+                  📊 Rep Reactivation Performance ({windowDays}-Day Window)
                   <span style={{ fontSize: '12px', fontWeight: 400, color: '#94a3b8', marginLeft: '8px' }}>
                     (Click any column header to sort · Click any Rep name for logs)
                   </span>
@@ -536,13 +563,13 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                   <thead>
                     <tr>
                       {renderSortHeader('Sales Representative', 'rep')}
-                      {renderSortHeader('Touchpoints', 'totalTouchpoints')}
-                      {renderSortHeader('Visits', 'visitCount')}
-                      {renderSortHeader(`${windowDays}d Pre-Visit Vol`, 'preVisitVolume')}
-                      {renderSortHeader(`${windowDays}d Post-Visit Vol`, 'postVisitVolume')}
-                      {renderSortHeader('Associated Net $ Lift', 'associatedNetLiftDollars')}
-                      {renderSortHeader('Net App Lift', 'associatedNetLiftApps')}
-                      {renderSortHeader('Avg $ Lift / Visit', 'avgLiftPerVisit')}
+                      {renderSortHeader('Visits', 'visits')}
+                      {renderSortHeader('Inactive Visited', 'inactiveDealersVisited')}
+                      {renderSortHeader('Reactivated', 'reactivatedCount')}
+                      {renderSortHeader('React. Rate', 'reactivationRate')}
+                      {renderSortHeader('Avg Days', 'avgDaysToReactivation')}
+                      {renderSortHeader('Growth Mix', 'growthVisitPct')}
+                      {renderSortHeader('Reactivated Vol', 'reactivatedVolume')}
                     </tr>
                   </thead>
                   <tbody>
@@ -555,45 +582,132 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                               <button
                                 className={styles.expandBtn}
                                 onClick={() => toggleExpandRep(r.rep)}
-                                title={isExpanded ? `Collapse dealer breakdown for ${r.rep}` : `Expand to view all unique dealers visited by ${r.rep}`}
+                                title={isExpanded ? `Collapse dealer breakdown for ${r.rep}` : `Expand to view visited dealers for ${r.rep}`}
                               >
                                 {isExpanded ? '▼' : '▶'}
                               </button>
                               <button
                                 className={styles.repLinkButton}
                                 onClick={() => handleSelectRep(r.rep)}
-                                title={`Click to view all communication history logs for ${r.rep}`}
+                                title={`Click to view communication history for ${r.rep}`}
                               >
                                 {r.rep}
                               </button>
+                              {['Genevieve Coulombe', 'Ericka Dominguez', 'Dan Zilberchtein'].some(n => r.rep.includes(n)) && (
+                                <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                                  Inside Sales
+                                </span>
+                              )}
+                              {['Tony DeRouin', 'Bruce Sweere', 'Steve Kimble', 'N Boly'].some(n => r.rep.includes(n)) && (
+                                <span style={{ fontSize: '10px', background: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                                  Former Rep
+                                </span>
+                              )}
+                              {['Mandi Schultz'].some(n => r.rep.includes(n)) && (
+                                <span style={{ fontSize: '10px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                                  Dealer Services
+                                </span>
+                              )}
                             </td>
-                            <td>{r.totalTouchpoints}</td>
-                            <td>{r.visitCount}</td>
-                            <td>{formatDollar(r.preVisitVolume)}</td>
-                            <td>{formatDollar(r.postVisitVolume)}</td>
-                            <td className={r.associatedNetLiftDollars >= 0 ? styles.liftPositive : styles.liftNegative}>
-                              {r.hasEnoughData
-                                ? `${r.associatedNetLiftDollars >= 0 ? '+' : ''}${formatDollar(r.associatedNetLiftDollars)}`
-                                : 'Insufficient data'}
+                            <td
+                              className={styles.interactiveCell}
+                              onClick={() => handleSelectRep(r.rep, undefined, touchpointMode === 'visits' ? 'visit' : 'all')}
+                              title={`Click to audit all ${r.visits} communication logs for ${r.rep}`}
+                            >
+                              <span style={{ color: '#38bdf8', textDecoration: 'underline', textUnderlineOffset: '3px', fontWeight: 600 }}>
+                                {r.visits}
+                              </span>
                             </td>
-                            <td className={r.associatedNetLiftApps >= 0 ? styles.liftPositive : styles.liftNegative}>
-                              {r.hasEnoughData
-                                ? `${r.associatedNetLiftApps >= 0 ? '+' : ''}${r.associatedNetLiftApps}`
-                                : 'Insufficient data'}
+                            <td
+                              className={styles.interactiveCell}
+                              onClick={() => {
+                                setExpandedReps((prev) => ({ ...prev, [r.rep]: true }));
+                                setOutcomeFilterMap((prev) => ({ ...prev, [r.rep]: 'inactive' }));
+                              }}
+                              title={`Click to filter dealer list to inactive dealers visited by ${r.rep}`}
+                            >
+                              <span style={{ color: '#f8fafc', textDecoration: 'underline', textUnderlineOffset: '3px', fontWeight: 600 }}>
+                                {r.inactiveDealersVisited}
+                              </span>
                             </td>
-                            <td style={{ fontWeight: 600, color: '#38bdf8' }}>
-                              {r.hasEnoughData ? formatDollar(r.avgLiftPerVisit) : '—'}
+                            <td
+                              className={styles.interactiveCell}
+                              onClick={() => {
+                                setExpandedReps((prev) => ({ ...prev, [r.rep]: true }));
+                                setOutcomeFilterMap((prev) => ({ ...prev, [r.rep]: 'reactivated' }));
+                              }}
+                              title={`Click to view ${r.reactivatedCount} reactivated dealers for ${r.rep}`}
+                              style={{ fontWeight: 700, color: r.reactivatedCount > 0 ? '#34d399' : '#94a3b8' }}
+                            >
+                              <span style={{ textDecoration: r.reactivatedCount > 0 ? 'underline' : 'none', textUnderlineOffset: '3px' }}>
+                                {r.reactivatedCount}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {r.hasEnoughData && r.reactivationRate != null
+                                ? <span style={{ color: r.reactivationRate >= 0.2 ? '#34d399' : r.reactivationRate >= 0.1 ? '#fbbf24' : '#f87171' }}>
+                                    {(r.reactivationRate * 100).toFixed(0)}%
+                                  </span>
+                                : <span style={{ color: '#64748b' }}>Insufficient data</span>}
+                            </td>
+                            <td style={{ color: '#38bdf8' }}>
+                              {r.avgDaysToReactivation != null ? `${r.avgDaysToReactivation}d` : '—'}
+                            </td>
+                            <td>
+                              {r.growthVisitPct != null
+                                ? <span style={{ color: r.growthVisitPct >= 0.3 ? '#34d399' : '#fbbf24' }}>
+                                    {(r.growthVisitPct * 100).toFixed(0)}% growth
+                                  </span>
+                                : '—'}
+                            </td>
+                            <td
+                              className={styles.interactiveCell}
+                              onClick={() => {
+                                setExpandedReps((prev) => ({ ...prev, [r.rep]: true }));
+                                setSubSortField('reactivatedVolume');
+                                setSubSortOrder('desc');
+                              }}
+                              title={`Click to sort dealers by reactivated volume for ${r.rep}`}
+                              style={{ fontWeight: 600, color: r.reactivatedVolume > 0 ? '#34d399' : '#94a3b8' }}
+                            >
+                              <span style={{ textDecoration: r.reactivatedVolume > 0 ? 'underline' : 'none', textUnderlineOffset: '3px' }}>
+                                {r.reactivatedVolume > 0 ? `+${formatDollar(r.reactivatedVolume)}` : '$0'}
+                              </span>
                             </td>
                           </tr>
 
-                          {/* Sub-table Accordion for Per-Dealer Metrics */}
+                          {/* Sub-table: Per-Dealer Breakdown */}
                           {isExpanded && (
                             <tr key={`${r.rep}-dealers`}>
                               <td colSpan={8} style={{ padding: 0 }}>
                                 <div className={styles.subTableContainer}>
                                   <div className={styles.subTableHeaderRow}>
-                                    <div className={styles.subTableTitle}>
-                                      🏢 Unique Dealer Locations Visited by {r.rep} ({r.dealers?.length || 0} Accounts)
+                                    <div>
+                                      <div className={styles.subTableTitle}>
+                                        🏢 Dealers Contacted by {r.rep} ({r.dealers?.length || 0})
+                                        {r.matrix && (
+                                          <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '12px' }}>
+                                            Matrix: 🎯 {r.matrix.targeted} targeted · ⚠️ {r.matrix.neglected} neglected · ✅ {r.matrix.maintained} maintained · 🟢 {r.matrix.selfSufficient} self-sufficient
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* Quick Outcome Filter Pills */}
+                                      <div className={styles.outcomeFilterBar}>
+                                        {[
+                                          { key: 'all', label: `All (${r.dealers?.length || 0})` },
+                                          { key: 'reactivated', label: `🟢 Reactivated (${r.dealers?.filter((d) => d.outcome === 'reactivated').length || 0})` },
+                                          { key: 'no_response', label: `🔴 No Response (${r.dealers?.filter((d) => d.outcome === 'no_response').length || 0})` },
+                                          { key: 'maintenance', label: `🟡 Maintenance (${r.dealers?.filter((d) => d.outcome === 'maintenance').length || 0})` },
+                                        ].map((f) => (
+                                          <button
+                                            key={f.key}
+                                            className={`${styles.outcomeFilterBtn} ${(outcomeFilterMap[r.rep] || 'all') === f.key ? styles.outcomeFilterBtnActive : ''}`}
+                                            onClick={() => setOutcomeFilterMap((prev) => ({ ...prev, [r.rep]: f.key }))}
+                                          >
+                                            {f.label}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
                                     <input
                                       className={styles.subTableSearch}
@@ -608,8 +722,14 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
 
                                   {(() => {
                                     const search = (dealerSearchMap[r.rep] || '').toLowerCase().trim();
+                                    const outcomeFilter = outcomeFilterMap[r.rep] || 'all';
+
                                     const filteredDealers = (r.dealers || [])
                                       .filter((d) => {
+                                        if (outcomeFilter === 'reactivated' && d.outcome !== 'reactivated') return false;
+                                        if (outcomeFilter === 'no_response' && d.outcome !== 'no_response') return false;
+                                        if (outcomeFilter === 'maintenance' && d.outcome !== 'maintenance') return false;
+                                        if (outcomeFilter === 'inactive' && d.statusAtVisit === 'active') return false;
                                         if (!search) return true;
                                         return (
                                           d.dealerName.toLowerCase().includes(search) ||
@@ -632,8 +752,10 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
 
                                     if (filteredDealers.length === 0) {
                                       return (
-                                        <div style={{ color: '#94a3b8', fontSize: '12px', padding: '8px 0' }}>
-                                          {search ? `No dealer locations found matching "${search}".` : 'No location details recorded.'}
+                                        <div style={{ color: '#94a3b8', fontSize: '12px', padding: '12px 0' }}>
+                                          {search || outcomeFilter !== 'all'
+                                            ? `No dealers matching active filter "${outcomeFilter}" / "${search}".`
+                                            : 'No dealers recorded.'}
                                         </div>
                                       );
                                     }
@@ -645,42 +767,70 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                                             <tr>
                                               {renderSubSortHeader('Dealer Location', 'dealerName')}
                                               {renderSubSortHeader('State', 'state')}
-                                              {renderSubSortHeader('Dealer Group', 'groupName')}
-                                              {renderSubSortHeader('Touchpoints', 'touchpoints')}
+                                              {renderSubSortHeader('Visit Date', 'firstContactDate')}
+                                              {renderSubSortHeader('Status at Visit', 'statusAtVisit')}
+                                              {renderSubSortHeader('Outcome', 'outcome')}
+                                              {renderSubSortHeader('Days to React.', 'daysToReactivation')}
+                                              {renderSubSortHeader('Reactivated Vol', 'reactivatedVolume')}
                                               {renderSubSortHeader('Visits', 'visitCount')}
-                                              {renderSubSortHeader(`${windowDays}d Pre-Visit Vol`, 'preVisitVolume')}
-                                              {renderSubSortHeader(`${windowDays}d Post-Visit Vol`, 'postVisitVolume')}
-                                              {renderSubSortHeader('Net $ Lift', 'associatedNetLiftDollars')}
-                                              {renderSubSortHeader('Net App Lift', 'associatedNetLiftApps')}
-                                              {renderSubSortHeader('Avg $ Lift / Visit', 'avgLiftPerVisit')}
                                             </tr>
                                           </thead>
                                           <tbody>
-                                            {filteredDealers.map((d) => (
-                                              <tr key={d.clientDealerId}>
-                                                <td style={{ fontWeight: 600, color: '#f8fafc' }}>
-                                                  {d.dealerName}
-                                                  <span style={{ fontSize: '10px', color: '#38bdf8', display: 'block' }}>
-                                                    ID: {d.clientDealerId}
-                                                  </span>
-                                                </td>
-                                                <td>{d.state || '—'}</td>
-                                                <td>{d.groupName || 'Independent'}</td>
-                                                <td>{d.touchpoints}</td>
-                                                <td>{d.visitCount}</td>
-                                                <td>{formatDollar(d.preVisitVolume)}</td>
-                                                <td>{formatDollar(d.postVisitVolume)}</td>
-                                                <td className={d.associatedNetLiftDollars >= 0 ? styles.liftPositive : styles.liftNegative}>
-                                                  {d.associatedNetLiftDollars >= 0 ? '+' : ''}{formatDollar(d.associatedNetLiftDollars)}
-                                                </td>
-                                                <td className={d.associatedNetLiftApps >= 0 ? styles.liftPositive : styles.liftNegative}>
-                                                  {d.associatedNetLiftApps >= 0 ? '+' : ''}{d.associatedNetLiftApps}
-                                                </td>
-                                                <td style={{ color: '#38bdf8', fontWeight: 600 }}>
-                                                  {formatDollar(d.avgLiftPerVisit)}
-                                                </td>
-                                              </tr>
-                                            ))}
+                                            {filteredDealers.map((d) => {
+                                              const outcomeBadge = d.outcome === 'reactivated'
+                                                ? { label: '🟢 Reactivated', color: '#34d399' }
+                                                : d.outcome === 'no_response'
+                                                  ? { label: '🔴 No Response', color: '#f87171' }
+                                                  : { label: '🟡 Maintenance', color: '#fbbf24' };
+
+                                              const statusLabel = d.statusAtVisit === 'active' ? 'Active'
+                                                : d.statusAtVisit === 'never_active' ? 'Never Active'
+                                                : d.statusAtVisit.replace('_', ' ');
+
+                                              const formattedVisitDate = d.firstContactDate
+                                                ? new Date(d.firstContactDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                                : '—';
+
+                                              return (
+                                                <tr key={d.clientDealerId}>
+                                                  <td
+                                                    className={styles.interactiveCell}
+                                                    onClick={() => openDealer360(d.clientDealerId || d.dealerName, d.dealerName, 'timeline', d.firstContactDate)}
+                                                    title={`Click to open 360° Cause & Effect Timeline for ${d.dealerName} (Anchored to ${d.firstContactDate})`}
+                                                  >
+                                                    <span className={styles.dealerNameLink}>
+                                                      {d.dealerName}
+                                                    </span>
+                                                    <span style={{ fontSize: '10px', color: '#38bdf8', display: 'block' }}>
+                                                      ID: {d.clientDealerId}
+                                                    </span>
+                                                  </td>
+                                                  <td>{d.state || '—'}</td>
+                                                  <td style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                    {formattedVisitDate}
+                                                  </td>
+                                                  <td style={{ fontSize: '12px', color: d.statusAtVisit === 'active' ? '#34d399' : '#f87171' }}>
+                                                    {statusLabel}
+                                                  </td>
+                                                  <td>
+                                                    <span style={{
+                                                      fontWeight: 700,
+                                                      fontSize: '12px',
+                                                      color: outcomeBadge.color,
+                                                    }}>
+                                                      {outcomeBadge.label}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ color: '#38bdf8' }}>
+                                                    {d.daysToReactivation != null ? `${d.daysToReactivation}d` : '—'}
+                                                  </td>
+                                                  <td style={{ fontWeight: 600, color: d.reactivatedVolume > 0 ? '#34d399' : '#94a3b8' }}>
+                                                    {d.reactivatedVolume > 0 ? `+${formatDollar(d.reactivatedVolume)}` : '$0'}
+                                                  </td>
+                                                  <td>{d.visitCount}</td>
+                                                </tr>
+                                              );
+                                            })}
                                           </tbody>
                                         </table>
                                       </div>
@@ -696,19 +846,27 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                   </tbody>
                   <tfoot style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)', background: '#090d16', fontWeight: 700 }}>
                     <tr>
-                      <td style={{ color: '#38bdf8' }}>Network Total / Average</td>
-                      <td>{impactData.overall.totalTouchpoints}</td>
+                      <td style={{ color: '#38bdf8' }}>Network Total</td>
                       <td>{impactData.overall.totalVisits}</td>
-                      <td>{formatDollar(impactData.overall.preVisitVolume)}</td>
-                      <td>{formatDollar(impactData.overall.postVisitVolume)}</td>
-                      <td className={impactData.overall.associatedNetLiftDollars >= 0 ? styles.liftPositive : styles.liftNegative}>
-                        {impactData.overall.associatedNetLiftDollars >= 0 ? '+' : ''}{formatDollar(impactData.overall.associatedNetLiftDollars)}
-                      </td>
-                      <td className={impactData.overall.associatedNetLiftApps >= 0 ? styles.liftPositive : styles.liftNegative}>
-                        {impactData.overall.associatedNetLiftApps >= 0 ? '+' : ''}{impactData.overall.associatedNetLiftApps}
+                      <td>{impactData.overall.inactiveDealersVisited}</td>
+                      <td style={{ color: '#34d399' }}>{impactData.overall.reactivatedCount}</td>
+                      <td style={{ color: '#34d399' }}>
+                        {impactData.overall.reactivationRate != null
+                          ? `${(impactData.overall.reactivationRate * 100).toFixed(1)}%`
+                          : '—'}
                       </td>
                       <td style={{ color: '#38bdf8' }}>
-                        {formatDollar(impactData.overall.avgNetworkLiftPerVisit)}
+                        {impactData.overall.avgDaysToReactivation != null
+                          ? `${Math.round(impactData.overall.avgDaysToReactivation)}d`
+                          : '—'}
+                      </td>
+                      <td>
+                        {impactData.overall.growthVisitPct != null
+                          ? `${(impactData.overall.growthVisitPct * 100).toFixed(0)}%`
+                          : '—'}
+                      </td>
+                      <td style={{ color: '#34d399' }}>
+                        +{formatDollar(impactData.overall.reactivatedVolume)}
                       </td>
                     </tr>
                   </tfoot>

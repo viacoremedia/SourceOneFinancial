@@ -129,37 +129,49 @@ function resolveRepName(rawStr) {
  */
 function getRepHandles(repInput) {
     if (!repInput) return [];
-    const key = repInput.trim().toLowerCase();
-    // Try alias map lookup (active only for dashboard filtering)
+    const inputClean = repInput.trim().toLowerCase();
+
+    // 1. Direct display name lookup in REPS
+    for (const [displayName, config] of Object.entries(REPS)) {
+        if (displayName.toLowerCase() === inputClean) {
+            return [...config.handles];
+        }
+    }
+
+    // 2. Try alias map lookup (by primary handle)
     const aliasMap = getRepAliasMap();
-    if (aliasMap[key]) return aliasMap[key];
-    // Try full map (including inactive) for historical queries
+    if (aliasMap[inputClean]) return aliasMap[inputClean];
+
+    // 3. Try full map (including inactive / excluded)
     const fullMap = getRepAliasMap({ includeInactive: true, includeExcluded: true });
-    if (fullMap[key]) return fullMap[key];
+    if (fullMap[inputClean]) return fullMap[inputClean];
+
     return [repInput.trim()];
 }
 
-/**
- * Check if a handle belongs to an excluded rep.
- * 
- * @param {string} handle
- * @returns {boolean}
- */
-function isExcludedRep(handle) {
-    if (!handle) return false;
-    const config = _handleToConfig[handle.toLowerCase()];
+function isExcludedRep(rawStr) {
+    if (!rawStr) return false;
+    let str = rawStr.trim().toLowerCase();
+    if (str.includes('@')) str = str.split('@')[0].trim();
+    for (const [name, config] of Object.entries(REPS)) {
+        if (name.toLowerCase() === str || config.handles.map(h => h.toLowerCase()).includes(str)) {
+            return config.status === 'excluded';
+        }
+    }
+    const config = _handleToConfig[str];
     return config ? config.status === 'excluded' : false;
 }
 
-/**
- * Check if a handle belongs to an inactive rep.
- * 
- * @param {string} handle
- * @returns {boolean}
- */
-function isInactiveRep(handle) {
-    if (!handle) return false;
-    const config = _handleToConfig[handle.toLowerCase()];
+function isInactiveRep(rawStr) {
+    if (!rawStr) return false;
+    let str = rawStr.trim().toLowerCase();
+    if (str.includes('@')) str = str.split('@')[0].trim();
+    for (const [name, config] of Object.entries(REPS)) {
+        if (name.toLowerCase() === str || config.handles.map(h => h.toLowerCase()).includes(str)) {
+            return config.status === 'inactive';
+        }
+    }
+    const config = _handleToConfig[str];
     return config ? config.status === 'inactive' : false;
 }
 

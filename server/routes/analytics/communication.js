@@ -8,14 +8,18 @@
 
 const express = require('express');
 const router = express.Router();
-const { computeVisitImpact, computeEffortVsYieldFlags, getRepCommunicationHistory } = require('../../services/communicationImpactService');
+const { computeVisitImpact, computeVisitImpactV2, computeEffortVsYieldFlags, getRepCommunicationHistory } = require('../../services/communicationImpactService');
 
-// GET /analytics/communication/impact?window=30&rep=John
+// GET /analytics/communication/impact?window=30&mode=visits&rep=John
 router.get('/impact', async (req, res) => {
     try {
-        const windowDays = parseInt(req.query.window, 10) || 30;
+        const reactivationWindow = parseInt(req.query.window, 10) || 30;
+        const touchpointMode = req.query.mode === 'all' ? 'all' : 'visits';
         const repFilter = req.query.rep || null;
-        const result = await computeVisitImpact(windowDays, repFilter);
+        const timeframe = req.query.timeframe || 'ytd';
+        const startDate = req.query.startDate || null;
+        const endDate = req.query.endDate || null;
+        const result = await computeVisitImpactV2({ reactivationWindow, touchpointMode, repFilter, timeframe, startDate, endDate });
         res.status(200).json({ success: true, ...result });
     } catch (error) {
         console.error('Error fetching visit impact data:', error);

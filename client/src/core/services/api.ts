@@ -351,47 +351,61 @@ export async function searchDealers(query: string, limit: number = 50): Promise<
 }
 
 // ── Communication & Visit Impact ──
+export type DealerOutcome = 'reactivated' | 'no_response' | 'maintenance';
+
 export interface RepDealerBreakdown {
   clientDealerId: string;
   dealerName: string;
   state: string | null;
   groupName: string | null;
-  touchpoints: number;
+  statusAtVisit: string;
+  outcome: DealerOutcome;
+  firstContactDate: string;
+  daysToReactivation: number | null;
+  reactivatedVolume: number;
   visitCount: number;
   callCount: number;
-  preVisitVolume: number;
-  postVisitVolume: number;
-  associatedNetLiftDollars: number;
-  associatedNetLiftApps: number;
-  avgLiftPerVisit: number;
+  touchpoints: number;
+}
+
+export interface RepMatrix {
+  targeted: number;
+  neglected: number;
+  maintained: number;
+  selfSufficient: number;
 }
 
 export interface VisitImpactResponse {
   success: boolean;
   windowDays: number;
+  touchpointMode: 'visits' | 'all';
+  inactiveThresholdDays: number;
   dateRangeLabel?: string;
   maxReportDate?: string;
   overall: {
     totalVisits: number;
     totalCalls: number;
-    totalTouchpoints: number;
-    preVisitVolume: number;
-    postVisitVolume: number;
-    associatedNetLiftDollars: number;
-    associatedNetLiftApps: number;
-    avgNetworkLiftPerVisit: number;
+    inactiveDealersVisited: number;
+    reactivatedCount: number;
+    reactivationRate: number | null;
+    avgDaysToReactivation: number | null;
+    reactivatedVolume: number;
+    activeDealersVisited: number;
+    growthVisitPct: number | null;
   };
   reps: Array<{
     rep: string;
-    totalTouchpoints: number;
-    visitCount: number;
-    callCount: number;
-    preVisitVolume: number;
-    postVisitVolume: number;
-    associatedNetLiftDollars: number;
-    associatedNetLiftApps: number;
-    avgLiftPerVisit: number;
+    visits: number;
+    calls: number;
+    inactiveDealersVisited: number;
+    reactivatedCount: number;
+    reactivationRate: number | null;
+    avgDaysToReactivation: number | null;
+    reactivatedVolume: number;
+    activeDealersVisited: number;
+    growthVisitPct: number | null;
     hasEnoughData: boolean;
+    matrix: RepMatrix;
     dealers?: RepDealerBreakdown[];
   }>;
   insufficientData: boolean;
@@ -428,8 +442,13 @@ export interface EffortVsYieldResponse {
   };
 }
 
-export async function getVisitImpact(windowDays: number = 30, rep?: string): Promise<VisitImpactResponse> {
-  const params: Record<string, string | number> = { window: windowDays };
+export async function getVisitImpact(
+  windowDays: number = 30,
+  mode: 'visits' | 'all' = 'visits',
+  rep?: string,
+  timeframe: 'ytd' | '30d' | '60d' = 'ytd'
+): Promise<VisitImpactResponse> {
+  const params: Record<string, string | number> = { window: windowDays, mode, timeframe };
   if (rep) params.rep = rep;
   const { data } = await api.get('/analytics/communication/impact', { params });
   return data;
@@ -483,6 +502,81 @@ export async function getRepCommunicationHistory(params: {
   limit?: number;
 }): Promise<RepCommunicationHistoryResponse> {
   const { data } = await api.get('/analytics/communication/history', { params });
+  return data;
+}
+
+export interface Dealer360Response {
+  success: boolean;
+  location: {
+    _id: string;
+    dealerName: string;
+    clientDealerId: string;
+    dealerId: string;
+    statePrefix: string;
+    repName: string;
+    groupName: string | null;
+    groupSlug: string | null;
+  };
+  status: string;
+  recencies: {
+    daysSinceApp: number | null;
+    daysSinceApproval: number | null;
+    daysSinceBooking: number | null;
+    daysSinceVisit: number | null;
+    daysVisitToNextApp: number | null;
+  };
+  stats: {
+    totalApps: number;
+    totalApproved: number;
+    totalBooked: number;
+    totalBookedDollars: number;
+    lookToBookPct: number;
+    approvalToBookPct: number;
+  };
+  sparkline: Array<{
+    month: string;
+    apps: number;
+    bookedDollars: number;
+  }>;
+}
+
+export async function getDealer360(dealerId: string): Promise<Dealer360Response> {
+  const { data } = await api.get(`/analytics/dealer-360/${encodeURIComponent(dealerId)}`);
+  return data;
+}
+
+export interface TimelineEvent {
+  id: string;
+  eventType: 'touchpoint' | 'application';
+  date: string;
+  timestamp: number;
+  // Touchpoint fields
+  repName?: string;
+  touchpointType?: 'visit' | 'call' | 'other';
+  typeLabel?: string;
+  notes?: string | null;
+  // Application fields
+  applicationId?: string;
+  status?: string;
+  amountFinanced?: number;
+  fico?: number | string | null;
+  lender?: string;
+  attribution?: {
+    repName: string;
+    daysAfterVisit: number;
+    visitDate: string;
+  } | null;
+}
+
+export interface Dealer360TimelineResponse {
+  success: boolean;
+  timeline: TimelineEvent[];
+  totalVisits: number;
+  totalApps: number;
+}
+
+export async function getDealer360Timeline(dealerId: string): Promise<Dealer360TimelineResponse> {
+  const { data } = await api.get(`/analytics/dealer-360/${encodeURIComponent(dealerId)}/timeline`);
   return data;
 }
 

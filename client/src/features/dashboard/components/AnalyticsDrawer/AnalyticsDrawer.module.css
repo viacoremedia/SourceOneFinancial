@@ -197,11 +197,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 240px;
+  max-width: 380px;
+  min-width: 0;
+  transition: all 0.15s ease;
+}
+
+.dealerSelectBtn span:first-child {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: all 0.15s ease;
+  min-width: 0;
+  flex: 1;
 }
 
 .dealerSelectBtn:hover {

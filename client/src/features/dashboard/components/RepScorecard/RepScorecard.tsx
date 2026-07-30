@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { useRepScorecard } from '../../hooks/useRepScorecard';
 import styles from './RepScorecard.module.css';
 import type { RepScorecardEntry, RollingWindow, FinPeriod } from '../../types';
+import { resolveRepDisplayName } from '../../../../core/utils/repNames';
 
 /** Human-readable labels for heat breakdown keys */
 const HEAT_LABELS: Record<string, string> = {
@@ -392,6 +393,7 @@ const COLUMNS: ScorecardColumn[] = [
     key: 'rep', label: 'Rep', short: 'Rep',
     align: 'left',
     getValue: (r) => r.rep,
+    format: (v) => resolveRepDisplayName(v != null ? String(v) : ''),
   },
   {
     key: 'totalDealers', label: 'Dealers', short: 'Dlrs',
@@ -628,6 +630,8 @@ export function RepScorecard({
   onActivityModeChange,
 }: RepScorecardProps) {
   const [drawerStatusFilter, setDrawerStatusFilter] = useState<string | null>(null);
+  const [localActivityMode, setLocalActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
+  const currentActivityMode = (activityMode as 'application' | 'approval' | 'booking') || localActivityMode;
 
   // Map UI filter to API activityStatus values
   const statusFilterValues = drawerStatusFilter
@@ -635,7 +639,7 @@ export function RepScorecard({
     : undefined;
 
   const [finPeriod, setFinPeriod] = useState<FinPeriod>('mtd');
-  const { data, isLoading } = useRepScorecard(windowSize, open, statusFilterValues, activityMode, finPeriod);
+  const { data, isLoading } = useRepScorecard(windowSize, open, statusFilterValues, currentActivityMode, finPeriod);
   const [sortKey, setSortKey] = useState('rep');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showInfo, setShowInfo] = useState(false);
@@ -762,7 +766,7 @@ export function RepScorecard({
   }, [repsWithCustomWeights, sortKey, sortDir]);
 
   const handleRepClick = useCallback((rep: string) => {
-    onSelectRep?.(rep);
+    onSelectRep?.(resolveRepDisplayName(rep));
     onClose();
   }, [onSelectRep, onClose]);
 
@@ -837,21 +841,23 @@ export function RepScorecard({
                 </button>
               ))}
             </div>
-            {onActivityModeChange && (
-              <div className={styles.statusByToggle}>
-                <label className={styles.statusByLabel}>Status by</label>
-                <select
-                  className={styles.statusBySelect}
-                  value={activityMode || 'application'}
-                  onChange={(e) => onActivityModeChange(e.target.value as 'application' | 'approval' | 'booking')}
-                  id="scorecard-activity-mode"
-                >
-                  <option value="application">Application</option>
-                  <option value="approval">Approval</option>
-                  <option value="booking">Booking</option>
-                </select>
-              </div>
-            )}
+            <div className={styles.statusByToggle}>
+              <label className={styles.statusByLabel}>Status by</label>
+              <select
+                className={styles.statusBySelect}
+                value={currentActivityMode}
+                onChange={(e) => {
+                  const mode = e.target.value as 'application' | 'approval' | 'booking';
+                  setLocalActivityMode(mode);
+                  if (onActivityModeChange) onActivityModeChange(mode);
+                }}
+                id="scorecard-activity-mode"
+              >
+                <option value="application">Application</option>
+                <option value="approval">Approval</option>
+                <option value="booking">Booking</option>
+              </select>
+            </div>
             <div className={styles.statusByToggle}>
               <label className={styles.statusByLabel}>Financial Period</label>
               <select

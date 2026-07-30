@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useCallback, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark';
 type ResolvedTheme = 'light' | 'dark';
@@ -14,51 +14,27 @@ const STORAGE_KEY = 's1-theme';
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readStoredMode(): ThemeMode {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark') return stored;
-  } catch {
-    // ignore
-  }
-  // Fallback to OS preference once on first load
-  if (typeof window !== 'undefined') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return 'light';
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
-
-  // Apply the theme to the document
+  // Force dark theme on document permanently
   useEffect(() => {
-    document.documentElement.dataset.theme = mode;
-  }, [mode]);
-
-  const setMode = useCallback((newMode: ThemeMode) => {
-    setModeState(newMode);
+    document.documentElement.dataset.theme = 'dark';
     try {
-      localStorage.setItem(STORAGE_KEY, newMode);
+      localStorage.setItem(STORAGE_KEY, 'dark');
     } catch {
       // ignore
     }
   }, []);
 
+  const setMode = useCallback((_newMode: ThemeMode) => {
+    // Permanently dark mode
+  }, []);
+
   const toggleTheme = useCallback(() => {
-    setModeState(prev => {
-      const next = prev === 'light' ? 'dark' : 'light';
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    // Permanently dark mode
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode, theme: mode, setMode, toggleTheme }}>
+    <ThemeContext.Provider value={{ mode: 'dark', theme: 'dark', setMode, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -5,7 +5,6 @@ import { LoginPage } from './features/auth/components/LoginPage';
 import { AcceptInvitePage } from './features/auth/components/AcceptInvitePage';
 import { Dashboard } from './features/dashboard/pages';
 
-import { BugReporter } from '@/components/BugReporter';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
 
@@ -26,9 +25,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return <Navigate to="/login" replace />;
-  return <>{children}      {/* Bug Reporter */}
-      <BugReporter />
-    </>;
+  return <>{children}</>;
 }
 
 function AppRoutes() {

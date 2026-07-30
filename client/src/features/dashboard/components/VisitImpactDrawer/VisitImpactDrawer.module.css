@@ -191,6 +191,58 @@
   color: #7dd3fc;
 }
 
+.interactiveCell {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.interactiveCell:hover {
+  opacity: 0.8;
+}
+
+.outcomeFilterBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.outcomeFilterBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.outcomeFilterBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+.outcomeFilterBtnActive {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.dealerNameLink {
+  color: #f8fafc;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.dealerNameLink:hover {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
 .liftPositive {
   color: #34d399;
   font-weight: 600;

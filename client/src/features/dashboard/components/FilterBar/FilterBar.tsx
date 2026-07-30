@@ -103,12 +103,26 @@ export function FilterBar({
   }, [selectedRep, selectedState, statusFilter, activityMode, transitionFilter]);
 
   const reps = useMemo(() => {
-    // Use repStatesMap keys (data-driven from DealerLocation) — only reps with actual data
+    const HIDDEN_REPS = [
+      'bruce sweere', 'bsweere',
+      'tony derouin', 'tderouin',
+      'steve kimble', 'skimble',
+      'n boly', 'nboly',
+      'mandi schultz', 'mschultz', 'mschultz1',
+      's1 house', 's1house',
+    ];
+
+    // Use repStatesMap keys (data-driven from DealerLocation) — only active reps
     const repKeys = Object.keys(repStatesMap);
-    if (repKeys.length > 0) return repKeys.sort();
-    // Fallback to budget while data loads
-    const repSet = new Set(Object.values(stateRepMap));
-    return [...repSet].sort();
+    const rawList = repKeys.length > 0 ? repKeys : [...new Set(Object.values(stateRepMap))];
+
+    return rawList
+      .filter((r) => {
+        if (!r) return false;
+        const lower = r.trim().toLowerCase();
+        return !HIDDEN_REPS.some((h) => lower.includes(h));
+      })
+      .sort();
   }, [repStatesMap, stateRepMap]);
 
   const states = useMemo(() => {
