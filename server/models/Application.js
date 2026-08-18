@@ -117,6 +117,13 @@ applicationSchema.index({ status: 1, applicationDate: -1 }, { name: 'status_date
 
 // Rep-level queries
 applicationSchema.index({ dealerRepresentative: 1, applicationDate: -1 }, { name: 'rep_apps' });
+applicationSchema.index({ dealerRepresentative: 1, status: 1, bookedDate: -1 }, { name: 'rep_status_booked_date' });
+
+// Dealer + Status + BookedDate index (powers Close Date Funded Volume dashboard columns)
+applicationSchema.index({ clientDealerId: 1, status: 1, bookedDate: -1 }, { name: 'dealer_status_booked_date' });
+
+// Status + BookedDate pipeline queries
+applicationSchema.index({ status: 1, bookedDate: -1 }, { name: 'status_booked_date' });
 
 // Date range scans
 applicationSchema.index({ applicationDate: -1 }, { name: 'app_date_desc' });

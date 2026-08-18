@@ -557,11 +557,12 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
     }
 
     // ── Financial Metrics from Application data ──
-    const now = new Date();
+    const { getLatestDataDate } = require('../utils/dateUtils');
+    const now = await getLatestDataDate();
     let finStartDate;
     switch (finPeriod) {
         case 'mtd':
-            finStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            finStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
             break;
         case '30d':
             finStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -570,7 +571,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             finStartDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
             break;
         case 'ytd':
-            finStartDate = new Date(now.getFullYear(), 0, 1);
+            finStartDate = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
             break;
         case 'all':
         default:
@@ -578,101 +579,105 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             break;
     }
 
-    const finMatch = {};
+    // ── Financial Metrics from Application data (Dual Pipeline) ──
+    const leadMatch = {};
     if (finStartDate) {
-        finMatch.applicationDate = { $gte: finStartDate };
+        leadMatch.applicationDate = { $gte: finStartDate };
     }
 
-    // Aggregate financial metrics per dealerRepresentative handle
-    // Two pipelines: one grouped by rep only, one by rep + state
-    const finGroupFields = {
-                totalApps: { $sum: 1 },
-                approvedCount: {
-                    $sum: {
-                        $cond: [
-                            { $or: [
-                                { $eq: ['$wasApproved', true] },
-                                { $in: ['$status', ['Approved', 'Conditional Approval', 'Auto Approval']] }
-                            ]},
-                            1, 0
-                        ]
-                    }
-                },
-                bookedCount: {
-                    $sum: { $cond: [{ $eq: ['$status', 'Booked'] }, 1, 0] }
-                },
-                bookedVolume: {
-                    $sum: {
-                        $cond: [{ $eq: ['$status', 'Booked'] }, { $ifNull: ['$amountFinanced', 0] }, 0]
-                    }
-                },
-                avgDealSize: {
-                    $avg: {
-                        $cond: [
-                            { $and: [{ $eq: ['$status', 'Booked'] }, { $gt: ['$amountFinanced', 0] }] },
-                            '$amountFinanced',
-                            null
-                        ]
-                    }
-                },
-                avgReserveAmt: {
-                    $avg: {
-                        $cond: [
-                            { $and: [{ $eq: ['$status', 'Booked'] }, { $ne: ['$dealerReserveAmount', null] }] },
-                            '$dealerReserveAmount',
-                            null
-                        ]
-                    }
-                },
-                avgReservePct: {
-                    $avg: {
-                        $cond: [
-                            { $and: [{ $eq: ['$status', 'Booked'] }, { $ne: ['$dealerReservePercent', null] }] },
-                            '$dealerReservePercent',
-                            null
-                        ]
-                    }
-                },
-                avgAPR: {
-                    $avg: {
-                        $cond: [
-                            { $and: [{ $eq: ['$status', 'Booked'] }, { $ne: ['$apr', null] }, { $gt: ['$apr', 0] }] },
-                            '$apr',
-                            null
-                        ]
-                    }
-                },
-                avgTimeToBookMin: {
-                    $avg: {
-                        $cond: [
-                            { $and: [{ $eq: ['$status', 'Booked'] }, { $ne: ['$timeToBook', null] }, { $gt: ['$timeToBook', 0] }] },
-                            '$timeToBook',
-                            null
-                        ]
-                    }
-                },
+    const closeMatch = { status: 'Booked' };
+    if (finStartDate) {
+        closeMatch.bookedDate = { $gte: finStartDate };
+    }
+
+    // Lead Pipeline: totalApps, approvedCount, leadBookedCount, leadBookedVolume
+    const leadGroupFields = {
+        totalApps: { $sum: 1 },
+        approvedCount: {
+            $sum: {
+                $cond: [
+                    { $or: [
+                        { $eq: ['$wasApproved', true] },
+                        { $in: ['$status', ['Approved', 'Conditional Approval', 'Auto Approval']] }
+                    ]},
+                    1, 0
+                ]
+            }
+        },
+        leadBookedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'Booked'] }, 1, 0] }
+        },
+        leadBookedVolume: {
+            $sum: {
+                $cond: [{ $eq: ['$status', 'Booked'] }, { $ifNull: ['$amountFinanced', 0] }, 0]
+            }
+        },
+        ficoSum: {
+            $sum: {
+                $cond: [
+                    { $and: [{ $ne: ['$primaryFicoAuto8', null] }, { $gt: ['$primaryFicoAuto8', 0] }] },
+                    '$primaryFicoAuto8',
+                    0
+                ]
+            }
+        },
+        ficoCount: {
+            $sum: {
+                $cond: [
+                    { $and: [{ $ne: ['$primaryFicoAuto8', null] }, { $gt: ['$primaryFicoAuto8', 0] }] },
+                    1,
+                    0
+                ]
+            }
+        }
     };
 
-    // Per-rep aggregation
-    const finPipeline = [
-        { $match: { ...finMatch, dealerRepresentative: { $ne: null } } },
-        { $group: { _id: '$dealerRepresentative', ...finGroupFields } }
-    ];
+    // Close Pipeline: closeBookedCount, closeBookedVolume, avg metrics
+    const closeGroupFields = {
+        closeBookedCount: { $sum: 1 },
+        closeBookedVolume: { $sum: { $ifNull: ['$amountFinanced', 0] } },
+        avgDealSize: {
+            $avg: { $cond: [{ $gt: ['$amountFinanced', 0] }, '$amountFinanced', null] }
+        },
+        avgReserveAmt: {
+            $avg: { $cond: [{ $ne: ['$dealerReserveAmount', null] }, '$dealerReserveAmount', null] }
+        },
+        avgReservePct: {
+            $avg: { $cond: [{ $ne: ['$dealerReservePercent', null] }, '$dealerReservePercent', null] }
+        },
+        avgAPR: {
+            $avg: { $cond: [{ $and: [{ $ne: ['$apr', null] }, { $gt: ['$apr', 0] }] }, '$apr', null] }
+        },
+        avgTimeToBookMin: {
+            $avg: { $cond: [{ $and: [{ $ne: ['$timeToBook', null] }, { $gt: ['$timeToBook', 0] }] }, '$timeToBook', null] }
+        }
+    };
 
-    // Per-rep-per-state aggregation
-    const finByStatePipeline = [
-        { $match: { ...finMatch, dealerRepresentative: { $ne: null }, dealerState: { $ne: null } } },
-        { $group: { _id: { rep: '$dealerRepresentative', state: '$dealerState' }, ...finGroupFields } }
-    ];
-
-    const [finResults, finByStateResults] = await Promise.all([
-        Application.aggregate(finPipeline),
-        Application.aggregate(finByStatePipeline),
+    const [leadResults, leadByStateResults, closeResults, closeByStateResults] = await Promise.all([
+        Application.aggregate([
+            { $match: { ...leadMatch, dealerRepresentative: { $ne: null } } },
+            { $group: { _id: '$dealerRepresentative', ...leadGroupFields } }
+        ]),
+        Application.aggregate([
+            { $match: { ...leadMatch, dealerRepresentative: { $ne: null }, dealerState: { $ne: null } } },
+            { $group: { _id: { rep: '$dealerRepresentative', state: '$dealerState' }, ...leadGroupFields } }
+        ]),
+        Application.aggregate([
+            { $match: { ...closeMatch, dealerRepresentative: { $ne: null } } },
+            { $group: { _id: '$dealerRepresentative', ...closeGroupFields } }
+        ]),
+        Application.aggregate([
+            { $match: { ...closeMatch, dealerRepresentative: { $ne: null }, dealerState: { $ne: null } } },
+            { $group: { _id: { rep: '$dealerRepresentative', state: '$dealerState' }, ...closeGroupFields } }
+        ])
     ]);
 
     // Helper to build a financials accumulator
     const newFinAccum = () => ({
-        totalApps: 0, approvedCount: 0, bookedCount: 0, bookedVolume: 0,
+        totalApps: 0, approvedCount: 0,
+        leadBookedCount: 0, leadBookedVolume: 0,
+        closeBookedCount: 0, closeBookedVolume: 0,
+        ficoSum: 0, ficoCount: 0,
         dealSizeSum: 0, dealSizeCount: 0,
         reserveAmtSum: 0, reserveAmtCount: 0,
         reservePctSum: 0, reservePctCount: 0,
@@ -680,51 +685,70 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
         ttbSum: 0, ttbCount: 0,
     });
 
-    // Helper to merge a Mongo $group row into an accumulator
-    const mergeFinRow = (f, row) => {
-        f.totalApps += row.totalApps;
-        f.approvedCount += row.approvedCount;
-        f.bookedCount += row.bookedCount;
-        f.bookedVolume += row.bookedVolume;
+    const mergeLeadRow = (f, row) => {
+        f.totalApps += row.totalApps || 0;
+        f.approvedCount += row.approvedCount || 0;
+        f.leadBookedCount += row.leadBookedCount || 0;
+        f.leadBookedVolume += row.leadBookedVolume || 0;
+        f.ficoSum += row.ficoSum || 0;
+        f.ficoCount += row.ficoCount || 0;
+    };
+
+    const mergeCloseRow = (f, row) => {
+        const cnt = row.closeBookedCount || 0;
+        f.closeBookedCount += cnt;
+        f.closeBookedVolume += row.closeBookedVolume || 0;
         if (row.avgDealSize != null) {
-            f.dealSizeSum += row.avgDealSize * row.bookedCount;
-            f.dealSizeCount += row.bookedCount;
+            f.dealSizeSum += row.avgDealSize * cnt;
+            f.dealSizeCount += cnt;
         }
         if (row.avgReserveAmt != null) {
-            f.reserveAmtSum += row.avgReserveAmt * row.bookedCount;
-            f.reserveAmtCount += row.bookedCount;
+            f.reserveAmtSum += row.avgReserveAmt * cnt;
+            f.reserveAmtCount += cnt;
         }
         if (row.avgReservePct != null) {
-            f.reservePctSum += row.avgReservePct * row.bookedCount;
-            f.reservePctCount += row.bookedCount;
+            f.reservePctSum += row.avgReservePct * cnt;
+            f.reservePctCount += cnt;
         }
         if (row.avgAPR != null) {
-            f.aprSum += row.avgAPR * row.bookedCount;
-            f.aprCount += row.bookedCount;
+            f.aprSum += row.avgAPR * cnt;
+            f.aprCount += cnt;
         }
         if (row.avgTimeToBookMin != null) {
-            f.ttbSum += row.avgTimeToBookMin * row.bookedCount;
-            f.ttbCount += row.bookedCount;
+            f.ttbSum += row.avgTimeToBookMin * cnt;
+            f.ttbCount += cnt;
         }
     };
 
     // Helper to convert accumulator to final financials object
     const buildFinancials = (fin) => {
-        if (!fin || fin.totalApps === 0) {
+        if (!fin || (fin.totalApps === 0 && fin.closeBookedCount === 0)) {
             return {
-                totalApps: 0, approvedCount: 0, bookedCount: 0, bookedVolume: 0,
+                totalApps: 0, approvedCount: 0,
+                leadBookedCount: 0, leadBookedVolume: 0,
+                closeBookedCount: 0, closeBookedVolume: 0,
+                bookedCount: 0, bookedVolume: 0,
+                avgFico: null,
                 avgDealSize: null, lookToBookPct: null, approvalToBookPct: null,
                 avgReserveAmt: null, avgReservePct: null, avgAPR: null, avgTimeToBookDays: null,
             };
         }
+        const appBkd = fin.leadBookedCount || 0;
+        const fundedBkd = fin.closeBookedCount || 0;
         return {
             totalApps: fin.totalApps,
             approvedCount: fin.approvedCount,
-            bookedCount: fin.bookedCount,
-            bookedVolume: Math.round(fin.bookedVolume),
+            leadBookedCount: appBkd,
+            leadBookedVolume: Math.round(fin.leadBookedVolume || 0),
+            closeBookedCount: fundedBkd,
+            closeBookedVolume: Math.round(fin.closeBookedVolume || 0),
+            // Default aliases for primary production display
+            bookedCount: fundedBkd || appBkd,
+            bookedVolume: Math.round(fin.closeBookedVolume || fin.leadBookedVolume || 0),
+            avgFico: fin.ficoCount > 0 ? Math.round(fin.ficoSum / fin.ficoCount) : null,
             avgDealSize: fin.dealSizeCount > 0 ? Math.round(fin.dealSizeSum / fin.dealSizeCount) : null,
-            lookToBookPct: fin.totalApps > 0 ? Math.round((fin.bookedCount / fin.totalApps) * 1000) / 10 : null,
-            approvalToBookPct: fin.approvedCount > 0 ? Math.round((fin.bookedCount / fin.approvedCount) * 1000) / 10 : null,
+            lookToBookPct: fin.totalApps > 0 ? Math.round((appBkd / fin.totalApps) * 1000) / 10 : null,
+            approvalToBookPct: fin.approvedCount > 0 ? Math.round((appBkd / fin.approvedCount) * 1000) / 10 : null,
             avgReserveAmt: fin.reserveAmtCount > 0 ? Math.round((fin.reserveAmtSum / fin.reserveAmtCount) * 100) / 100 : null,
             avgReservePct: fin.reservePctCount > 0 ? Math.round((fin.reservePctSum / fin.reservePctCount) * 100) / 100 : null,
             avgAPR: fin.aprCount > 0 ? Math.round((fin.aprSum / fin.aprCount) * 100) / 100 : null,
@@ -733,24 +757,40 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
     };
 
     const finByRep = {};
-    for (const row of finResults) {
+    for (const row of leadResults) {
         const handle = (row._id || '').trim().toLowerCase();
         const display = handleToDisplay[handle];
         if (!display) continue;
         if (!finByRep[display]) finByRep[display] = newFinAccum();
-        mergeFinRow(finByRep[display], row);
+        mergeLeadRow(finByRep[display], row);
+    }
+    for (const row of closeResults) {
+        const handle = (row._id || '').trim().toLowerCase();
+        const display = handleToDisplay[handle];
+        if (!display) continue;
+        if (!finByRep[display]) finByRep[display] = newFinAccum();
+        mergeCloseRow(finByRep[display], row);
     }
 
     // Map per-state financial results: repDisplay → statePrefix → accumulator
     const finByRepState = {};
-    for (const row of finByStateResults) {
+    for (const row of leadByStateResults) {
         const handle = (row._id.rep || '').trim().toLowerCase();
         const state = (row._id.state || '').trim().toUpperCase();
         const display = handleToDisplay[handle];
         if (!display || !state) continue;
         if (!finByRepState[display]) finByRepState[display] = {};
         if (!finByRepState[display][state]) finByRepState[display][state] = newFinAccum();
-        mergeFinRow(finByRepState[display][state], row);
+        mergeLeadRow(finByRepState[display][state], row);
+    }
+    for (const row of closeByStateResults) {
+        const handle = (row._id.rep || '').trim().toLowerCase();
+        const state = (row._id.state || '').trim().toUpperCase();
+        const display = handleToDisplay[handle];
+        if (!display || !state) continue;
+        if (!finByRepState[display]) finByRepState[display] = {};
+        if (!finByRepState[display][state]) finByRepState[display][state] = newFinAccum();
+        mergeCloseRow(finByRepState[display][state], row);
     }
 
     // ── Compute rolling avgs + churn per rep (parallel) ──

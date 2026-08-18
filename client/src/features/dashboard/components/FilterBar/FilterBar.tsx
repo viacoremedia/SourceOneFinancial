@@ -109,12 +109,11 @@ export function FilterBar({
       'steve kimble', 'skimble',
       'n boly', 'nboly',
       'mandi schultz', 'mschultz', 'mschultz1',
-      's1 house', 's1house',
     ];
 
-    // Use repStatesMap keys (data-driven from DealerLocation) — only active reps
+    // Use repStatesMap keys (data-driven from DealerLocation) — include S1House
     const repKeys = Object.keys(repStatesMap);
-    const rawList = repKeys.length > 0 ? repKeys : [...new Set(Object.values(stateRepMap))];
+    const rawList = repKeys.length > 0 ? [...new Set([...repKeys, 'S1House'])] : [...new Set([...Object.values(stateRepMap), 'S1House'])];
 
     return rawList
       .filter((r) => {
@@ -289,6 +288,26 @@ export function FilterBar({
             {states.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
+          </select>
+        </div>
+
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel}>Portfolio</label>
+          <select
+            className={`${styles.filterSelect} ${selectedRep === 'S1House' ? styles.filterActive : ''}`}
+            value={selectedRep === 'S1House' ? 'S1House' : ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'S1House') {
+                handleRepChange('S1House');
+              } else {
+                if (selectedRep === 'S1House') handleRepChange('');
+              }
+            }}
+            id="filter-portfolio"
+          >
+            <option value="">All Accounts</option>
+            <option value="S1House">House (S1House)</option>
           </select>
         </div>
 

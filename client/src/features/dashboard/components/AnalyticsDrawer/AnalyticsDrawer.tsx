@@ -21,6 +21,7 @@ interface AnalyticsDrawerProps {
   repStatesMap?: Record<string, string[]>;
   initialDealerId?: string | null;
   initialGroupSlug?: string | null;
+  initialUnderwriter?: string | null;
   initialTab?: 'mom' | 'applications' | 'communications';
   onSelectDealerId?: (dealerId: string | null) => void;
   onSelectGroupSlug?: (groupSlug: string | null) => void;
@@ -79,6 +80,7 @@ export function AnalyticsDrawer({
   repStatesMap = {},
   initialDealerId = null,
   initialGroupSlug = null,
+  initialUnderwriter = null,
   initialTab = 'mom',
   onSelectDealerId,
   onSelectGroupSlug,
@@ -89,6 +91,7 @@ export function AnalyticsDrawer({
 
   // Selected Dealer Filter (ID or Mongo _id)
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(initialDealerId);
+  const [selectedUnderwriter, setSelectedUnderwriter] = useState<string>(initialUnderwriter || '');
   const [selectedDealerObj, setSelectedDealerObj] = useState<{
     _id: string;
     dealerName: string;
@@ -142,6 +145,9 @@ export function AnalyticsDrawer({
     if (isOpen) {
       setActiveTab(initialTab);
       setSelectedDealerId(initialDealerId);
+      if (initialUnderwriter != null) {
+        setSelectedUnderwriter(initialUnderwriter);
+      }
       if (!initialDealerId) {
         setSelectedDealerObj(null);
       }
@@ -151,7 +157,7 @@ export function AnalyticsDrawer({
       setCommHistoryPage(1);
       setCommHistoryData(null);
     }
-  }, [isOpen, initialDealerId, initialGroupSlug, initialTab]);
+  }, [isOpen, initialDealerId, initialGroupSlug, initialUnderwriter, initialTab]);
 
   // Click outside to close dealer search dropdown
   useEffect(() => {
@@ -229,7 +235,8 @@ export function AnalyticsDrawer({
       15,
       selectedState || undefined,
       selectedRep || undefined,
-      selectedGroup || undefined
+      selectedGroup || undefined,
+      selectedUnderwriter || undefined
     )
       .then((res) => {
         if (active) {
@@ -249,7 +256,7 @@ export function AnalyticsDrawer({
     return () => {
       active = false;
     };
-  }, [isOpen, selectedDealerId, selectedGroup, selectedState, selectedRep, appHistoryPage]);
+  }, [isOpen, selectedDealerId, selectedGroup, selectedState, selectedRep, selectedUnderwriter, appHistoryPage]);
 
   // Load Communication History data when target, filters or page changes
   useEffect(() => {
@@ -332,13 +339,15 @@ export function AnalyticsDrawer({
   const totals = {
     apps: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0),
     approvals: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0),
-    booked: displayedMonths.reduce((acc, m) => acc + (m.stats?.booked || 0), 0),
-    bookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.bookedDollars || 0), 0),
+    leadBooked: displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || 0), 0),
+    leadBookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBookedDollars || 0), 0),
+    booked: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBooked || m.stats?.booked || 0), 0),
+    bookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBookedDollars || m.stats?.bookedDollars || 0), 0),
     lookToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0) > 0
-      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
       : 0,
     approvalToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0) > 0
-      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
       : 0,
     latestCohort: displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null,
   };
@@ -715,8 +724,10 @@ export function AnalyticsDrawer({
                           <th>30d / 60d / 90d+ Inactive</th>
                           <th>Apps</th>
                           <th>Approvals</th>
-                          <th>Booked</th>
-                          <th>Booked $</th>
+                          <th>App BKD</th>
+                          <th>App $</th>
+                          <th>Funded BKD</th>
+                          <th>Funded $</th>
                           <th>L-B %</th>
                           <th>A-B %</th>
                         </tr>
@@ -742,6 +753,8 @@ export function AnalyticsDrawer({
                           </td>
                           <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.apps.toLocaleString()}</td>
                           <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.approvals.toLocaleString()}</td>
+                          <td style={{ color: '#38bdf8', fontWeight: 800 }}>{totals.leadBooked.toLocaleString()}</td>
+                          <td style={{ color: '#38bdf8', fontWeight: 800 }}>{formatCurrency(totals.leadBookedDollars)}</td>
                           <td style={{ color: '#4ade80', fontWeight: 800 }}>{totals.booked.toLocaleString()}</td>
                           <td style={{ color: '#4ade80', fontWeight: 800 }}>{formatCurrency(totals.bookedDollars)}</td>
                           <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
@@ -768,11 +781,18 @@ export function AnalyticsDrawer({
                               {m.stats.approvals} {renderBadge(m.trends?.approvals)}
                             </td>
                             <td>
-                              {m.stats.booked} {renderBadge(m.trends?.booked)}
+                              {m.stats.leadBooked ?? m.stats.booked} {renderBadge(m.trends?.leadBooked || m.trends?.booked)}
                             </td>
                             <td style={{ fontWeight: 600 }}>
-                              {formatCurrency(m.stats.bookedDollars)}{' '}
-                              {renderBadge(m.trends?.bookedDollars)}
+                              {formatCurrency(m.stats.leadBookedDollars ?? m.stats.bookedDollars)}{' '}
+                              {renderBadge(m.trends?.leadBookedDollars || m.trends?.bookedDollars)}
+                            </td>
+                            <td>
+                              {m.stats.closeBooked ?? m.stats.booked} {renderBadge(m.trends?.closeBooked || m.trends?.booked)}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {formatCurrency(m.stats.closeBookedDollars ?? m.stats.bookedDollars)}{' '}
+                              {renderBadge(m.trends?.closeBookedDollars || m.trends?.bookedDollars)}
                             </td>
                             <td>{(m.stats.lookToBook * 100).toFixed(1)}% {renderBadge(m.trends?.lookToBook)}</td>
                             <td>{(m.stats.approvalToBook * 100).toFixed(1)}% {renderBadge(m.trends?.approvalToBook)}</td>

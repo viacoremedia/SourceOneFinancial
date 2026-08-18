@@ -134,22 +134,28 @@ export function ExecutiveSummaryBanner({
           <div className={styles.kpiValue}>{totals?.approvals?.toLocaleString() || 0}</div>
         </div>
 
-        {/* Booked */}
+        {/* Funded Booked Volume (Close Date) */}
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>BOOKED</span>
-            {renderTrendTag(trends?.booked, 'count')}
-          </div>
-          <div className={styles.kpiValue}>{totals?.booked?.toLocaleString() || 0}</div>
-        </div>
-
-        {/* Booked Volume */}
-        <div className={styles.kpiCard}>
-          <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>BOOKED VOLUME</span>
+            <span className={styles.kpiLabel}>FUNDED BKD VOLUME</span>
             {renderTrendTag(trends?.bookedDollars, 'dollar')}
           </div>
-          <div className={styles.kpiValue}>{formatCurrency(totals?.bookedDollars || 0)}</div>
+          <div className={styles.kpiValue}>{formatCurrency(totals?.closeBookedDollars || totals?.bookedDollars || 0)}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+            {totals?.closeBooked || totals?.booked || 0} funded deals in period
+          </div>
+        </div>
+
+        {/* App Booked Volume (Application Date) */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>APP BKD VOLUME</span>
+            {renderTrendTag(trends?.leadBookedDollars || trends?.bookedDollars, 'dollar')}
+          </div>
+          <div className={styles.kpiValue}>{formatCurrency(totals?.leadBookedDollars || 0)}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+            {totals?.leadBooked || 0} apps booked in period
+          </div>
         </div>
 
         {/* Look-to-Book */}
@@ -168,6 +174,19 @@ export function ExecutiveSummaryBanner({
             {renderTrendTag(trends?.approvalToBook, 'percent')}
           </div>
           <div className={styles.kpiValue}>{formatPercent(totals?.approvalToBook || 0)}</div>
+        </div>
+
+        {/* Avg FICO */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>AVG FICO</span>
+          </div>
+          <div className={styles.kpiValue} style={{ color: '#38bdf8' }}>
+            {totals?.avgFico ? totals.avgFico : '—'}
+          </div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+            Credit score avg
+          </div>
         </div>
       </div>
     </div>

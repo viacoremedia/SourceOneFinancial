@@ -516,16 +516,35 @@ const COLUMNS: ScorecardColumn[] = [
     format: (v) => v != null && v > 0 ? v.toLocaleString() : '—',
   },
   {
-    key: 'bookedCount', label: 'Booked Deals', short: 'Bkd #',
+    key: 'leadBookedCount', label: 'App Booked Deals', short: 'App Bkd #',
     align: 'center',
-    getValue: (r) => r.financials?.bookedCount ?? null,
+    getValue: (r) => r.financials?.leadBookedCount ?? r.financials?.bookedCount ?? null,
     format: (v) => v != null && v > 0 ? String(v) : '—',
     reverseHeat: true,
   },
   {
-    key: 'bookedVolume', label: 'Booked Volume', short: 'Vol $',
+    key: 'leadBookedVolume', label: 'App Booked Volume', short: 'App Vol $',
     align: 'right',
-    getValue: (r) => r.financials?.bookedVolume ?? null,
+    getValue: (r) => r.financials?.leadBookedVolume ?? null,
+    format: (v) => {
+      if (v == null || v === 0) return '—';
+      if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+      if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+      return `$${v}`;
+    },
+    reverseHeat: true,
+  },
+  {
+    key: 'bookedCount', label: 'Funded Booked Deals', short: 'Funded Bkd #',
+    align: 'center',
+    getValue: (r) => r.financials?.closeBookedCount ?? r.financials?.bookedCount ?? null,
+    format: (v) => v != null && v > 0 ? String(v) : '—',
+    reverseHeat: true,
+  },
+  {
+    key: 'bookedVolume', label: 'Funded Booked Volume', short: 'Funded Vol $',
+    align: 'right',
+    getValue: (r) => r.financials?.closeBookedVolume ?? r.financials?.bookedVolume ?? null,
     format: (v) => {
       if (v == null || v === 0) return '—';
       if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
@@ -539,6 +558,13 @@ const COLUMNS: ScorecardColumn[] = [
     align: 'right',
     getValue: (r) => r.financials?.avgDealSize ?? null,
     format: (v) => v != null ? `$${Math.round(v).toLocaleString()}` : '—',
+  },
+  {
+    key: 'avgFico', label: 'Average FICO', short: 'FICO',
+    align: 'center',
+    getValue: (r) => r.financials?.avgFico ?? null,
+    format: (v) => v != null ? String(v) : '—',
+    reverseHeat: true,
   },
   {
     key: 'lookToBookPct', label: 'Look to Book', short: 'L2B %',
@@ -748,10 +774,22 @@ export function RepScorecard({
     }
   }, [sortKey]);
 
-  const sortedReps = useMemo(() => {
+  const [houseFilter, setHouseFilter] = useState<'all' | 'reps_only' | 'house_only'>('all');
+
+  const filteredReps = useMemo(() => {
     if (!repsWithCustomWeights.length) return [];
+    return repsWithCustomWeights.filter((r) => {
+      const isHouse = /^s1house$/i.test(r.rep || '') || /house/i.test(r.rep || '');
+      if (houseFilter === 'reps_only') return !isHouse;
+      if (houseFilter === 'house_only') return isHouse;
+      return true;
+    });
+  }, [repsWithCustomWeights, houseFilter]);
+
+  const sortedReps = useMemo(() => {
+    if (!filteredReps.length) return [];
     const col = COLUMNS.find((c) => c.key === sortKey);
-    return [...repsWithCustomWeights].sort((a, b) => {
+    return [...filteredReps].sort((a, b) => {
       const aVal = col ? col.getValue(a) : a.rep;
       const bVal = col ? col.getValue(b) : b.rep;
       if (aVal == null && bVal == null) return 0;
@@ -763,7 +801,7 @@ export function RepScorecard({
       const diff = (aVal as number) - (bVal as number);
       return sortDir === 'asc' ? diff : -diff;
     });
-  }, [repsWithCustomWeights, sortKey, sortDir]);
+  }, [filteredReps, sortKey, sortDir]);
 
   const handleRepClick = useCallback((rep: string) => {
     onSelectRep?.(resolveRepDisplayName(rep));
@@ -870,7 +908,20 @@ export function RepScorecard({
                 <option value="30d">Last 30d</option>
                 <option value="90d">Last 90d</option>
                 <option value="ytd">YTD</option>
-                <option value="all">All Time</option>
+                <option value="all">All-Time</option>
+              </select>
+            </div>
+            <div className={styles.statusByToggle}>
+              <label className={styles.statusByLabel}>Portfolio</label>
+              <select
+                className={styles.statusBySelect}
+                value={houseFilter}
+                onChange={(e) => setHouseFilter(e.target.value as 'all' | 'reps_only' | 'house_only')}
+                id="scorecard-portfolio-filter"
+              >
+                <option value="all">All Accounts</option>
+                <option value="reps_only">Rep-Managed Only</option>
+                <option value="house_only">House (S1House)</option>
               </select>
             </div>
             {data && (

@@ -50,6 +50,15 @@ export interface DealerStats {
   inHouse: number;
   booked: number;
   bookedDollars: number;
+  leadBooked?: number;
+  leadBookedDollars?: number;
+  closeBooked?: number;
+  closeBookedDollars?: number;
+  inMonthBooked?: number;
+  inMonthBookedDollars?: number;
+  outOfMonthBooked?: number;
+  outOfMonthBookedDollars?: number;
+  avgFico?: number | null;
   lookToBook: number;
   approvalToBook: number;
   trends?: {
@@ -58,6 +67,10 @@ export interface DealerStats {
     inHouse: MetricTrend;
     booked: MetricTrend;
     bookedDollars: MetricTrend;
+    leadBooked?: MetricTrend;
+    leadBookedDollars?: MetricTrend;
+    closeBooked?: MetricTrend;
+    closeBookedDollars?: MetricTrend;
     lookToBook: MetricTrend;
     approvalToBook: MetricTrend;
   };
@@ -120,9 +133,9 @@ export interface ApplicationHistoryItem {
 }
 
 export interface DealerApplicationHistorySummary {
-  allTime: { apps: number; approvals: number; booked: number; bookedDollars: number };
-  ytd: { apps: number; approvals: number; booked: number; bookedDollars: number };
-  mtd: { apps: number; approvals: number; booked: number; bookedDollars: number };
+  allTime: { apps: number; approvals: number; booked: number; bookedDollars: number; leadBooked?: number; leadBookedDollars?: number; closeBooked?: number; closeBookedDollars?: number };
+  ytd: { apps: number; approvals: number; booked: number; bookedDollars: number; leadBooked?: number; leadBookedDollars?: number; closeBooked?: number; closeBookedDollars?: number };
+  mtd: { apps: number; approvals: number; booked: number; bookedDollars: number; leadBooked?: number; leadBookedDollars?: number; closeBooked?: number; closeBookedDollars?: number };
 }
 
 export interface DealerApplicationHistoryResponse {
@@ -326,6 +339,11 @@ export interface RepFinancials {
   approvedCount: number;
   bookedCount: number;
   bookedVolume: number;
+  leadBookedCount?: number;
+  leadBookedVolume?: number;
+  closeBookedCount?: number;
+  closeBookedVolume?: number;
+  avgFico?: number | null;
   avgDealSize: number | null;
   lookToBookPct: number | null;       // booked / totalApps * 100
   approvalToBookPct: number | null;   // booked / approvedCount * 100
@@ -333,6 +351,31 @@ export interface RepFinancials {
   avgReservePct: number | null;
   avgAPR: number | null;
   avgTimeToBookDays: number | null;   // converted from minutes
+}
+
+export interface UnderwriterStats {
+  underwriter: string;
+  totalApps: number;
+  approvedCount: number;
+  conditionalCount: number;
+  declinedCount: number;
+  bookedCount: number;
+  bookedVolume: number;
+  leadBookedCount?: number;
+  leadBookedVolume?: number;
+  closeBookedCount?: number;
+  closeBookedVolume?: number;
+  approvalRate: number;
+  winRate: number; // Approval to Book
+  declineRate: number;
+  conditionalPct: number;
+  sourceOnePct: number;
+  uniqueLenderCount?: number;
+  uniqueLenders?: string[];
+  lenderBreakdown?: Array<{ lender: string; count: number; pct: number }>;
+  avgTurnTimeMinutes: number | null;
+  avgTurnTimeHours: number | null;
+  avgFico: number | null;
 }
 
 export type FinPeriod = 'mtd' | '30d' | '90d' | 'ytd' | 'all';
@@ -415,6 +458,10 @@ export interface ExecutiveSummaryResponse {
     approvals: MetricTrend;
     booked: MetricTrend;
     bookedDollars: MetricTrend;
+    leadBooked?: MetricTrend;
+    leadBookedDollars?: MetricTrend;
+    closeBooked?: MetricTrend;
+    closeBookedDollars?: MetricTrend;
     lookToBook: MetricTrend;
     approvalToBook: MetricTrend;
   };
@@ -459,6 +506,10 @@ export interface HistoricalMoMItem {
     approvals: MetricTrend;
     booked: MetricTrend;
     bookedDollars: MetricTrend;
+    leadBooked?: MetricTrend;
+    leadBookedDollars?: MetricTrend;
+    closeBooked?: MetricTrend;
+    closeBookedDollars?: MetricTrend;
     lookToBook: MetricTrend;
     approvalToBook: MetricTrend;
   };

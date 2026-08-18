@@ -300,10 +300,11 @@ export async function getDealerApplicationsHistory(
   limit: number = 20,
   state?: string,
   rep?: string,
-  group?: string
+  group?: string,
+  underwriter?: string
 ): Promise<DealerApplicationHistoryResponse> {
   const { data } = await api.get(`/analytics/dealers/${dealerId}/applications`, {
-    params: { page, limit, state, rep, group }
+    params: { page, limit, state, rep, group, underwriter }
   });
   return data;
 }
@@ -579,6 +580,14 @@ export interface Dealer360TimelineResponse {
 
 export async function getDealer360Timeline(dealerId: string): Promise<Dealer360TimelineResponse> {
   const { data } = await api.get(`/analytics/dealer-360/${encodeURIComponent(dealerId)}/timeline`);
+  return data;
+}
+
+export async function getUnderwriterScorecardApi(startDate?: string, endDate?: string) {
+  const params: Record<string, string> = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  const { data } = await api.get('/analytics/underwriters', { params });
   return data;
 }
 

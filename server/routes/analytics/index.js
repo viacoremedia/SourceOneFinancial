@@ -20,12 +20,33 @@ const SalesBudget = require('../../models/SalesBudget');
 const LargeDealerBudget = require('../../models/LargeDealerBudget');
 const { getDealerStatsMap, getNetworkAggregateStats } = require('../../services/dealerStatsService');
 const { getRepAliasMap, getRepDisplayMap, getRepHandles, isInactiveRep, isExcludedRep, resolveRepName } = require('../../config/repConfig');
+const { getLatestDataDate } = require('../../utils/dateUtils');
+const { getUnderwriterScorecard } = require('../../services/underwriterService');
 const budgetRoutes = require('./budget');
 const communicationRoutes = require('./communication');
 
 // Mount sub-routes
 router.use('/budget', budgetRoutes);
 router.use('/communication', communicationRoutes);
+
+// ==========================================
+// GET /analytics/underwriters
+// Underwriter & Lender Performance Scorecard
+// ==========================================
+router.get('/underwriters', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const underwriters = await getUnderwriterScorecard({ startDate, endDate });
+        res.status(200).json({
+            success: true,
+            count: underwriters.length,
+            underwriters
+        });
+    } catch (error) {
+        console.error('Error fetching underwriter scorecard:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 function formatDateUtcNice(d) {
     if (!d || isNaN(d.getTime())) return '';
@@ -289,6 +310,10 @@ router.get('/executive-summary', async (req, res) => {
             approvals: computeMetricTrend(currentStats.approvals, compStats.approvals),
             booked: computeMetricTrend(currentStats.booked, compStats.booked),
             bookedDollars: computeMetricTrend(currentStats.bookedDollars, compStats.bookedDollars),
+            leadBooked: computeMetricTrend(currentStats.leadBooked, compStats.leadBooked),
+            leadBookedDollars: computeMetricTrend(currentStats.leadBookedDollars, compStats.leadBookedDollars),
+            closeBooked: computeMetricTrend(currentStats.closeBooked, compStats.closeBooked),
+            closeBookedDollars: computeMetricTrend(currentStats.closeBookedDollars, compStats.closeBookedDollars),
             lookToBook: computeMetricTrend(currentStats.lookToBook, compStats.lookToBook),
             approvalToBook: computeMetricTrend(currentStats.approvalToBook, compStats.approvalToBook),
         };
@@ -407,8 +432,7 @@ router.get('/historical/mom', async (req, res) => {
         const repFilter = req.query.rep || null;
         const groupSlugFilter = req.query.groupSlug || null;
         const dealerFilter = req.query.dealerId || req.query.dealer || null;
-
-        const now = new Date();
+        const now = await getLatestDataDate();
         const currentYear = now.getUTCFullYear();
         const currentMonth = now.getUTCMonth(); // 0-indexed
 
@@ -549,6 +573,10 @@ router.get('/historical/mom', async (req, res) => {
                     approvals: null,
                     booked: null,
                     bookedDollars: null,
+                    leadBooked: null,
+                    leadBookedDollars: null,
+                    closeBooked: null,
+                    closeBookedDollars: null,
                     lookToBook: null,
                     approvalToBook: null,
                 };
@@ -559,6 +587,10 @@ router.get('/historical/mom', async (req, res) => {
                     approvals: computeMetricTrend(curr.stats.approvals, compStats.approvals),
                     booked: computeMetricTrend(curr.stats.booked, compStats.booked),
                     bookedDollars: computeMetricTrend(curr.stats.bookedDollars, compStats.bookedDollars),
+                    leadBooked: computeMetricTrend(curr.stats.leadBooked, compStats.leadBooked),
+                    leadBookedDollars: computeMetricTrend(curr.stats.leadBookedDollars, compStats.leadBookedDollars),
+                    closeBooked: computeMetricTrend(curr.stats.closeBooked, compStats.closeBooked),
+                    closeBookedDollars: computeMetricTrend(curr.stats.closeBookedDollars, compStats.closeBookedDollars),
                     lookToBook: computeMetricTrend(curr.stats.lookToBook, compStats.lookToBook),
                     approvalToBook: computeMetricTrend(curr.stats.approvalToBook, compStats.approvalToBook),
                 };
@@ -937,6 +969,10 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
                         inHouse: computeMetricTrend(curr.inHouse, base.inHouse),
                         booked: computeMetricTrend(curr.booked, base.booked),
                         bookedDollars: computeMetricTrend(curr.bookedDollars, base.bookedDollars),
+                        leadBooked: computeMetricTrend(curr.leadBooked, base.leadBooked),
+                        leadBookedDollars: computeMetricTrend(curr.leadBookedDollars, base.leadBookedDollars),
+                        closeBooked: computeMetricTrend(curr.closeBooked, base.closeBooked),
+                        closeBookedDollars: computeMetricTrend(curr.closeBookedDollars, base.closeBookedDollars),
                         lookToBook: computeMetricTrend(curr.lookToBook, base.lookToBook),
                         approvalToBook: computeMetricTrend(curr.approvalToBook, base.approvalToBook),
                     } : undefined
@@ -1174,10 +1210,14 @@ router.get('/groups', async (req, res) => {
             }
         }
 
-        // Fetch all locations belonging to dealer groups
-        const allGroupLocations = await DealerLocation.find({
-            dealerGroup: { $ne: null }
-        }).select('_id clientDealerId dealerId dealerGroup').lean();
+        // Fetch locations belonging to dealer groups (respecting rep/state filters)
+        const locMatchQuery = { dealerGroup: { $ne: null } };
+        if (filteredLocationIds) {
+            locMatchQuery._id = { $in: filteredLocationIds };
+        }
+
+        const allGroupLocations = await DealerLocation.find(locMatchQuery)
+            .select('_id clientDealerId dealerId dealerGroup').lean();
 
         const allDealerKeys = allGroupLocations
             .filter(d => !matchingStatusLocationSet || matchingStatusLocationSet.has(d._id.toString()))
@@ -1226,14 +1266,20 @@ router.get('/groups', async (req, res) => {
             let groupApps = 0;
             let groupApprovals = 0;
             let groupInHouse = 0;
-            let groupBooked = 0;
-            let groupBookedDollars = 0;
+            let groupLeadBooked = 0;
+            let groupLeadBookedDollars = 0;
+            let groupCloseBooked = 0;
+            let groupCloseBookedDollars = 0;
+            let groupFicoSum = 0;
+            let groupFicoCount = 0;
 
             let baseApps = 0;
             let baseApprovals = 0;
             let baseInHouse = 0;
-            let baseBooked = 0;
-            let baseBookedDollars = 0;
+            let baseLeadBooked = 0;
+            let baseLeadBookedDollars = 0;
+            let baseCloseBooked = 0;
+            let baseCloseBookedDollars = 0;
 
             for (const key of keys) {
                 const curr = currentStatsMap.get(key);
@@ -1241,39 +1287,57 @@ router.get('/groups', async (req, res) => {
                     groupApps += curr.apps || 0;
                     groupApprovals += curr.approvals || 0;
                     groupInHouse += curr.inHouse || 0;
-                    groupBooked += curr.booked || 0;
-                    groupBookedDollars += curr.bookedDollars || 0;
+                    groupLeadBooked += curr.leadBooked || 0;
+                    groupLeadBookedDollars += curr.leadBookedDollars || 0;
+                    groupCloseBooked += curr.closeBooked ?? curr.booked ?? 0;
+                    groupCloseBookedDollars += curr.closeBookedDollars ?? curr.bookedDollars ?? 0;
+                    if (curr.avgFico && curr.apps) {
+                        groupFicoSum += curr.avgFico * curr.apps;
+                        groupFicoCount += curr.apps;
+                    }
                 }
                 const base = compStatsMap.get(key);
                 if (base) {
                     baseApps += base.apps || 0;
                     baseApprovals += base.approvals || 0;
                     baseInHouse += base.inHouse || 0;
-                    baseBooked += base.booked || 0;
-                    baseBookedDollars += base.bookedDollars || 0;
+                    baseLeadBooked += base.leadBooked || 0;
+                    baseLeadBookedDollars += base.leadBookedDollars || 0;
+                    baseCloseBooked += base.closeBooked ?? base.booked ?? 0;
+                    baseCloseBookedDollars += base.closeBookedDollars ?? base.bookedDollars ?? 0;
                 }
             }
 
-            const lookToBook = groupApps > 0 ? Number((groupBooked / groupApps).toFixed(4)) : 0;
-            const approvalToBook = (groupApprovals + groupBooked) > 0 ? Number((groupBooked / (groupApprovals + groupBooked)).toFixed(4)) : 0;
+            const lookToBook = groupApps > 0 ? Number((groupLeadBooked / groupApps).toFixed(4)) : 0;
+            const approvalToBook = groupApprovals > 0 ? Number((groupLeadBooked / groupApprovals).toFixed(4)) : 0;
+            const avgFico = groupFicoCount > 0 ? Math.round(groupFicoSum / groupFicoCount) : null;
 
-            const baseLookToBook = baseApps > 0 ? Number((baseBooked / baseApps).toFixed(4)) : 0;
-            const baseApprovalToBook = (baseApprovals + baseBooked) > 0 ? Number((baseBooked / (baseApprovals + baseBooked)).toFixed(4)) : 0;
+            const baseLookToBook = baseApps > 0 ? Number((baseLeadBooked / baseApps).toFixed(4)) : 0;
+            const baseApprovalToBook = baseApprovals > 0 ? Number((baseLeadBooked / baseApprovals).toFixed(4)) : 0;
 
             const stats = {
                 apps: groupApps,
                 approvals: groupApprovals,
                 inHouse: groupInHouse,
-                booked: groupBooked,
-                bookedDollars: groupBookedDollars,
+                leadBooked: groupLeadBooked,
+                leadBookedDollars: groupLeadBookedDollars,
+                closeBooked: groupCloseBooked,
+                closeBookedDollars: groupCloseBookedDollars,
+                booked: groupCloseBooked,
+                bookedDollars: groupCloseBookedDollars,
                 lookToBook,
                 approvalToBook,
+                avgFico,
                 trends: (compStart && compEnd) ? {
                     apps: computeMetricTrend(groupApps, baseApps),
                     approvals: computeMetricTrend(groupApprovals, baseApprovals),
                     inHouse: computeMetricTrend(groupInHouse, baseInHouse),
-                    booked: computeMetricTrend(groupBooked, baseBooked),
-                    bookedDollars: computeMetricTrend(groupBookedDollars, baseBookedDollars),
+                    leadBooked: computeMetricTrend(groupLeadBooked, baseLeadBooked),
+                    leadBookedDollars: computeMetricTrend(groupLeadBookedDollars, baseLeadBookedDollars),
+                    closeBooked: computeMetricTrend(groupCloseBooked, baseCloseBooked),
+                    closeBookedDollars: computeMetricTrend(groupCloseBookedDollars, baseCloseBookedDollars),
+                    booked: computeMetricTrend(groupCloseBooked, baseCloseBooked),
+                    bookedDollars: computeMetricTrend(groupCloseBookedDollars, baseCloseBookedDollars),
                     lookToBook: computeMetricTrend(lookToBook, baseLookToBook),
                     approvalToBook: computeMetricTrend(approvalToBook, baseApprovalToBook),
                 } : undefined
@@ -1287,10 +1351,18 @@ router.get('/groups', async (req, res) => {
             };
         });
 
+        // If rep or state filter is active, only return groups that have matching locations
+        const finalGroups = filteredLocationIds
+            ? enrichedGroups.filter(g => {
+                const gId = g._id.toString();
+                return summaryMap[gId] || (locationsByGroup[gId] && locationsByGroup[gId].length > 0);
+            })
+            : enrichedGroups;
+
         res.status(200).json({
             success: true,
-            count: enrichedGroups.length,
-            groups: enrichedGroups
+            count: finalGroups.length,
+            groups: finalGroups
         });
     } catch (error) {
         console.error('Error fetching groups:', error);
@@ -1850,6 +1922,10 @@ router.get('/dealers/small', async (req, res) => {
                     inHouse: computeMetricTrend(curr.inHouse, base.inHouse),
                     booked: computeMetricTrend(curr.booked, base.booked),
                     bookedDollars: computeMetricTrend(curr.bookedDollars, base.bookedDollars),
+                    leadBooked: computeMetricTrend(curr.leadBooked, base.leadBooked),
+                    leadBookedDollars: computeMetricTrend(curr.leadBookedDollars, base.leadBookedDollars),
+                    closeBooked: computeMetricTrend(curr.closeBooked, base.closeBooked),
+                    closeBookedDollars: computeMetricTrend(curr.closeBookedDollars, base.closeBookedDollars),
                     lookToBook: computeMetricTrend(curr.lookToBook, base.lookToBook),
                     approvalToBook: computeMetricTrend(curr.approvalToBook, base.approvalToBook),
                 } : undefined
@@ -2189,6 +2265,9 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
             if (req.query.group) {
                 matchQuery.dealerGroup = new RegExp(req.query.group, 'i');
             }
+            if (req.query.underwriter) {
+                matchQuery.underwriter = new RegExp('^' + req.query.underwriter + '$', 'i');
+            }
         } else {
             if (mongoose.Types.ObjectId.isValid(dealerId)) {
                 location = await DealerLocation.findById(dealerId).lean();
@@ -2239,9 +2318,9 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
             }
         }
 
-        const now = new Date();
-        const ytdStart = new Date(now.getFullYear(), 0, 1);
-        const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const now = await getLatestDataDate();
+        const ytdStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+        const mtdStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
         // Summary Aggregations (All-Time, YTD, MTD)
         const summaryAgg = await Application.aggregate([
@@ -2257,10 +2336,14 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
                     ytdApprovals: { $sum: { $cond: [{ $and: [{ $gte: ['$applicationDate', ytdStart] }, { $or: [{ $eq: ['$wasApproved', true] }, { $in: ['$status', ['Approved', 'Conditional Approval', 'Auto Approval']] }] }] }, 1, 0] } },
                     ytdBooked: { $sum: { $cond: [{ $and: [{ $gte: ['$applicationDate', ytdStart] }, { $eq: ['$status', 'Booked'] }] }, 1, 0] } },
                     ytdBookedDollars: { $sum: { $cond: [{ $and: [{ $gte: ['$applicationDate', ytdStart] }, { $eq: ['$status', 'Booked'] }] }, { $ifNull: ['$amountFinanced', 0] }, 0] } },
+                    ytdCloseBooked: { $sum: { $cond: [{ $and: [{ $gte: ['$bookedDate', ytdStart] }, { $eq: ['$status', 'Booked'] }] }, 1, 0] } },
+                    ytdCloseBookedDollars: { $sum: { $cond: [{ $and: [{ $gte: ['$bookedDate', ytdStart] }, { $eq: ['$status', 'Booked'] }] }, { $ifNull: ['$amountFinanced', 0] }, 0] } },
                     mtdApps: { $sum: { $cond: [{ $gte: ['$applicationDate', mtdStart] }, 1, 0] } },
                     mtdApprovals: { $sum: { $cond: [{ $and: [{ $gte: ['$applicationDate', mtdStart] }, { $or: [{ $eq: ['$wasApproved', true] }, { $in: ['$status', ['Approved', 'Conditional Approval', 'Auto Approval']] }] }] }, 1, 0] } },
                     mtdBooked: { $sum: { $cond: [{ $and: [{ $gte: ['$applicationDate', mtdStart] }, { $eq: ['$status', 'Booked'] }] }, 1, 0] } },
                     mtdBookedDollars: { $sum: { $cond: [{ $and: [{ $gte: ['$applicationDate', mtdStart] }, { $eq: ['$status', 'Booked'] }] }, { $ifNull: ['$amountFinanced', 0] }, 0] } },
+                    mtdCloseBooked: { $sum: { $cond: [{ $and: [{ $gte: ['$bookedDate', mtdStart] }, { $eq: ['$status', 'Booked'] }] }, 1, 0] } },
+                    mtdCloseBookedDollars: { $sum: { $cond: [{ $and: [{ $gte: ['$bookedDate', mtdStart] }, { $eq: ['$status', 'Booked'] }] }, { $ifNull: ['$amountFinanced', 0] }, 0] } },
                 }
             }
         ]);
@@ -2276,14 +2359,22 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
             ytd: {
                 apps: rawSummary.ytdApps || 0,
                 approvals: rawSummary.ytdApprovals || 0,
-                booked: rawSummary.ytdBooked || 0,
-                bookedDollars: rawSummary.ytdBookedDollars || 0
+                booked: rawSummary.ytdCloseBooked || rawSummary.ytdBooked || 0,
+                bookedDollars: rawSummary.ytdCloseBookedDollars || rawSummary.ytdBookedDollars || 0,
+                leadBooked: rawSummary.ytdBooked || 0,
+                leadBookedDollars: rawSummary.ytdBookedDollars || 0,
+                closeBooked: rawSummary.ytdCloseBooked || 0,
+                closeBookedDollars: rawSummary.ytdCloseBookedDollars || 0,
             },
             mtd: {
                 apps: rawSummary.mtdApps || 0,
                 approvals: rawSummary.mtdApprovals || 0,
-                booked: rawSummary.mtdBooked || 0,
-                bookedDollars: rawSummary.mtdBookedDollars || 0
+                booked: rawSummary.mtdCloseBooked || rawSummary.mtdBooked || 0,
+                bookedDollars: rawSummary.mtdCloseBookedDollars || rawSummary.mtdBookedDollars || 0,
+                leadBooked: rawSummary.mtdBooked || 0,
+                leadBookedDollars: rawSummary.mtdBookedDollars || 0,
+                closeBooked: rawSummary.mtdCloseBooked || 0,
+                closeBookedDollars: rawSummary.mtdCloseBookedDollars || 0,
             }
         };
 

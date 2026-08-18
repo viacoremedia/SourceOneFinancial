@@ -39,9 +39,11 @@ const REPS = {
     'Steve Kimble':   { handles: ['skimble', 'steve'], status: 'inactive', reason: 'No longer employed' },
     'N Boly':         { handles: ['nboly'], status: 'inactive', reason: 'No longer employed' },
 
+    // ── Corporate House Portfolio ──────────────────────────────────────
+    'S1 House':       { handles: ['s1house', 'house'], status: 'active', type: 'house' },
+
     // ── Excluded (Not Sales) ──────────────────────────────────────────
     'Mandi Schultz':  { handles: ['mschultz1', 'mschultz', 'mandi', 'mandy'], status: 'excluded', reason: 'Dealer services — no sales' },
-    'S1 House':       { handles: ['s1house'], status: 'excluded', reason: 'Corporate / outsourced finance (managed by corporate & Joseph)' },
 };
 
 // ──────────────────────────────────────────────────────────────────────

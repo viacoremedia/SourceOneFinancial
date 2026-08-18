@@ -429,6 +429,16 @@ function DashboardContent() {
     return allDealers.filter((loc) => loc.latestSnapshot?.activityStatus === statusFilter);
   }, [allDealers, statusFilter]);
 
+  const [drawerUnderwriter, setDrawerUnderwriter] = useState<string | null>(null);
+
+  const handleSelectUnderwriter = useCallback((underwriterName: string) => {
+    setDrawerDealerId('all');
+    setDrawerGroupSlug(null);
+    setDrawerTab('applications');
+    setDrawerUnderwriter(underwriterName);
+    setDrawerOpen(true);
+  }, []);
+
   return (
     <AppShell
       rollingWindow={rollingWindow}
@@ -439,6 +449,7 @@ function DashboardContent() {
       activityMode={activityMode}
       onActivityModeChange={handleActivityModeChange}
       onSelectRep={handleRepChange}
+      onSelectUnderwriter={handleSelectUnderwriter}
     >
       <div style={{ marginBottom: '16px' }}>
         <TabBar
@@ -519,6 +530,7 @@ function DashboardContent() {
         repStatesMap={repStatesMap}
         initialDealerId={drawerDealerId}
         initialGroupSlug={drawerGroupSlug}
+        initialUnderwriter={drawerUnderwriter}
         initialTab={drawerTab}
         onSelectDealerId={setDrawerDealerId}
         onSelectGroupSlug={setDrawerGroupSlug}

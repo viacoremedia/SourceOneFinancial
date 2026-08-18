@@ -36,8 +36,7 @@ const INACTIVE_OR_EXCLUDED_REPS = new Set([
   'steve kimble', 'skimble',
   'n boly', 'nboly',
   'mandi schultz', 'mschultz', 'mschultz1', 'mandi',
-  'wendy',
-  's1 house', 's1house'
+  'wendy'
 ]);
 
 function getRepDisplayForDealer(
@@ -610,10 +609,15 @@ export function DealerTable({
         {visibleColumns.some(c => c.key === 'inHouse') && (
           <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.inHouse, trends?.inHouse, 'count', isAllTime)}</td>
         )}
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.leadBooked, trends?.leadBooked, 'count', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.leadBookedDollars, trends?.leadBookedDollars, 'dollar', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.booked, trends?.booked, 'count', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.bookedDollars, trends?.bookedDollars, 'dollar', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.lookToBook, trends?.lookToBook, 'percent', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvalToBook, trends?.approvalToBook, 'percent', isAllTime)}</td>
+        <td style={{ textAlign: 'right' }}>
+          {stats?.avgFico ? <span style={{ fontWeight: 600, color: '#f8fafc' }}>{stats.avgFico}</span> : '—'}
+        </td>
       </>
     );
   };
@@ -1294,10 +1298,15 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         {visibleColumns.some(c => c.key === 'inHouse') && (
           <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.inHouse, group.stats?.trends?.inHouse, 'count')}</td>
         )}
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.leadBooked, group.stats?.trends?.leadBooked, 'count')}</td>
+        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.leadBookedDollars, group.stats?.trends?.leadBookedDollars, 'dollar')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.booked, group.stats?.trends?.booked, 'count')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.bookedDollars, group.stats?.trends?.bookedDollars, 'dollar')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.lookToBook, group.stats?.trends?.lookToBook, 'percent')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.approvalToBook, group.stats?.trends?.approvalToBook, 'percent')}</td>
+        <td style={{ textAlign: 'right' }}>
+          {showSkeleton ? <SkeletonCell /> : (group.stats?.avgFico ? <span style={{ fontWeight: 600, color: '#f8fafc' }}>{group.stats.avgFico}</span> : '—')}
+        </td>
       </tr>
       {isExpanded && locations.map((loc) => (
         <tr key={loc._id} className={styles.childRow}>

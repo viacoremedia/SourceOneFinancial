@@ -1,0 +1,219 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: 95%;
+  max-width: 1450px;
+  height: 100%;
+  background: #0f172a;
+  border-left: 1px solid #334155;
+  box-shadow: -10px 0 25px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  color: #f8fafc;
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1e293b;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.controlsGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dateToggle {
+  display: flex;
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 3px;
+  border: 1px solid #334155;
+}
+
+.dateBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dateBtnActive {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.closeBtn:hover {
+  color: #f8fafc;
+  background: #334155;
+}
+
+.content {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tableContainer {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
+  background: #1e293b;
+  border-radius: 10px;
+  border: 1px solid #334155;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: #0f172a;
+  padding: 12px 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  border-bottom: 2px solid #334155;
+  cursor: pointer;
+  user-select: none;
+  z-index: 10;
+  transition: color 0.15s;
+}
+
+.table th:hover {
+  color: #38bdf8;
+}
+
+.table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+.table tr:hover td {
+  background: rgba(51, 65, 85, 0.4);
+}
+
+.tfoot {
+  position: sticky;
+  bottom: 0;
+  background: #0f172a;
+  border-top: 2px solid #38bdf8;
+  z-index: 10;
+}
+
+.tfoot td {
+  padding: 12px 12px;
+  font-weight: 700;
+  color: #f8fafc;
+  background: #0f172a;
+}
+
+.underwriterLink {
+  color: #38bdf8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s;
+  text-decoration: underline;
+  text-decoration-color: rgba(56, 189, 248, 0.4);
+}
+
+.underwriterLink:hover {
+  color: #60a5fa;
+  text-decoration-color: #60a5fa;
+}
+
+.lenderBarTrack {
+  display: flex;
+  height: 12px;
+  width: 140px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0f172a;
+  border: 1px solid #334155;
+}
+
+.lenderSegment {
+  height: 100%;
+  transition: opacity 0.15s;
+}
+
+.lenderSegment:hover {
+  opacity: 0.8;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badgeBlue {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.badgePurple {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
