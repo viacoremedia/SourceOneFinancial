@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
 import styles from './VisitImpactDrawer.module.css';
+import { RelationshipDemandView } from './RelationshipDemandView';
 import {
   getVisitImpact,
   getRepCommunicationHistory,
@@ -48,6 +49,7 @@ type SubSortField =
 
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
   const { openDealer360 } = useAnalyticsContext();
+  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('demand');
   const [windowDays, setWindowDays] = useState<number>(30);
   const [touchpointMode, setTouchpointMode] = useState<'visits' | 'all'>('visits');
   const [timeframe, setTimeframe] = useState<'ytd' | '30d' | '60d'>('ytd');
@@ -268,8 +270,22 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
               </div>
             ) : (
               <>
-                <h2 className={styles.title}>📍 Sales Visit Reactivation Engine</h2>
-                {impactData?.dateRangeLabel && (
+                <div className={styles.topNavTabs}>
+                  <button
+                    className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
+                    onClick={() => setMainTab('demand')}
+                  >
+                    🎯 Relationship Demand & Allocation (TLC)
+                  </button>
+                  <button
+                    className={`${styles.topNavBtn} ${mainTab === 'reactivation' ? styles.topNavBtnActive : ''}`}
+                    onClick={() => setMainTab('reactivation')}
+                  >
+                    ⚡ Visit Reactivation Diagnostic
+                  </button>
+                </div>
+
+                {mainTab === 'reactivation' && impactData?.dateRangeLabel && (
                   <span
                     style={{
                       fontSize: '12px',
@@ -286,38 +302,40 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                     📅 {impactData.dateRangeLabel}
                   </span>
                 )}
-                <div className={styles.windowToggle}>
-                  {/* Visit Timeframe Selector */}
-                  <select
-                    value={timeframe}
-                    onChange={(e) => setTimeframe(e.target.value as any)}
-                    className={styles.filterSelect}
-                    style={{ background: '#0f172a', borderColor: '#38bdf8', color: '#38bdf8', fontWeight: 600, padding: '4px 8px', borderRadius: '6px' }}
-                    title="Select timeframe of visits to analyze"
-                  >
-                    <option value="ytd">📅 YTD 2026</option>
-                    <option value="30d">📅 Last 30 Days Visits</option>
-                    <option value="60d">📅 Last 60 Days Visits</option>
-                  </select>
-
-                  {[14, 30, 60].map((w) => (
-                    <button
-                      key={w}
-                      className={`${styles.windowBtn} ${windowDays === w ? styles.windowBtnActive : ''}`}
-                      onClick={() => setWindowDays(w)}
-                      title={`Attribute app to visit if submitted within ${w} days post-visit`}
+                {mainTab === 'reactivation' && (
+                  <div className={styles.windowToggle}>
+                    {/* Visit Timeframe Selector */}
+                    <select
+                      value={timeframe}
+                      onChange={(e) => setTimeframe(e.target.value as any)}
+                      className={styles.filterSelect}
+                      style={{ background: '#0f172a', borderColor: '#38bdf8', color: '#38bdf8', fontWeight: 600, padding: '4px 8px', borderRadius: '6px' }}
+                      title="Select timeframe of visits to analyze"
                     >
-                      ⚡ {w}d Conversion Window {w === 30 ? '(Default)' : ''}
+                      <option value="ytd">📅 YTD 2026</option>
+                      <option value="30d">📅 Last 30 Days Visits</option>
+                      <option value="60d">📅 Last 60 Days Visits</option>
+                    </select>
+
+                    {[14, 30, 60].map((w) => (
+                      <button
+                        key={w}
+                        className={`${styles.windowBtn} ${windowDays === w ? styles.windowBtnActive : ''}`}
+                        onClick={() => setWindowDays(w)}
+                        title={`Attribute app to visit if submitted within ${w} days post-visit`}
+                      >
+                        ⚡ {w}d Conversion Window {w === 30 ? '(Default)' : ''}
+                      </button>
+                    ))}
+                    <button
+                      className={`${styles.windowBtn} ${touchpointMode === 'all' ? styles.windowBtnActive : ''}`}
+                      onClick={() => setTouchpointMode(touchpointMode === 'visits' ? 'all' : 'visits')}
+                      style={{ marginLeft: '8px' }}
+                    >
+                      {touchpointMode === 'visits' ? '📍 Visits Only' : '📞 All Touchpoints'}
                     </button>
-                  ))}
-                  <button
-                    className={`${styles.windowBtn} ${touchpointMode === 'all' ? styles.windowBtnActive : ''}`}
-                    onClick={() => setTouchpointMode(touchpointMode === 'visits' ? 'all' : 'visits')}
-                    style={{ marginLeft: '8px' }}
-                  >
-                    {touchpointMode === 'visits' ? '📍 Visits Only' : '📞 All Touchpoints'}
-                  </button>
-                </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -483,6 +501,9 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                 </>
               )}
             </div>
+          ) : mainTab === 'demand' ? (
+            /* ── Relationship Demand & Allocation (TLC) View ── */
+            <RelationshipDemandView onOpenDealer360={openDealer360} />
           ) : (
             /* ── Rep Reactivation Performance View ── */
             loading ? (

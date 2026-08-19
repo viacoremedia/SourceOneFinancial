@@ -5,11 +5,13 @@ import {
   getDealer360Timeline,
   getRepCommunicationHistory,
   getDealerApplicationsHistory,
+  getDealerRelationshipTimeline,
 } from '../../core/services/api';
 import type {
   Dealer360Response,
   Dealer360TimelineResponse,
   RepCommunicationHistoryResponse,
+  RelationshipDemandTimelineResponse,
 } from '../../core/services/api';
 import styles from './Dealer360Modal.module.css';
 
@@ -69,6 +71,8 @@ export function Dealer360Modal() {
   const [appsData, setAppsData] = useState<any | null>(null);
   const [loadingApps, setLoadingApps] = useState<boolean>(false);
 
+  const [drdData, setDrdData] = useState<RelationshipDemandTimelineResponse | null>(null);
+
   // Sync initial tab on open
   useEffect(() => {
     if (dealer360Open) {
@@ -85,11 +89,16 @@ export function Dealer360Modal() {
     setTimelineData(null);
     setTouchpointsData(null);
     setAppsData(null);
+    setDrdData(null);
 
     getDealer360(focusedDealerId)
       .then(setOverviewData)
       .catch(console.error)
       .finally(() => setLoadingOverview(false));
+
+    getDealerRelationshipTimeline(focusedDealerId)
+      .then(setDrdData)
+      .catch(console.error);
   }, [dealer360Open, focusedDealerId]);
 
   // Lazy Load Tabs
@@ -119,11 +128,12 @@ export function Dealer360Modal() {
         .catch(console.error)
         .finally(() => setLoadingApps(false));
     }
-  }, [activeTab, dealer360Open, focusedDealerId, timelineData, loadingTimeline, touchpointsData, loadingTouchpoints, appsData, loadingApps]);
+  }, [dealer360Open, focusedDealerId, activeTab, timelineData, loadingTimeline, touchpointsData, loadingTouchpoints, appsData, loadingApps]);
 
   const maxSparklineVal = useMemo(() => {
     if (!overviewData?.sparkline) return 1;
-    return Math.max(...overviewData.sparkline.map((s) => s.apps), 1);
+    const max = Math.max(...overviewData.sparkline.map((s) => s.apps), 1);
+    return max;
   }, [overviewData]);
 
   if (!dealer360Open) return null;
@@ -147,6 +157,27 @@ export function Dealer360Modal() {
                     style={statusBadgeStyle(overviewData.status)}
                   >
                     {overviewData.status.replace('_', ' ')}
+                  </span>
+                )}
+                {drdData?.profile?.relationshipDemand && (
+                  <span
+                    className={styles.statusBadge}
+                    style={{
+                      background: drdData.profile.relationshipDemand === 'high_tlc' ? 'rgba(239, 68, 68, 0.18)' :
+                        drdData.profile.relationshipDemand === 'self_sufficient' ? 'rgba(16, 185, 129, 0.18)' :
+                        drdData.profile.relationshipDemand === 'unresponsive' ? 'rgba(249, 115, 22, 0.18)' :
+                        'rgba(148, 163, 184, 0.18)',
+                      color: drdData.profile.relationshipDemand === 'high_tlc' ? '#ef4444' :
+                        drdData.profile.relationshipDemand === 'self_sufficient' ? '#10b981' :
+                        drdData.profile.relationshipDemand === 'unresponsive' ? '#f97316' :
+                        '#94a3b8',
+                      border: '1px solid currentColor'
+                    }}
+                  >
+                    {drdData.profile.relationshipDemand === 'high_tlc' ? '🔴 High TLC' :
+                     drdData.profile.relationshipDemand === 'self_sufficient' ? '🟢 Autonomous' :
+                     drdData.profile.relationshipDemand === 'unresponsive' ? '🟠 Unresponsive' :
+                     '⚪ Insufficient Data'}
                   </span>
                 )}
               </div>
@@ -299,6 +330,57 @@ export function Dealer360Modal() {
                         })}
                       </div>
                     </div>
+
+                    {/* Relationship Demand & Lifecycle DNA Card */}
+                    {drdData?.profile && (
+                      <div className={styles.drdCard}>
+                        <div className={styles.drdHeader}>
+                          <div className={styles.drdTitle}>
+                            <span>🧬 Relationship DNA & Field Routing Strategy</span>
+                          </div>
+                          <div className={styles.drdBadgeContainer}>
+                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              Confidence: <strong>{(drdData.profile.confidenceScore * 100).toFixed(0)}%</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Tactical Action Recommendation Callout */}
+                        {drdData.recommendation && (
+                          <div className={styles.drdRecommendationBox}>
+                            {drdData.recommendation}
+                          </div>
+                        )}
+
+                        {/* Key Behavioral Metrics Grid */}
+                        <div className={styles.drdMetricsGrid}>
+                          <div className={styles.drdMetricBox}>
+                            <span className={styles.drdMetricLabel}>Visit Elasticity (Ev)</span>
+                            <span className={styles.drdMetricVal} style={{ color: (drdData.profile.visitElasticity || 0) >= 2.0 ? '#ef4444' : '#10b981' }}>
+                              {drdData.profile.visitElasticity != null ? `${drdData.profile.visitElasticity}x` : '—'}
+                            </span>
+                          </div>
+                          <div className={styles.drdMetricBox}>
+                            <span className={styles.drdMetricLabel}>Production Half-Life</span>
+                            <span className={styles.drdMetricVal} style={{ color: '#38bdf8' }}>
+                              {drdData.profile.productionHalfLifeDays ? `~${drdData.profile.productionHalfLifeDays} Days` : '—'}
+                            </span>
+                          </div>
+                          <div className={styles.drdMetricBox}>
+                            <span className={styles.drdMetricLabel}>Recommended Cadence</span>
+                            <span className={styles.drdMetricVal} style={{ color: '#fbbf24' }}>
+                              {drdData.profile.recommendedCadenceDays ? `${drdData.profile.recommendedCadenceDays} Days` : 'N/A'}
+                            </span>
+                          </div>
+                          <div className={styles.drdMetricBox}>
+                            <span className={styles.drdMetricLabel}>Lifetime Yield / Visit</span>
+                            <span className={styles.drdMetricVal} style={{ color: '#34d399' }}>
+                              {formatDollar(drdData.profile.lifetimeStats?.yieldPerVisit || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

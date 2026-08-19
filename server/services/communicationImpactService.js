@@ -625,22 +625,41 @@ module.exports = {
  *     'Returned phone call', 'Not able to speak to anyone'
  */
 function classifyComm(comm) {
-    const type = (comm.communicationType || '').toLowerCase();
-    const result = (comm.communicationResult1 || '').toLowerCase();
+    const type = (comm.communicationType || '').toLowerCase().trim();
+    const result = (comm.communicationResult1 || '').toLowerCase().trim();
 
     const isVisit = type === 'meeting' ||
+        type === 'visit' ||
+        type === 'face to face' ||
+        type.includes('visit') ||
+        type.includes('in-person') ||
+        type.includes('meeting') ||
         result.includes('met with') ||
         result.includes('training completed') ||
         result.includes('sign up completed');
 
     const isCall = type === 'phone call' ||
+        type === 'phone' ||
+        type.includes('call') ||
+        type.includes('phone') ||
         result.includes('spoke with') ||
         result.includes('follow up') ||
         result.includes('returned phone call') ||
         result.includes('not able to speak');
 
+    const isEmail = type === 'email' ||
+        type === 'e-mail' ||
+        type.includes('email') ||
+        type.includes('mail');
+
+    const isText = type === 'text' ||
+        type.includes('text') ||
+        type.includes('sms');
+
     if (isVisit) return 'visit';
     if (isCall) return 'call';
+    if (isEmail) return 'email';
+    if (isText) return 'text';
     return 'other';
 }
 

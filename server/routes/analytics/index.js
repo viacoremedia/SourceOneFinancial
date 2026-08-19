@@ -24,10 +24,12 @@ const { getLatestDataDate } = require('../../utils/dateUtils');
 const { getUnderwriterScorecard } = require('../../services/underwriterService');
 const budgetRoutes = require('./budget');
 const communicationRoutes = require('./communication');
+const relationshipDemandRoutes = require('./relationshipDemand');
 
 // Mount sub-routes
 router.use('/budget', budgetRoutes);
 router.use('/communication', communicationRoutes);
+router.use('/relationship-demand', relationshipDemandRoutes);
 
 // ==========================================
 // GET /analytics/underwriters

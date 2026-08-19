@@ -591,4 +591,147 @@ export async function getUnderwriterScorecardApi(startDate?: string, endDate?: s
   return data;
 }
 
+// ── Relationship Demand & DRD Engine ──
+export type RelationshipDemandSegment = 'high_tlc' | 'self_sufficient' | 'unresponsive' | 'insufficient_data';
+export type UrgencyStatus = 'overdue' | 'due_soon' | 'on_track' | 'self_sufficient' | 'not_monitored';
+
+export interface DealerProfileItem {
+  _id: string;
+  dealerLocation: string;
+  clientDealerId: string;
+  dealerName: string;
+  statePrefix?: string | null;
+  assignedRep?: string | null;
+  relationshipDemand: RelationshipDemandSegment;
+  confidenceScore: number;
+  recommendedCadenceDays?: number | null;
+  daysSinceLastVisit?: number | null;
+  lastVisitDate?: string | null;
+  daysSinceLastTouch?: number | null;
+  lastTouchDate?: string | null;
+  lastTouchType?: string | null;
+  urgencyStatus: UrgencyStatus;
+  visitElasticity?: number | null;
+  productionHalfLifeDays?: number | null;
+  lifetimeStats: {
+    totalVisits: number;
+    totalCalls: number;
+    totalEmails: number;
+    totalTouchpoints: number;
+    totalApplications: number;
+    totalBookings: number;
+    totalBookedVolume: number;
+    yieldPerVisit: number;
+  };
+  dormancyStats: {
+    totalDormancyEpisodes: number;
+    dormanciesEndedByVisit: number;
+    dormancyVisitRecoveryRate: number;
+  };
+  lastCalculatedAt: string;
+}
+
+export interface RelationshipDemandSummaryResponse {
+  success: boolean;
+  totalDealers: number;
+  segments: Record<RelationshipDemandSegment, {
+    count: number;
+    pct: number;
+    bookedVolume: number;
+    totalVisits: number;
+    totalBookings: number;
+  }>;
+  urgency: {
+    overdue: number;
+    due_soon: number;
+    on_track: number;
+    self_sufficient: number;
+    not_monitored: number;
+  };
+  lastCalculatedAt: string | null;
+}
+
+export interface RelationshipDemandDealersResponse {
+  success: boolean;
+  dealers: DealerProfileItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface RelationshipDemandTimelineResponse {
+  success: boolean;
+  profile: DealerProfileItem;
+  recommendation: string;
+  monthlyTimeline: Array<{
+    month: string;
+    visits: number;
+    calls: number;
+    emails: number;
+    apps: number;
+    bookings: number;
+    bookedVolume: number;
+  }>;
+  recentCommunications: Array<any>;
+  recentApplications: Array<any>;
+}
+
+export interface RepAllocationDiagnosticResponse {
+  success: boolean;
+  repAllocations: Array<{
+    rep: string;
+    totalDealers: number;
+    highTlcCount: number;
+    selfSuffCount: number;
+    unresponsiveCount: number;
+    insufficientCount: number;
+    overdueCount: number;
+    totalVisits: number;
+    highTlcVisits: number;
+    selfSuffVisits: number;
+    unresponsiveVisits: number;
+    totalBookedVolume: number;
+    highTlcVisitPct: number;
+    selfSuffVisitPct: number;
+    unresponsiveVisitPct: number;
+    misallocatedWarning: boolean;
+  }>;
+}
+
+export async function getRelationshipDemandSummary(params?: { rep?: string; state?: string }): Promise<RelationshipDemandSummaryResponse> {
+  const { data } = await api.get('/analytics/relationship-demand/summary', { params });
+  return data;
+}
+
+export async function getRelationshipDemandDealers(params?: {
+  demand?: string;
+  urgency?: string;
+  rep?: string;
+  state?: string;
+  search?: string;
+  sort?: string;
+  order?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}): Promise<RelationshipDemandDealersResponse> {
+  const { data } = await api.get('/analytics/relationship-demand/dealers', { params });
+  return data;
+}
+
+export async function getDealerRelationshipTimeline(clientDealerId: string): Promise<RelationshipDemandTimelineResponse> {
+  const { data } = await api.get(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/timeline`);
+  return data;
+}
+
+export async function getRepAllocationDiagnostics(): Promise<RepAllocationDiagnosticResponse> {
+  const { data } = await api.get('/analytics/relationship-demand/rep-allocation');
+  return data;
+}
+
+export async function triggerRecalculateDemandProfiles(): Promise<{ success: boolean; totalDealers: number; durationMs: number }> {
+  const { data } = await api.post('/analytics/relationship-demand/recalculate');
+  return data;
+}
+
 export default api;
