@@ -319,14 +319,16 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
             };
 
             bulkOps.push({
-                insertOne: {
-                    document: snapshotDoc
+                updateOne: {
+                    filter: { dealerLocation: dealer._id, reportDate },
+                    update: { $set: snapshotDoc },
+                    upsert: true
                 }
             });
 
             if (bulkOps.length >= BATCH_SIZE) {
                 const res = await DailyDealerSnapshot.bulkWrite(bulkOps, { ordered: false });
-                totalSnapshots += res.insertedCount || bulkOps.length;
+                totalSnapshots += (res.upsertedCount || 0) + (res.modifiedCount || 0);
                 bulkOps = [];
             }
         }
@@ -334,7 +336,7 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
 
     if (bulkOps.length > 0) {
         const res = await DailyDealerSnapshot.bulkWrite(bulkOps, { ordered: false });
-        totalSnapshots += res.insertedCount || bulkOps.length;
+        totalSnapshots += (res.upsertedCount || 0) + (res.modifiedCount || 0);
     }
 
     const durationMs = Date.now() - startTime;

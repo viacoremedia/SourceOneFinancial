@@ -237,12 +237,15 @@ Options:
     // Phase 2 Snapshot Generation Integration
     if (!dryRun && !skipSnapshots && generateSnapshotsForRange) {
         console.log(`\n--------------------------------------------------`);
-        console.log(` TRIGGERING AUTOMATIC SNAPSHOT GENERATION`);
+        console.log(` TRIGGERING AUTOMATIC SNAPSHOT & ROLLUP GENERATION`);
         console.log(`--------------------------------------------------`);
         try {
             await generateSnapshotsForRange({ fromDate: '2025-01-01' });
+            console.log(`\nRebuilding Monthly Dealer Rollups...`);
+            const { rebuildAllRollups } = require('../services/rollupService');
+            await rebuildAllRollups();
         } catch (err) {
-            console.error(`Snapshot generation error: ${err.message}`);
+            console.error(`Snapshot/rollup generation error: ${err.message}`);
         }
     }
 

@@ -15,6 +15,7 @@ const mongoose = require('mongoose');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { generateSnapshotsForRange } = require('../services/snapshotGeneratorService');
+const { rebuildAllRollups } = require('../services/rollupService');
 
 async function main() {
     const args = process.argv.slice(2);
@@ -42,6 +43,9 @@ async function main() {
     console.log(`Connected.`);
 
     await generateSnapshotsForRange({ fromDate, toDate, dealerIds });
+
+    console.log(`\nRebuilding Monthly Dealer Rollups...`);
+    await rebuildAllRollups();
 
     await mongoose.disconnect();
     console.log('Done.');
