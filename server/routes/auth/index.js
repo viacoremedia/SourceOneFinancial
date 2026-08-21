@@ -4,11 +4,113 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../../models/User');
 const { requireAuth, requireRole, JWT_SECRET, ROLE_HIERARCHY } = require('../../middleware/authMiddleware');
-const { sendInviteEmail } = require('../../services/emailService');
+const { sendInviteEmail, sendPasswordResetEmail } = require('../../services/emailService');
 
 const router = express.Router();
 
 const TOKEN_EXPIRY = '90d'; // ~3 months
+
+// ── POST /auth/forgot-password ──
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email || typeof email !== 'string') {
+            return res.status(400).json({ success: false, message: 'Valid email is required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
+
+        if (user && user.status !== 'disabled') {
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            user.resetPasswordToken = resetToken;
+            user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+            await user.save();
+
+            try {
+                await sendPasswordResetEmail(user.email, resetToken, user.name);
+            } catch (emailErr) {
+                console.error('Failed to send password reset email:', emailErr);
+                // We still return success to not block user, but log error
+            }
+        }
+
+        // Generic response prevents email enumeration attacks
+        res.json({
+            success: true,
+            message: 'If an account exists with this email, a password reset link has been sent.',
+        });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// ── GET /auth/verify-reset-token ──
+router.get('/verify-reset-token', async (req, res) => {
+    try {
+        const { token } = req.query;
+        if (!token) {
+            return res.status(400).json({ success: false, valid: false, message: 'Token is required' });
+        }
+
+        const user = await User.findOne({ resetPasswordToken: token });
+        if (!user) {
+            return res.status(400).json({ success: false, valid: false, message: 'Invalid reset link' });
+        }
+        if (user.resetPasswordExpiresAt && user.resetPasswordExpiresAt < new Date()) {
+            return res.status(400).json({ success: false, valid: false, message: 'Password reset link has expired' });
+        }
+
+        res.json({ success: true, valid: true, email: user.email });
+    } catch (err) {
+        console.error('Verify reset token error:', err);
+        res.status(500).json({ success: false, valid: false, message: 'Server error' });
+    }
+});
+
+// ── POST /auth/reset-password ──
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: 'Token and new password are required' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        const user = await User.findOne({ resetPasswordToken: token });
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'Invalid reset link' });
+        }
+        if (user.resetPasswordExpiresAt && user.resetPasswordExpiresAt < new Date()) {
+            return res.status(400).json({ success: false, message: 'Password reset link has expired' });
+        }
+
+        user.passwordHash = await bcrypt.hash(password, 12);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpiresAt = null;
+        if (user.status === 'invited') {
+            user.status = 'active';
+            user.inviteToken = null;
+            user.inviteExpiresAt = null;
+        }
+        await user.save();
+
+        const jwtToken = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+
+        res.json({
+            success: true,
+            token: jwtToken,
+            user: { id: user._id, email: user.email, name: user.name, role: user.role },
+            message: 'Password reset successfully',
+        });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
 
 // ── POST /auth/login ──
 router.post('/login', async (req, res) => {

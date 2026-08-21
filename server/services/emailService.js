@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
  * Send invite email with link to set password
  */
 async function sendInviteEmail(toEmail, inviteToken, inviterName, role) {
-    const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const baseUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
     const inviteLink = `${baseUrl}/invite?token=${inviteToken}`;
 
     const html = `
@@ -41,6 +41,51 @@ async function sendInviteEmail(toEmail, inviteToken, inviterName, role) {
 }
 
 /**
+ * Send password reset email with secure token link
+ */
+async function sendPasswordResetEmail(toEmail, resetToken, userName) {
+    const baseUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
+
+    const greeting = userName ? `Hello ${userName},` : 'Hello,';
+    const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 36px 32px; background: #0f172a; color: #e2e8f0; border-radius: 14px; border: 1px solid #1e293b;">
+            <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #14b8a6, #0d9488); display: inline-block; text-align: center; line-height: 32px; font-weight: 700; font-size: 14px; color: white; margin-right: 12px;">S1</div>
+                <div style="font-size: 16px; font-weight: 600; color: #f8fafc; letter-spacing: -0.01em;">Source One <span style="font-size: 12px; color: #64748b; font-weight: 400; text-transform: uppercase; margin-left: 4px;">Analytics</span></div>
+            </div>
+            <h2 style="margin: 0 0 12px; color: #f8fafc; font-size: 20px; font-weight: 600;">Reset Your Password</h2>
+            <p style="margin: 0 0 16px; color: #94a3b8; font-size: 14px; line-height: 1.6;">
+                ${greeting}
+            </p>
+            <p style="margin: 0 0 24px; color: #94a3b8; font-size: 14px; line-height: 1.6;">
+                We received a request to reset your password for your <strong>Source One Analytics</strong> account. Click the button below to choose a new password:
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="${resetLink}" style="display: inline-block; padding: 12px 32px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+                    Reset Password
+                </a>
+            </div>
+            <p style="margin: 24px 0 8px; font-size: 13px; color: #64748b; line-height: 1.5;">
+                This link will expire in <strong>1 hour</strong>. If you did not request this password reset, please ignore this email and your password will remain unchanged.
+            </p>
+            <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0 16px;" />
+            <p style="margin: 0; font-size: 11px; color: #475569; word-break: break-all;">
+                Or copy and paste this link in your browser:<br/>
+                <a href="${resetLink}" style="color: #38bdf8; text-decoration: underline;">${resetLink}</a>
+            </p>
+        </div>
+    `;
+
+    await transporter.sendMail({
+        from: `"Source One" <${process.env.SMTP_USER}>`,
+        to: toEmail,
+        subject: `Password Reset Request — Source One Analytics`,
+        html,
+    });
+}
+
+/**
  * Send a generic email via the shared SMTP transport.
  * Used by automated reports, alerts, etc.
  *
@@ -58,4 +103,4 @@ async function sendEmail(to, subject, html) {
     });
 }
 
-module.exports = { sendInviteEmail, sendEmail };
+module.exports = { sendInviteEmail, sendPasswordResetEmail, sendEmail };

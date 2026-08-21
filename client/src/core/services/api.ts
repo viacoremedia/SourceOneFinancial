@@ -34,7 +34,8 @@ api.interceptors.response.use(
       // Token expired or invalid — clear and redirect to login
       localStorage.removeItem('sourceone_token');
       localStorage.removeItem('sourceone_user');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/invite') {
+      const publicPaths = ['/login', '/invite', '/forgot-password', '/reset-password'];
+      if (!publicPaths.includes(window.location.pathname)) {
         window.location.href = '/login';
       }
     }

@@ -9,6 +9,20 @@
 Email + password login form. Dark-themed, matches dashboard aesthetic.
 - On success → stores JWT + user in localStorage, redirects to `/`
 - On error → shows inline error message
+- Includes "Forgot password?" link to `/forgot-password` and password visibility toggle
+
+### `ForgotPasswordPage.tsx`
+Self-service password recovery requested at `/forgot-password`.
+- User enters email address
+- On submit → calls POST `/auth/forgot-password`
+- Shows success confirmation card instructing user to check their email
+
+### `ResetPasswordPage.tsx`
+Secure password reset form reached via `/reset-password?token=xxx`.
+- Validates token on mount via GET `/auth/verify-reset-token`
+- Inputs for new password and confirm password with length + match validation
+- On success → updates password, receives JWT, and auto-logs in redirecting to dashboard
+- If expired/invalid → displays clear guidance and a button to request a new link
 
 ### `AcceptInvitePage.tsx`
 Invite acceptance page reached via `/invite?token=xxx`.

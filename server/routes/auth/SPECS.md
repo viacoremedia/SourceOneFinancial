@@ -8,11 +8,14 @@
 | Method | Path | Auth | Min Role | Description |
 |--------|------|------|----------|-------------|
 | `POST` | `/auth/login` | ❌ | — | Email + password → JWT (90d expiry) |
+| `POST` | `/auth/forgot-password` | ❌ | — | Email → generate secure reset token (1h expiry) & send email |
+| `GET` | `/auth/verify-reset-token` | ❌ | — | Token query param → check token validity & return email |
+| `POST` | `/auth/reset-password` | ❌ | — | Token + password → update passwordHash, clear token + JWT |
 | `POST` | `/auth/accept-invite` | ❌ | — | Token + password + name → activate account + JWT |
 | `GET` | `/auth/me` | ✅ | — | Return current user profile |
 | `POST` | `/auth/change-password` | ✅ | — | Requires current + new password |
 | `POST` | `/auth/invite` | ✅ | admin | Send invite email, create user with status=invited |
-| `GET` | `/auth/users` | ✅ | admin | List all users (no passwordHash/inviteToken) |
+| `GET` | `/auth/users` | ✅ | admin | List all users (no passwordHash/inviteToken/resetPasswordToken) |
 | `DELETE` | `/auth/users/:id` | ✅ | admin | Remove user (role-scoped: can only remove below own level) |
 
 ## Role Hierarchy

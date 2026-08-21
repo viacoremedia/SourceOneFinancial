@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './features/auth/hooks/useAuth';
 import { ThemeProvider } from './core/hooks/useTheme';
 import { LoginPage } from './features/auth/components/LoginPage';
 import { AcceptInvitePage } from './features/auth/components/AcceptInvitePage';
+import { ForgotPasswordPage } from './features/auth/components/ForgotPasswordPage';
+import { ResetPasswordPage } from './features/auth/components/ResetPasswordPage';
 import { Dashboard } from './features/dashboard/pages';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +52,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/forgot-password" element={user ? <Navigate to="/" replace /> : <ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/invite" element={<AcceptInvitePage />} />
       <Route path="/*" element={
         <ProtectedRoute>

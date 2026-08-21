@@ -35,8 +35,17 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    resetPasswordToken: {
+        type: String,
+        default: null,
+    },
+    resetPasswordExpiresAt: {
+        type: Date,
+        default: null,
+    },
 }, { timestamps: true });
 
 userSchema.index({ inviteToken: 1 });
+userSchema.index({ resetPasswordToken: 1 });
 
 module.exports = mongoose.model('User', userSchema);
