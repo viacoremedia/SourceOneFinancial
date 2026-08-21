@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Mail } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Mail, Info } from 'lucide-react';
 import api from '../../../core/services/api';
 import styles from './Auth.module.css';
 
@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
         <p className={styles.subtitle}>
           {submitted
             ? "We've sent recovery instructions to your inbox."
-            : 'Enter your email address and we will send you a link to reset your password.'}
+            : 'Enter the email address of the account you signed up or were invited with.'}
         </p>
 
         {submitted ? (
@@ -51,9 +51,21 @@ export function ForgotPasswordPage() {
                 <span>Reset link dispatched</span>
               </div>
               <div className={styles.successText}>
-                If an account exists for <strong>{email}</strong>, you will receive an email shortly with a link to reset your password. The link expires in 1 hour.
+                If an account exists for <strong>{email}</strong>, you will receive an email shortly with a password reset link.
+              </div>
+              <div className={styles.helperText} style={{ marginTop: 4 }}>
+                Didn't get an email? Make sure <strong>{email}</strong> is the exact email your account was created with.
               </div>
             </div>
+
+            <button
+              type="button"
+              className={styles.submitBtn}
+              style={{ width: '100%', marginBottom: 12, background: 'var(--bg-app)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+              onClick={() => { setSubmitted(false); setEmail(''); }}
+            >
+              Try a Different Email
+            </button>
 
             <Link to="/login" className={styles.submitBtn} style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
               Return to Sign In
@@ -61,8 +73,15 @@ export function ForgotPasswordPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className={styles.form}>
+            <div className={styles.infoNote}>
+              <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>
+                Please enter the <strong>exact email address</strong> associated with your account.
+              </span>
+            </div>
+
             <label className={styles.label}>
-              Email address
+              Registered Account Email
               <input
                 className={styles.input}
                 type="email"
@@ -73,6 +92,9 @@ export function ForgotPasswordPage() {
                 required
                 id="forgot-email"
               />
+              <span className={styles.helperText}>
+                Must be the email you use to sign in to Source One
+              </span>
             </label>
 
             {error && <div className={styles.error}>{error}</div>}

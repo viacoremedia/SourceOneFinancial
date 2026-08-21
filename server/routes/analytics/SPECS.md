@@ -1,6 +1,6 @@
 # SPECS.md — Server Routes (Analytics)
 
-> API endpoints for the dealer analytics dashboard.
+> API endpoints for the dealer analytics dashboard, rolling averages, and Dealer Relationship Demand (DRD) allocation engine.
 
 ## Routes — `routes/analytics/index.js`
 
@@ -33,118 +33,72 @@ Returns dealer groups with server-side aggregated summaries.
 }
 ```
 
-**Summary computation**:
-- Filters DealerLocations by `statePrefix ∈ states` (if provided)
-- Looks up each location's latest DailyDealerSnapshot
-- Aggregates: count statuses, compute min/max days-since values
-- Only returns groups whose filtered location count > 0
-
 ---
 
 ### `GET /analytics/groups/:slug/locations`
 Returns all dealers in a group with their latest snapshot.
-
-**Response**: `{ locations: DealerLocation[] }` (each with `latestSnapshot`)
 
 ---
 
 ### `GET /analytics/small-dealers`
 Returns independent dealers (no group) with pagination.
 
-**Query Params**:
-| Param   | Type   | Default      | Description                     |
-|---------|--------|--------------|---------------------------------|
-| `sort`  | String | `dealerName` | Sort field                      |
-| `dir`   | String | `asc`        | Sort direction (asc/desc)       |
-| `page`  | Number | 1            | Page number                     |
-| `limit` | Number | 50           | Items per page (max 200)        |
-
 ---
 
-### `GET /analytics/state-rep-map`
-Returns state → rep mapping from SalesBudget table.
+## Routes — `routes/analytics/relationshipDemand.js` (DRD Engine v6.2)
 
-**Response**: `{ IA: "Bruce", IL: "Bruce", ... }`
-
----
-
-### `GET /analytics/overview`
-Returns high-level counts (total groups, total dealers).
-
----
-
-## Routes — `routes/analytics/budget.js`
-
-### `GET /analytics/budget/states`
-Returns state-level budget data with rep assignments.
-
-**Response**: Array of `{ state, rep, annualTotal, monthlyBudgets }`
-
----
-
-## Routes — Rolling Averages (in `index.js`)
-
-### `GET /analytics/rolling-averages`
-Network-level rolling averages across the dealer network.
+### `GET /analytics/relationship-demand/summary`
+Returns high-level KPI counts, segment distribution (`high_tlc`, `self_sufficient`, `comfort_stop`, `insufficient_data`), and urgency breakdown (`overdue`, `due_soon`, `on_track`, `self_sufficient`, `not_monitored`).
 
 **Query Params**:
-| Param    | Type   | Default | Description                                    |
-|----------|--------|---------|------------------------------------------------|
-| `window` | Number | 7       | Window size in report dates (clamped 1–60)     |
-| `states` | String | —       | Comma-separated state codes (e.g., "TX,FL")    |
-| `debug`  | String | —       | Set to "true" to include raw reportDates array |
-
-**Response**: `NetworkRollingAvgResponse`
-- `current` — 5 core metrics (avgDaysSinceApp, avgDaysSinceApproval, avgDaysSinceBooking, avgContactDays, avgVisitResponse)
-- `previous` — same metrics from the previous window
-- `deltas` — current minus previous (negative = improving for days-since metrics)
-- `statusFlows` — churn velocity: avgGainedActive, avgLostActive, avgReactivated, netDelta
-- `reportDateRange` — { first, last, count } of dates used
-- `insufficientData` — true when < 2 report dates exist
-
-**Caching**: In-memory Map, 5-minute TTL, keyed by `window+states`.
+| Param   | Type   | Description |
+|---------|--------|-------------|
+| `rep`   | String | Filter by assigned sales representative |
+| `state` | String | Filter by state code (e.g. "FL", "TX") |
 
 ---
 
-### `GET /analytics/rep-scorecard`
-Per-rep rolling averages, dealer counts, churn flows, and heat index data.
+### `GET /analytics/relationship-demand/dealers`
+Searchable, filterable, and paginated master list of all 3,940 dealer relationship profiles.
 
 **Query Params**:
-| Param    | Type   | Default | Description                                    |
-|----------|--------|---------|------------------------------------------------|
-| `window` | Number | 7       | Window size in report dates (clamped 1–60)     |
-| `debug`  | String | —       | Set to "true" to include raw reportDates array |
-
-**Response**: `RepScorecardResponse`
-- `reps[]` — array of `RepScorecardEntry` objects:
-  - Rep name, dealer counts (total, active, 30d, 60d, long, reactivated)
-  - Rolling avg metrics (current + deltas)
-  - Status flows per rep
-  - Heat index, heat class, capacity ratio, capacity flag (Phase 4)
-- `networkAvgDealersPerRep` — avg dealers per rep for capacity ratio
-- `reportDateRange`, `insufficientData`, `windowSize`
-
-**Caching**: In-memory Map, 5-minute TTL, keyed by `window`.
+| Param     | Type   | Default   | Description |
+|-----------|--------|-----------|-------------|
+| `demand`  | String | `all`     | Segment filter (`high_tlc`, `self_sufficient`, `comfort_stop`, `insufficient_data`) |
+| `urgency` | String | `all`     | Urgency filter (`overdue`, `due_soon`, `on_track`, `self_sufficient`, `not_monitored`) |
+| `rep`     | String | —         | Filter by sales rep |
+| `state`   | String | —         | Filter by state |
+| `search`  | String | —         | Search by dealer name or clientDealerId |
+| `sort`    | String | `urgency` | Sort field (`urgency`, `lift`, `volume`, `visits`, `bookings`, `yield`, `cycles`) |
+| `order`   | String | `desc`    | Sort order (`asc` or `desc`) |
+| `page`    | Number | 1         | Page number |
+| `limit`   | Number | 25        | Page limit |
 
 ---
 
-## Services — `services/rollingAverages.js`
+### `GET /analytics/relationship-demand/dealers/:clientDealerId/drawer`
+Returns complete payload for the `DealerRelationshipDrawer` (<50ms response):
+- `profile`: Full `DealerProfile` including `decisionRationale[]`, `interactionCycles[]`, `timelineMonthly[]`, `flags`, `lifetimeStats`.
+- `recentCommunications`: Last 50 communications normalized with standardized `channel` (`visit`, `call`, `email`, `text`).
+- `recentApplications`: Last 50 applications with amount, status, date, and lender.
 
-| Function                     | Description                                                |
-|------------------------------|------------------------------------------------------------|
-| `computeNetworkRollingAvg()` | Company-wide rolling avgs with dual-window + deltas        |
-| `computeRepScorecard()`      | Per-rep breakdown via SalesBudget state→rep join           |
-| `computeStatusFlows()`       | Churn velocity from consecutive date-pair transitions      |
+---
 
-Window uses N most recent **report dates** (not calendar days) to handle data gaps.
+### `GET /analytics/relationship-demand/rep-allocation`
+Matrix diagnostics showing rep-by-rep effort allocation (High TLC visits, Self-Sufficient visits, Comfort Stop visits, and overdue alert counts).
+
+---
+
+### `POST /analytics/relationship-demand/recalculate`
+Triggers full background recompute across all 3,940 dealer locations.
 
 ---
 
 ## Files
 
-| File                    | Lines | Description                               |
-|-------------------------|-------|-------------------------------------------|
-| `index.js`              | ~880  | Main analytics API (groups, dealers, rolling avgs) |
-| `budget.js`             | ~150  | Budget/state endpoints                    |
-| `rollingAverages.js`*   | ~320  | Rolling averages service (in services/)   |
-
+| File | Lines | Description |
+|---|---|---|
+| `index.js` | ~880 | Main analytics API (groups, dealers, rolling avgs) |
+| `relationshipDemand.js` | ~380 | DRD engine routes (summary, dealers, drawer payload, rep-allocation) |
+| `dealerRelationshipEngine.js` | ~510 | Core episodic pattern engine, channel normalizer & visit clusterer |
+| `DealerProfile.js` | ~160 | Precomputed relationship demand profiles schema |

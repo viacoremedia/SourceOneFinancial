@@ -15,7 +15,6 @@ import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
-import { Dealer360Modal } from '../../../components/Dealer360Modal/Dealer360Modal';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
 import type { DealerLocation, RollingWindow, HeatClass } from '../types';
@@ -541,9 +540,6 @@ function DashboardContent() {
         open={visitImpactOpen}
         onClose={() => setVisitImpactOpen(false)}
       />
-
-      {/* Universal 4-Tab Dealer 360 Inspection Surface */}
-      <Dealer360Modal />
     </AppShell>
   );
 }

@@ -503,7 +503,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
             </div>
           ) : mainTab === 'demand' ? (
             /* ── Relationship Demand & Allocation (TLC) View ── */
-            <RelationshipDemandView onOpenDealer360={openDealer360} />
+            <RelationshipDemandView />
           ) : (
             /* ── Rep Reactivation Performance View ── */
             loading ? (

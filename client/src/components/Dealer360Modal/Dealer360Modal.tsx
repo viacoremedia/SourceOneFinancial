@@ -165,18 +165,18 @@ export function Dealer360Modal() {
                     style={{
                       background: drdData.profile.relationshipDemand === 'high_tlc' ? 'rgba(239, 68, 68, 0.18)' :
                         drdData.profile.relationshipDemand === 'self_sufficient' ? 'rgba(16, 185, 129, 0.18)' :
-                        drdData.profile.relationshipDemand === 'unresponsive' ? 'rgba(249, 115, 22, 0.18)' :
+                        drdData.profile.relationshipDemand === 'comfort_stop' ? 'rgba(249, 115, 22, 0.18)' :
                         'rgba(148, 163, 184, 0.18)',
                       color: drdData.profile.relationshipDemand === 'high_tlc' ? '#ef4444' :
                         drdData.profile.relationshipDemand === 'self_sufficient' ? '#10b981' :
-                        drdData.profile.relationshipDemand === 'unresponsive' ? '#f97316' :
+                        drdData.profile.relationshipDemand === 'comfort_stop' ? '#f97316' :
                         '#94a3b8',
                       border: '1px solid currentColor'
                     }}
                   >
                     {drdData.profile.relationshipDemand === 'high_tlc' ? '🔴 High TLC' :
                      drdData.profile.relationshipDemand === 'self_sufficient' ? '🟢 Autonomous' :
-                     drdData.profile.relationshipDemand === 'unresponsive' ? '🟠 Unresponsive' :
+                     drdData.profile.relationshipDemand === 'comfort_stop' ? '🟠 Comfort Stop' :
                      '⚪ Insufficient Data'}
                   </span>
                 )}
@@ -346,24 +346,24 @@ export function Dealer360Modal() {
                         </div>
 
                         {/* Tactical Action Recommendation Callout */}
-                        {drdData.recommendation && (
+                        {drdData.profile.decisionRationale && drdData.profile.decisionRationale.length > 0 && (
                           <div className={styles.drdRecommendationBox}>
-                            {drdData.recommendation}
+                            {drdData.profile.decisionRationale[0]}
                           </div>
                         )}
 
                         {/* Key Behavioral Metrics Grid */}
                         <div className={styles.drdMetricsGrid}>
                           <div className={styles.drdMetricBox}>
-                            <span className={styles.drdMetricLabel}>Visit Elasticity (Ev)</span>
-                            <span className={styles.drdMetricVal} style={{ color: (drdData.profile.visitElasticity || 0) >= 2.0 ? '#ef4444' : '#10b981' }}>
-                              {drdData.profile.visitElasticity != null ? `${drdData.profile.visitElasticity}x` : '—'}
+                            <span className={styles.drdMetricLabel}>Post-Visit Booked Lift</span>
+                            <span className={styles.drdMetricVal} style={{ color: (drdData.profile.postVisitBookedLiftPct || 0) >= 70 ? '#ef4444' : '#10b981' }}>
+                              {drdData.profile.postVisitBookedLiftPct != null ? `${drdData.profile.postVisitBookedLiftPct}%` : '—'}
                             </span>
                           </div>
                           <div className={styles.drdMetricBox}>
-                            <span className={styles.drdMetricLabel}>Production Half-Life</span>
+                            <span className={styles.drdMetricLabel}>Verified Cycles</span>
                             <span className={styles.drdMetricVal} style={{ color: '#38bdf8' }}>
-                              {drdData.profile.productionHalfLifeDays ? `~${drdData.profile.productionHalfLifeDays} Days` : '—'}
+                              {drdData.profile.verifiedCycleCount ? `${drdData.profile.verifiedCycleCount} Clusters` : '—'}
                             </span>
                           </div>
                           <div className={styles.drdMetricBox}>
@@ -375,7 +375,7 @@ export function Dealer360Modal() {
                           <div className={styles.drdMetricBox}>
                             <span className={styles.drdMetricLabel}>Lifetime Yield / Visit</span>
                             <span className={styles.drdMetricVal} style={{ color: '#34d399' }}>
-                              {formatDollar(drdData.profile.lifetimeStats?.yieldPerVisit || 0)}
+                              {formatDollar(drdData.profile.lifetimeYieldPerVisit || 0)}
                             </span>
                           </div>
                         </div>

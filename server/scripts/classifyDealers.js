@@ -1,14 +1,13 @@
 /**
- * CLI Script: Classify Dealers by Relationship Demand (DRD)
+ * CLI Script: Classify Dealers by Relationship Demand (DRD v6.2)
  * 
- * Analyzes full lifetime application (2019-2026) and communication (2024-2026) timelines
- * to categorize all dealers into relationship demand tiers (High TLC, Self-Sufficient, Unresponsive, Insufficient Data).
+ * Analyzes full lifetime application (2019-2026) and normalized communication (2024-2026) timelines
+ * to categorize all dealers into relationship demand tiers (High TLC, Self-Sufficient, Comfort Stop, Discovery Queue).
  * 
  * Usage:
  *   node server/scripts/classifyDealers.js [options]
  * 
  * Options:
- *   --dry-run               Evaluate in-memory and print distribution without writing to DB
  *   --dealer <DEALER_ID>    Inspect single dealer timeline & classification details
  *   --help                  Show help message
  */
@@ -27,25 +26,23 @@ async function main() {
 
     if (args.includes('--help') || args.includes('-h')) {
         console.log(`
-Classify Dealers by Relationship Demand
-=======================================
+Classify Dealers by Relationship Demand (v6.2 Final)
+===================================================
 Usage: node server/scripts/classifyDealers.js [options]
 
 Options:
-  --dry-run               Evaluate in-memory and print distribution without writing to DB
   --dealer <DEALER_ID>    Inspect single dealer timeline & classification details
 `);
         process.exit(0);
     }
 
-    const dryRun = args.includes('--dry-run');
     const dealerIdx = args.indexOf('--dealer');
     const targetDealerId = dealerIdx !== -1 && args[dealerIdx + 1] ? args[dealerIdx + 1].toUpperCase() : null;
 
     console.log(`\n==================================================`);
-    console.log(` DEALER RELATIONSHIP DEMAND (DRD) CLASSIFIER`);
+    console.log(` DEALER RELATIONSHIP DEMAND (DRD) CLASSIFIER v6.2`);
     console.log(`==================================================`);
-    console.log(` Mode   : ${targetDealerId ? `SINGLE DEALER (${targetDealerId})` : (dryRun ? 'DRY-RUN (In-Memory Analysis)' : 'LIVE DATABASE RUN')}`);
+    console.log(` Mode   : ${targetDealerId ? `SINGLE DEALER (${targetDealerId})` : 'LIVE DATABASE RUN (All Dealers)'}`);
     console.log(`==================================================\n`);
 
     console.log('Connecting to MongoDB...');
@@ -74,30 +71,29 @@ Options:
         console.log(`  State Prefix              : ${profile.statePrefix}`);
         console.log(`  Assigned Rep              : ${profile.assignedRep || 'Unassigned'}`);
         console.log(`  Relationship Demand       : ${profile.relationshipDemand.toUpperCase()}`);
+        console.log(`  Pattern Type              : ${profile.patternType}`);
         console.log(`  Confidence Score          : ${(profile.confidenceScore * 100).toFixed(0)}%`);
         console.log(`  Recommended Cadence       : ${profile.recommendedCadenceDays ? `${profile.recommendedCadenceDays} Days` : 'N/A'}`);
         console.log(`  Urgency Status            : ${profile.urgencyStatus.toUpperCase()}`);
         console.log(`  Days Since Last Visit     : ${profile.daysSinceLastVisit !== null ? `${profile.daysSinceLastVisit} days ago` : 'Never'}`);
-        console.log(`  Visit Elasticity Ratio    : ${profile.visitElasticity !== null ? `${profile.visitElasticity}x` : 'N/A'}`);
-        console.log(`  Production Half-Life      : ${profile.productionHalfLifeDays ? `${profile.productionHalfLifeDays} days` : 'N/A'}`);
+        console.log(`  Post-Visit Booked Lift    : ${profile.postVisitBookedLiftPct !== null ? `${profile.postVisitBookedLiftPct}%` : 'N/A'}`);
+        console.log(`  Organic Booked Ratio      : ${profile.organicBookedRatio}%`);
+        console.log(`  Verified Cycle Count      : ${profile.verifiedCycleCount}`);
+        console.log(`  Flags                     : Fading TLC=${profile.flags.isFadingTlc} | Emerging TLC=${profile.flags.isEmergingTlc} | Catalytic=${profile.flags.isCatalyticActivation}`);
         console.log(`\n  Lifetime Stats:`);
-        console.log(`    Total Visits            : ${profile.lifetimeStats.totalVisits}`);
-        console.log(`    Total Calls             : ${profile.lifetimeStats.totalCalls}`);
+        console.log(`    Total In-Person Visits  : ${profile.lifetimeStats.totalVisits}`);
+        console.log(`    Total Phone Calls       : ${profile.lifetimeStats.totalCalls}`);
         console.log(`    Total Applications      : ${profile.lifetimeStats.totalApplications}`);
         console.log(`    Total Booked Loans      : ${profile.lifetimeStats.totalBookings}`);
         console.log(`    Total Booked Volume     : $${profile.lifetimeStats.totalBookedVolume.toLocaleString()}`);
-        console.log(`    Yield Per Visit         : $${profile.lifetimeStats.yieldPerVisit.toLocaleString()}`);
-        console.log(`\n  Dormancy Stats:`);
-        console.log(`    Total 60d Dormancies    : ${profile.dormancyStats.totalDormancyEpisodes}`);
-        console.log(`    Ended by Rep Visit      : ${profile.dormancyStats.dormanciesEndedByVisit}`);
-        console.log(`    Dormancy Recovery Rate  : ${(profile.dormancyStats.dormancyVisitRecoveryRate * 100).toFixed(0)}%`);
+        console.log(`    Yield Per Visit         : $${profile.lifetimeYieldPerVisit.toLocaleString()}`);
+        console.log(`\n  Decision Rationale:`);
+        profile.decisionRationale.forEach(r => console.log(`    • ${r}`));
+        console.log(`\n  Interaction Cycles (${profile.interactionCycles.length}):`);
+        profile.interactionCycles.slice(0, 5).forEach(c => console.log(`    [Cycle ${c.cycleNumber}] ${c.summaryText}`));
 
         await mongoose.disconnect();
         process.exit(0);
-    }
-
-    if (dryRun) {
-        console.log('Running dry-run in-memory evaluation without database writes...');
     }
 
     const result = await recomputeAllProfiles();

@@ -1,14 +1,14 @@
 /**
- * Dealer Relationship Demand (DRD) Engine
+ * Dealer Relationship Demand (DRD) & Field Allocation Engine (v6.2 Final)
  * 
- * Computes lifetime relationship demand classifications and sales routing recommendations
- * by analyzing event-level temporal causality between in-person rep visits and dealer production.
+ * Computes deterministic, auditable relationship demand profiles and sales routing recommendations
+ * by analyzing event-level temporal causality between in-person rep visits and funded loan production.
  * 
  * Segments:
- *   - high_tlc: Production surges after visits and decays without contact (visit-dependent)
- *   - self_sufficient: High baseline production regardless of visit frequency (autonomous)
- *   - unresponsive: 3+ visits with zero/negligible lifetime bookings (comfort stop / time sink)
- *   - insufficient_data: < 2 visits or < 4 months history to reliably classify
+ *   - high_tlc: Funded loan production strictly surges after visits and decays without contact (Spike & Decay)
+ *   - self_sufficient: Consistent organic flow via portal; visits produce negligible lift (Autonomous)
+ *   - comfort_stop: 3+ visits with $0 in lifetime booked loans (waste of travel budget)
+ *   - insufficient_data: < 2 visits and < 5 applications (Discovery Queue)
  * 
  * @module services/dealerRelationshipEngine
  */
@@ -17,53 +17,67 @@ const Application = require('../models/Application');
 const DealerCommunication = require('../models/DealerCommunication');
 const DealerLocation = require('../models/DealerLocation');
 const DealerProfile = require('../models/DealerProfile');
-const { resolveRepName, isInactiveRep, isExcludedRep } = require('../config/repConfig');
+const { resolveRepName } = require('../config/repConfig');
 
 /**
- * Classify a raw communication document into a standardized channel type.
+ * Monthly seasonal baseline indices for RV and specialty vehicle lending.
+ * Normalizes pre/post visit comparisons so winter lull is not falsely flagged as visit decay.
+ */
+const MONTHLY_SEASONAL_INDEX = {
+    0: 0.70,  // Jan (Low season)
+    1: 0.80,  // Feb
+    2: 1.15,  // Mar (Spring ramp-up)
+    3: 1.25,  // Apr
+    4: 1.35,  // May (Peak buying season)
+    5: 1.30,  // Jun
+    6: 1.25,  // Jul
+    7: 1.15,  // Aug
+    8: 0.95,  // Sep
+    9: 0.85,  // Oct
+    10: 0.65, // Nov (Winter lull)
+    11: 0.60  // Dec
+};
+
+/**
+ * Classify and normalize communication records across both Jeriko (2024-2025) and Badger Maps (2026).
+ * 
+ * @param {Object} comm - Raw communication document
+ * @returns {'visit' | 'call' | 'email' | 'text' | 'other'} Standardized channel
  */
 function classifyCommType(comm) {
-    const type = (comm.communicationType || '').toLowerCase().trim();
+    const rawType = (comm.communicationType || '').toLowerCase().trim();
     const result = (comm.communicationResult1 || '').toLowerCase().trim();
 
-    const isVisit = type === 'meeting' ||
-        type === 'visit' ||
-        type === 'face to face' ||
-        type.includes('visit') ||
-        type.includes('in-person') ||
-        type.includes('meeting') ||
+    // 1. In-Person Visits (Catches Jeriko types + 2026 Badger Maps results)
+    const isVisit = rawType === 'visit' ||
+        rawType === 'meeting' ||
+        rawType === 'face to face' ||
+        rawType.includes('visit') ||
+        rawType.includes('in-person') ||
+        rawType.includes('meeting') ||
         result.includes('met with') ||
         result.includes('training completed') ||
         result.includes('sign up completed');
 
-    const isCall = type === 'phone call' ||
-        type === 'phone' ||
-        type.includes('call') ||
-        type.includes('phone') ||
+    if (isVisit) return 'visit';
+
+    // 2. Phone Calls
+    const isCall = rawType === 'phone' ||
+        rawType === 'phone call' ||
+        rawType.includes('call') ||
+        rawType.includes('phone') ||
         result.includes('spoke with') ||
-        result.includes('follow up') ||
+        result.includes('follow up on approvals') ||
         result.includes('returned phone call') ||
         result.includes('not able to speak');
 
-    const isEmail = type === 'email' ||
-        type === 'e-mail' ||
-        type.includes('email') ||
-        type.includes('mail');
-
-    if (isVisit) return 'visit';
     if (isCall) return 'call';
-    if (isEmail) return 'email';
-    return 'other';
-}
 
-/**
- * Calculate median of a numeric array.
- */
-function median(values) {
-    if (!values || values.length === 0) return null;
-    const sorted = [...values].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    // 3. Digital Correspondence
+    if (rawType === 'email' || rawType.includes('mail')) return 'email';
+    if (rawType === 'text' || rawType === 'sms') return 'text';
+
+    return 'other';
 }
 
 /**
@@ -88,7 +102,77 @@ function mergeIntervals(intervals) {
 }
 
 /**
- * Analyze a single dealer's lifetime timeline and compute their DRD profile.
+ * Cluster visits occurring within <45 days of each other into discrete episodes.
+ * 
+ * @param {Array<{date: Date, repName: string, notes?: string}>} visits - Chronological visits
+ * @returns {Array<Object>} Discrete visit clusters
+ */
+function clusterVisits(visits) {
+    if (!visits || visits.length === 0) return [];
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const CLUSTER_WINDOW_DAYS = 45;
+
+    const sorted = [...visits].sort((a, b) => a.date.getTime() - b.date.getTime());
+    const clusters = [];
+    let currentCluster = {
+        clusterNumber: 1,
+        visits: [sorted[0]],
+        startDate: sorted[0].date,
+        endDate: sorted[0].date,
+        repName: sorted[0].repName || 'Sales Rep'
+    };
+
+    for (let i = 1; i < sorted.length; i++) {
+        const v = sorted[i];
+        const gapDays = Math.floor((v.date.getTime() - currentCluster.endDate.getTime()) / DAY_MS);
+
+        if (gapDays < CLUSTER_WINDOW_DAYS) {
+            // Merge into current cluster
+            currentCluster.visits.push(v);
+            currentCluster.endDate = v.date;
+            if (v.repName && currentCluster.repName === 'Sales Rep') {
+                currentCluster.repName = v.repName;
+            }
+        } else {
+            // Finalize current cluster and start new one
+            clusters.push(currentCluster);
+            currentCluster = {
+                clusterNumber: clusters.length + 1,
+                visits: [v],
+                startDate: v.date,
+                endDate: v.date,
+                repName: v.repName || 'Sales Rep'
+            };
+        }
+    }
+    clusters.push(currentCluster);
+    return clusters;
+}
+
+/**
+ * Pure function to calculate operational urgency based on days since last visit vs. recommended cadence.
+ * 
+ * @param {number|null} daysSinceLastVisit
+ * @param {number|null} cadenceDays
+ * @param {'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data'} segment
+ * @returns {'overdue' | 'due_soon' | 'on_track' | 'self_sufficient' | 'not_monitored'}
+ */
+function calculateUrgency(daysSinceLastVisit, cadenceDays, segment) {
+    if (segment === 'self_sufficient') return 'self_sufficient';
+    if (segment === 'comfort_stop' || segment === 'insufficient_data') return 'not_monitored';
+    if (!cadenceDays) return 'not_monitored';
+
+    if (daysSinceLastVisit === null || daysSinceLastVisit > cadenceDays) {
+        return 'overdue';
+    }
+    if (daysSinceLastVisit >= cadenceDays - 7) {
+        return 'due_soon';
+    }
+    return 'on_track';
+}
+
+/**
+ * Analyze a single dealer location's lifetime timeline and evaluate their DRD profile.
  * 
  * @param {Object} dealerLoc - DealerLocation document
  * @param {Array} apps - Chronologically sorted application array for this dealer
@@ -101,13 +185,13 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     const assignedRep = resolveRepName(dealerLoc.dealerRepresentative || '') || null;
     const nowMs = referenceDate.getTime();
     const DAY_MS = 24 * 60 * 60 * 1000;
-    const TOUCHED_WINDOW_DAYS = 45;
-    const TOUCHED_WINDOW_MS = TOUCHED_WINDOW_DAYS * DAY_MS;
+    const POST_WINDOW_DAYS = 45;
+    const POST_WINDOW_MS = POST_WINDOW_DAYS * DAY_MS;
 
-    // ── 1. Extract & Classify Events ──
-    const visits = [];
-    const calls = [];
-    const emails = [];
+    // ── 1. Normalize and Classify Communications ──
+    const rawVisits = [];
+    const rawCalls = [];
+    const rawEmails = [];
     let lastVisitDate = null;
     let lastTouchDate = null;
     let lastTouchType = null;
@@ -117,34 +201,39 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         const d = new Date(c.communicationEventDatetime);
         if (isNaN(d.getTime())) continue;
 
-        const cType = classifyCommType(c);
-        if (cType === 'visit') visits.push(d);
-        else if (cType === 'call') calls.push(d);
-        else if (cType === 'email') emails.push(d);
+        const channel = classifyCommType(c);
+        const repName = c.communicationUserFullName || assignedRep || 'Sales Rep';
+
+        if (channel === 'visit') {
+            rawVisits.push({ date: d, repName, notes: c.communicationResult1 || '' });
+            if (!lastVisitDate || d > lastVisitDate) lastVisitDate = d;
+        } else if (channel === 'call') {
+            rawCalls.push({ date: d, repName });
+        } else if (channel === 'email') {
+            rawEmails.push({ date: d, repName });
+        }
 
         if (!lastTouchDate || d > lastTouchDate) {
             lastTouchDate = d;
-            lastTouchType = cType;
-        }
-        if (cType === 'visit' && (!lastVisitDate || d > lastVisitDate)) {
-            lastVisitDate = d;
+            lastTouchType = channel;
         }
     }
 
-    visits.sort((a, b) => a.getTime() - b.getTime());
+    rawVisits.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    // Clean application events
+    // ── 2. Clean and Index Application & Booked Events ──
     const validApps = [];
     let totalBookings = 0;
     let totalBookedVolume = 0;
 
     for (const app of apps) {
         if (!app.applicationDate) continue;
-        const d = new Date(app.applicationDate);
-        if (isNaN(d.getTime())) continue;
+        const appDate = new Date(app.applicationDate);
+        if (isNaN(appDate.getTime())) continue;
 
         const isBooked = app.status === 'Booked';
         const amount = isBooked ? (Number(app.amountFinanced) || 0) : 0;
+        const bookedDate = (isBooked && app.bookedDate) ? new Date(app.bookedDate) : appDate;
 
         if (isBooked) {
             totalBookings++;
@@ -152,165 +241,342 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         }
 
         validApps.push({
-            date: d,
+            appDate,
+            bookedDate,
             isBooked,
             amount
         });
     }
 
-    validApps.sort((a, b) => a.date.getTime() - b.date.getTime());
+    validApps.sort((a, b) => a.appDate.getTime() - b.appDate.getTime());
 
     const totalApplications = validApps.length;
-    const totalVisits = visits.length;
-    const totalCalls = calls.length;
-    const totalEmails = emails.length;
+    const totalVisits = rawVisits.length;
+    const totalCalls = rawCalls.length;
+    const totalEmails = rawEmails.length;
     const totalTouchpoints = totalVisits + totalCalls + totalEmails;
-    const yieldPerVisit = totalVisits > 0 ? Math.round(totalBookedVolume / totalVisits) : 0;
+    const lifetimeYieldPerVisit = totalVisits > 0 ? Math.round(totalBookedVolume / totalVisits) : 0;
 
     const daysSinceLastVisit = lastVisitDate ? Math.max(0, Math.floor((nowMs - lastVisitDate.getTime()) / DAY_MS)) : null;
     const daysSinceLastTouch = lastTouchDate ? Math.max(0, Math.floor((nowMs - lastTouchDate.getTime()) / DAY_MS)) : null;
 
-    // ── 2. Time Window Elasticity Analysis ──
-    // Determine overall observation span
-    let earliestDate = validApps.length > 0 ? validApps[0].date : (visits.length > 0 ? visits[0] : null);
-    if (earliestDate && earliestDate < new Date('2024-01-01')) {
-        // Bound active visit analysis window to modern observation era where comms are recorded
-        earliestDate = new Date('2024-01-01');
-    }
+    // ── 3. Cluster Visits into Discrete Episodes & Measure Touched Active Envelopes ──
+    const visitClusters = clusterVisits(rawVisits);
+    const verifiedCycleCount = visitClusters.length;
 
-    let visitElasticity = null;
-    let productionHalfLifeDays = null;
+    // Build merged active visit envelopes: [visit.startDate, visit.endDate + 45 days]
+    const rawEnvelopes = visitClusters.map(c => ({
+        start: c.startDate.getTime(),
+        end: c.endDate.getTime() + POST_WINDOW_MS
+    }));
+    const mergedEnvelopes = mergeIntervals(rawEnvelopes);
+
+    // Measure Touched vs Untouched Bookings & Applications across entire history
+    let touchedBookedCount = 0;
+    let touchedBookedVolume = 0;
     let touchedAppCount = 0;
+    let untouchedBookedCount = 0;
+    let untouchedBookedVolume = 0;
     let untouchedAppCount = 0;
 
-    if (earliestDate && totalVisits > 0) {
-        const spanTotalDays = Math.max(1, Math.floor((nowMs - earliestDate.getTime()) / DAY_MS));
+    for (const app of validApps) {
+        const appMs = app.appDate.getTime();
+        const isInsideTouched = mergedEnvelopes.some(env => appMs >= env.start && appMs <= env.end);
 
-        // Create merged touched windows [visit, visit + 45 days]
-        const rawWindows = visits.map(v => ({
-            start: v.getTime(),
-            end: Math.min(nowMs, v.getTime() + TOUCHED_WINDOW_MS)
-        }));
-        const mergedWindows = mergeIntervals(rawWindows);
-
-        let touchedDaysMs = 0;
-        for (const w of mergedWindows) {
-            touchedDaysMs += (w.end - w.start);
-        }
-        const touchedDays = Math.max(1, Math.floor(touchedDaysMs / DAY_MS));
-        const untouchedDays = Math.max(0, spanTotalDays - touchedDays);
-
-        // Count applications inside vs outside touched windows
-        for (const app of validApps) {
-            if (app.date < earliestDate) continue;
-            const appMs = app.date.getTime();
-            const inTouched = mergedWindows.some(w => appMs >= w.start && appMs <= w.end);
-            if (inTouched) touchedAppCount++;
-            else untouchedAppCount++;
-        }
-
-        const touchedRate = (touchedAppCount / touchedDays) * 30; // Apps per 30 days
-        const untouchedRate = untouchedDays > 0 ? (untouchedAppCount / untouchedDays) * 30 : 0;
-
-        visitElasticity = Math.round(((touchedRate + 0.1) / (untouchedRate + 0.1)) * 100) / 100;
-
-        // ── 3. Touch Decay Half-Life ──
-        // For visits followed by apps within 45 days, measure days until last app before dormancy
-        const halfLifeMeasurements = [];
-        for (const v of visits) {
-            const vMs = v.getTime();
-            const postApps = validApps.filter(a => a.date.getTime() >= vMs && a.date.getTime() <= vMs + TOUCHED_WINDOW_MS);
-            if (postApps.length > 0) {
-                const lastAppMs = postApps[postApps.length - 1].date.getTime();
-                const daysToLastApp = Math.max(1, Math.floor((lastAppMs - vMs) / DAY_MS));
-                halfLifeMeasurements.push(daysToLastApp);
+        if (isInsideTouched) {
+            touchedAppCount++;
+            if (app.isBooked) {
+                touchedBookedCount++;
+                touchedBookedVolume += app.amount;
             }
-        }
-        if (halfLifeMeasurements.length > 0) {
-            productionHalfLifeDays = Math.round(median(halfLifeMeasurements));
-        }
-    }
-
-    // ── 4. Dormancy & Recovery Analysis ──
-    // Find 60+ day gaps between applications
-    let totalDormancyEpisodes = 0;
-    let dormanciesEndedByVisit = 0;
-
-    if (validApps.length >= 2) {
-        for (let i = 1; i < validApps.length; i++) {
-            const prevApp = validApps[i - 1].date;
-            const currApp = validApps[i].date;
-            const gapDays = Math.floor((currApp.getTime() - prevApp.getTime()) / DAY_MS);
-
-            if (gapDays >= 60) {
-                totalDormancyEpisodes++;
-                // Check if a visit occurred in the gap within 45 days before currApp
-                const hadVisitBeforeReturn = visits.some(v =>
-                    v.getTime() > prevApp.getTime() &&
-                    v.getTime() <= currApp.getTime() &&
-                    (currApp.getTime() - v.getTime()) <= TOUCHED_WINDOW_MS
-                );
-                if (hadVisitBeforeReturn) {
-                    dormanciesEndedByVisit++;
-                }
+        } else {
+            untouchedAppCount++;
+            if (app.isBooked) {
+                untouchedBookedCount++;
+                untouchedBookedVolume += app.amount;
             }
         }
     }
 
-    const dormancyVisitRecoveryRate = totalDormancyEpisodes > 0 ?
-        Math.round((dormanciesEndedByVisit / totalDormancyEpisodes) * 100) / 100 : 0;
+    // ── 4. Evaluate Each Interaction Cycle (Relative Booked Lift & Decay) ──
+    const interactionCycles = [];
+    let spikeAndDecayCycleCount = 0;
+    const cycleYields = [];
 
-    // ── 5. Classification Logic ──
+    for (let i = 0; i < visitClusters.length; i++) {
+        const cluster = visitClusters[i];
+        const clusterEndMs = cluster.endDate.getTime();
+        const clusterStartMs = cluster.startDate.getTime();
+        const postEndMs = clusterEndMs + POST_WINDOW_MS;
+        const preStartMs = clusterStartMs - POST_WINDOW_MS;
+
+        // Apps & Bookings inside Cluster Envelope [startDate, endDate + 45d]
+        const clusterApps = validApps.filter(a => {
+            const t = a.appDate.getTime();
+            return t >= clusterStartMs && t <= postEndMs;
+        });
+
+        const clusterBooked = clusterApps.filter(a => a.isBooked);
+        const bookedInWindow = clusterBooked.length;
+        const bookedVolumeInWindow = clusterBooked.reduce((sum, a) => sum + a.amount, 0);
+        const appsInWindow = clusterApps.length;
+        cycleYields.push(bookedVolumeInWindow);
+
+        // Pre-Window baseline [startDate - 45d, startDate]
+        const preApps = validApps.filter(a => {
+            const t = a.appDate.getTime();
+            return t >= preStartMs && t < clusterStartMs;
+        });
+        const preBooked = preApps.filter(a => a.isBooked);
+        const preBookedVolume = preBooked.reduce((sum, a) => sum + a.amount, 0);
+
+        // Calculate Relative Booked Lift (seasonally normalized)
+        const startMonth = cluster.startDate.getMonth();
+        const seasonWeight = MONTHLY_SEASONAL_INDEX[startMonth] || 1.0;
+        const preRate = (preBookedVolume / 45) * 30 * seasonWeight;
+        const postRate = (bookedVolumeInWindow / 45) * 30;
+        const relativeBookedLift = Math.round(((postRate - preRate) / Math.max(preRate, 5000)) * 100) / 100;
+
+        // Days to first booked deal
+        let daysToFirstBooked = null;
+        if (clusterBooked.length > 0) {
+            const firstBookedMs = clusterBooked[0].bookedDate.getTime();
+            daysToFirstBooked = Math.max(0, Math.floor((firstBookedMs - clusterStartMs) / DAY_MS));
+        }
+
+        // Measure subsequent decay in [endDate + 45d, nextClusterStart or +90d]
+        const nextClusterStartMs = (i + 1 < visitClusters.length) ? visitClusters[i + 1].startDate.getTime() : postEndMs + (45 * DAY_MS);
+        const decayApps = validApps.filter(a => {
+            const t = a.appDate.getTime();
+            return t > postEndMs && t < nextClusterStartMs;
+        });
+
+        const isDecayed = decayApps.length <= 1;
+        let patternObserved = 'empty_friction';
+
+        if (bookedInWindow >= 1 && (relativeBookedLift >= 1.5 || preBooked.length === 0)) {
+            patternObserved = isDecayed ? 'spike_and_decay' : 'escalation';
+            if (patternObserved === 'spike_and_decay' || isDecayed) {
+                spikeAndDecayCycleCount++;
+            }
+        } else if (appsInWindow >= 3 && bookedInWindow === 0) {
+            patternObserved = 'empty_friction';
+        } else if (bookedInWindow === 0 && appsInWindow === 0) {
+            patternObserved = 'empty_friction';
+        } else {
+            patternObserved = 'autonomous_flow';
+        }
+
+        const dateStr = cluster.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const visitCountText = cluster.visits.length > 1 ? `Cluster (${cluster.visits.length} visits)` : 'Visit';
+        const summaryText = bookedInWindow > 0
+            ? `${visitCountText} on ${dateStr} by ${cluster.repName} → $${(bookedVolumeInWindow / 1000).toFixed(1)}K Booked (${bookedInWindow} deal${bookedInWindow > 1 ? 's' : ''}), ${appsInWindow} apps → ${isDecayed ? 'Flatlined at Day 45' : 'Sustained flow'}`
+            : `${visitCountText} on ${dateStr} by ${cluster.repName} → 0 Booked deals ($0), ${appsInWindow} apps logged`;
+
+        interactionCycles.push({
+            cycleNumber: i + 1,
+            startDate: cluster.startDate,
+            endDate: cluster.endDate,
+            triggerDate: cluster.startDate,
+            triggerType: 'visit',
+            repName: cluster.repName,
+            visitCountInCluster: cluster.visits.length,
+            metrics: {
+                daysToFirstBooked,
+                bookedInWindow,
+                bookedVolumeInWindow,
+                appsInWindow,
+                relativeBookedLift,
+                dormancyDurationDaysAfter: isDecayed ? 45 : 0,
+                patternObserved
+            },
+            summaryText
+        });
+    }
+
+    // Sort interaction cycles newest first for UI display
+    interactionCycles.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+
+    // ── 5. Secondary Diagnostic Flags ──
+    // Check for Fading TLC: Yield in latest cycle is <60% of earlier cycle
+    let isFadingTlc = false;
+    if (cycleYields.length >= 2) {
+        const lastYield = cycleYields[cycleYields.length - 1];
+        const prevYield = cycleYields[cycleYields.length - 2];
+        if (prevYield > 50000 && lastYield < prevYield * 0.60) {
+            isFadingTlc = true;
+        }
+    }
+
+    // Check for Catalytic Activation: First visit in history unlocked permanent sustained flow
+    let isCatalyticActivation = false;
+    if (visitClusters.length === 1 && totalBookings >= 5 && totalApplications >= 15) {
+        const clusterEndMs = visitClusters[0].endDate.getTime();
+        const appsPrior = validApps.filter(a => a.appDate.getTime() < clusterEndMs).length;
+        if (appsPrior <= 2) {
+            isCatalyticActivation = true;
+        }
+    }
+
+    // Calculate Organic vs. Post-Visit Booked Ratio
+    const organicBookedRatio = totalBookedVolume > 0
+        ? Math.max(0, Math.round((untouchedBookedVolume / totalBookedVolume) * 100))
+        : 0;
+
+    const postVisitBookedLiftPct = totalBookedVolume > 0
+        ? Math.round((touchedBookedVolume / totalBookedVolume) * 100)
+        : null;
+
+    // ── 6. Classification & Operational Decision Rules ──
     let relationshipDemand = 'insufficient_data';
-    let confidenceScore = 0.3;
+    let patternType = 'unexplored';
+    let confidenceScore = 0.35;
     let recommendedCadenceDays = null;
-    let urgencyStatus = 'not_monitored';
+    const isEmergingTlc = (spikeAndDecayCycleCount === 1 && visitClusters.length <= 2 && totalBookings >= 1 && totalBookings <= 3);
 
     if (totalVisits < 2 && totalApplications < 5) {
+        // Discovery Queue / Insufficient Data
         relationshipDemand = 'insufficient_data';
-        confidenceScore = 0.35;
+        patternType = 'unexplored';
+        confidenceScore = 0.40;
         recommendedCadenceDays = null;
-        urgencyStatus = 'not_monitored';
-    } else if (totalVisits >= 3 && totalBookings === 0 && totalApplications <= 2) {
-        // Unresponsive / Comfort Stop / Time Sink
-        relationshipDemand = 'unresponsive';
-        confidenceScore = Math.min(0.95, 0.70 + (totalVisits * 0.05));
-        recommendedCadenceDays = null; // Do not recommend field visits
-        urgencyStatus = 'not_monitored';
+    } else if (totalVisits >= 3 && totalBookings === 0) {
+        // Comfort Stop / Empty Friction ($0 Booked Deals over 3+ visits)
+        relationshipDemand = 'comfort_stop';
+        patternType = 'empty_friction';
+        confidenceScore = Math.min(0.98, 0.75 + (totalVisits * 0.04));
+        recommendedCadenceDays = null; // Do not recommend field road trips
     } else if (
-        (visitElasticity !== null && visitElasticity >= 2.0 && touchedAppCount >= 2) ||
-        (dormancyVisitRecoveryRate >= 0.5 && dormanciesEndedByVisit >= 1) ||
-        (totalVisits >= 2 && touchedAppCount >= 2 && untouchedAppCount === 0)
+        (totalVisits >= 2 && totalBookings >= 1 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 70) ||
+        (spikeAndDecayCycleCount >= 2) ||
+        (totalVisits >= 4 && totalBookings >= 3 && organicBookedRatio <= 30)
     ) {
-        // High TLC: Clear visit dependency
+        // Confirmed High TLC (Spike & Decay / Visit-Dependent)
         relationshipDemand = 'high_tlc';
-        confidenceScore = Math.min(0.95, 0.55 + (totalVisits * 0.05) + (totalBookings * 0.04));
-        
-        // Recommended Cadence based on half-life (default 30-45 days)
-        const halfLife = productionHalfLifeDays || 30;
-        recommendedCadenceDays = Math.min(60, Math.max(30, Math.round(halfLife / 5) * 5));
-
-        // Urgency Calculation
-        if (daysSinceLastVisit === null || daysSinceLastVisit > recommendedCadenceDays) {
-            urgencyStatus = 'overdue';
-        } else if (daysSinceLastVisit >= recommendedCadenceDays - 7) {
-            urgencyStatus = 'due_soon';
-        } else {
-            urgencyStatus = 'on_track';
-        }
-    } else if (totalApplications >= 8 || (visitElasticity !== null && visitElasticity < 2.0 && untouchedAppCount >= 4)) {
-        // Self-Sufficient: Consistent production even without visits
+        patternType = isFadingTlc ? 'fading_tlc' : 'spike_and_decay';
+        confidenceScore = Math.min(0.98, 0.65 + (Math.min(3, totalVisits) * 0.08) + Math.min(0.15, totalBookings * 0.02));
+        recommendedCadenceDays = 35; // Strict 30-45 day in-person route cadence
+    } else if (isEmergingTlc) {
+        // Emerging High TLC (1 verified cycle -> Proactively schedule confirmation visit)
+        relationshipDemand = 'high_tlc';
+        patternType = 'spike_and_decay';
+        confidenceScore = 0.70;
+        recommendedCadenceDays = 30;
+    } else if (totalBookings >= 5 && (organicBookedRatio >= 60 || totalVisits <= 2)) {
+        // Self-Sufficient / Autonomous Locomotive
         relationshipDemand = 'self_sufficient';
-        confidenceScore = Math.min(0.95, 0.60 + Math.min(0.30, totalApplications * 0.01));
-        recommendedCadenceDays = 90; // Quarterly digital check-in
-        urgencyStatus = 'self_sufficient';
+        patternType = isCatalyticActivation ? 'catalytic_activation' : 'autonomous_locomotive';
+        confidenceScore = Math.min(0.98, 0.70 + Math.min(0.25, totalBookings * 0.01));
+        recommendedCadenceDays = 90; // Quarterly digital/phone check-in
+    } else if (totalApplications >= 8) {
+        // Self-Sufficient baseline
+        relationshipDemand = 'self_sufficient';
+        patternType = 'autonomous_locomotive';
+        confidenceScore = 0.65;
+        recommendedCadenceDays = 90;
     } else {
-        // Borderline with some data but not yet decisive
         relationshipDemand = 'insufficient_data';
-        confidenceScore = 0.45;
-        recommendedCadenceDays = 60;
-        urgencyStatus = 'not_monitored';
+        patternType = 'unexplored';
+        confidenceScore = 0.50;
+        recommendedCadenceDays = null;
     }
+
+    // Urgency Calculation
+    const urgencyStatus = calculateUrgency(daysSinceLastVisit, recommendedCadenceDays, relationshipDemand);
+
+    // ── 7. Generate Plain-English Decision Rationale ──
+    const decisionRationale = [];
+    const pctLiftStr = postVisitBookedLiftPct !== null ? `${postVisitBookedLiftPct}%` : '0%';
+    const bookedVolStr = totalBookedVolume >= 1000000
+        ? `$${(totalBookedVolume / 1000000).toFixed(2)}M`
+        : `$${(totalBookedVolume / 1000).toFixed(0)}K`;
+
+    if (relationshipDemand === 'high_tlc') {
+        if (isEmergingTlc) {
+            decisionRationale.push(`Classified as Emerging High TLC (Confidence ${Math.round(confidenceScore * 100)}%).`);
+            decisionRationale.push(`1 verified Spike & Decay cycle observed: In-person visit generated ${bookedVolStr} in funded loans.`);
+            decisionRationale.push(`Recommendation: Schedule a proactive confirmation visit within 30 days.`);
+        } else {
+            decisionRationale.push(`Classified as High TLC / Visit-Dependent (Confidence ${Math.round(confidenceScore * 100)}%).`);
+            decisionRationale.push(`${pctLiftStr} of all lifetime funded loan volume (${bookedVolStr} across ${totalBookings} booked deal${totalBookings > 1 ? 's' : ''}) occurred exclusively within active in-person visit envelopes.`);
+            decisionRationale.push(`Funded loan production flatlines to zero during unvisited gaps.`);
+            decisionRationale.push(`Recommendation: Enforce strict 30–45 day in-person route cadence. Currently ${daysSinceLastVisit !== null ? `${daysSinceLastVisit} days unvisited` : 'unvisited'}.`);
+        }
+        if (isFadingTlc) {
+            decisionRationale.push(`⚠️ Flag: Fading TLC detected — dollar yield per visit dropped >40% over sequential cycles. Investigate F&I manager turnover or competitor pressure.`);
+        }
+    } else if (relationshipDemand === 'comfort_stop') {
+        decisionRationale.push(`Classified as Comfort Stop / Time Sink (Confidence ${Math.round(confidenceScore * 100)}%).`);
+        decisionRationale.push(`Field reps have conducted ${totalVisits} in-person visits across multiple quarters, resulting in $0 in lifetime booked loan volume.`);
+        decisionRationale.push(`Recommendation: Freeze field driving visits immediately. Reallocate travel hours to overdue High TLC accounts.`);
+    } else if (relationshipDemand === 'self_sufficient') {
+        decisionRationale.push(`Classified as Self-Sufficient / Autonomous (Confidence ${Math.round(confidenceScore * 100)}%).`);
+        decisionRationale.push(`Rooftop generates steady, high-volume funded loans organically (${bookedVolStr} across ${totalBookings} deals) with only ${totalVisits} lifetime visit${totalVisits > 1 ? 's' : ''}.`);
+        decisionRationale.push(`${organicBookedRatio}% of funded loan volume occurred without a recent sales visit.`);
+        decisionRationale.push(`Recommendation: Deprioritize in-person road trips. Maintain via quarterly digital/phone check-in.`);
+        if (isCatalyticActivation) {
+            decisionRationale.push(`🚀 Catalytic Activation: A single onboarding visit unlocked permanent, sustained organic flow.`);
+        }
+    } else {
+        decisionRationale.push(`Classified as Discovery Queue / Insufficient Data.`);
+        decisionRationale.push(`Rooftop has received ${totalVisits} in-person visit${totalVisits > 1 ? 's' : ''} and submitted ${totalApplications} application${totalApplications > 1 ? 's' : ''}.`);
+        decisionRationale.push(`Recommendation: Schedule an exploratory baseline visit to assess dealership loan potential.`);
+    }
+
+    // ── 8. Generate Pre-Aggregated Monthly Timeline (2024-2026) ──
+    const monthlyMap = new Map();
+    const startYear = 2024;
+    const endYear = referenceDate.getFullYear();
+    const endMonth = referenceDate.getMonth();
+
+    for (let y = startYear; y <= endYear; y++) {
+        const maxM = (y === endYear) ? endMonth : 11;
+        for (let m = 0; m <= maxM; m++) {
+            const mKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+            monthlyMap.set(mKey, {
+                monthKey: mKey,
+                bookedVolume: 0,
+                bookedCount: 0,
+                appCount: 0,
+                visitCount: 0,
+                callCount: 0
+            });
+        }
+    }
+
+    for (const app of validApps) {
+        const y = app.appDate.getFullYear();
+        const m = app.appDate.getMonth();
+        const mKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+        if (monthlyMap.has(mKey)) {
+            const entry = monthlyMap.get(mKey);
+            entry.appCount++;
+            if (app.isBooked) {
+                entry.bookedCount++;
+                entry.bookedVolume += app.amount;
+            }
+        }
+    }
+
+    for (const v of rawVisits) {
+        const y = v.date.getFullYear();
+        const m = v.date.getMonth();
+        const mKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+        if (monthlyMap.has(mKey)) {
+            monthlyMap.get(mKey).visitCount++;
+        }
+    }
+
+    for (const c of rawCalls) {
+        const y = c.date.getFullYear();
+        const m = c.date.getMonth();
+        const mKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+        if (monthlyMap.has(mKey)) {
+            monthlyMap.get(mKey).callCount++;
+        }
+    }
+
+    const timelineMonthly = Array.from(monthlyMap.values());
 
     return {
         dealerLocation: dealerLoc._id,
@@ -320,16 +586,24 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         dealerGroup: dealerLoc.dealerGroup || null,
         assignedRep,
         relationshipDemand,
+        patternType,
         confidenceScore: Math.round(confidenceScore * 100) / 100,
         recommendedCadenceDays,
+        flags: {
+            isFadingTlc,
+            isEmergingTlc,
+            isCatalyticActivation
+        },
         daysSinceLastVisit,
         lastVisitDate,
         daysSinceLastTouch,
         lastTouchDate,
         lastTouchType,
         urgencyStatus,
-        visitElasticity,
-        productionHalfLifeDays,
+        postVisitBookedLiftPct,
+        organicBookedRatio,
+        lifetimeYieldPerVisit,
+        verifiedCycleCount,
         lifetimeStats: {
             totalVisits,
             totalCalls,
@@ -337,14 +611,11 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
             totalTouchpoints,
             totalApplications,
             totalBookings,
-            totalBookedVolume,
-            yieldPerVisit
+            totalBookedVolume
         },
-        dormancyStats: {
-            totalDormancyEpisodes,
-            dormanciesEndedByVisit,
-            dormancyVisitRecoveryRate
-        },
+        decisionRationale,
+        interactionCycles,
+        timelineMonthly,
         lastCalculatedAt: new Date()
     };
 }
@@ -359,7 +630,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
  */
 async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = null } = {}) {
     const startTime = Date.now();
-    console.log(`\n=== RECOMPUTING DEALER RELATIONSHIP PROFILES ===`);
+    console.log(`\n=== RECOMPUTING DEALER RELATIONSHIP PROFILES (v6.2 Engine) ===`);
 
     // 1. Load active DealerLocations
     const dealerQuery = { omniDealerId: { $exists: true, $ne: null } };
@@ -388,6 +659,7 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
     const apps = await Application.find(appQuery, {
         clientDealerId: 1,
         applicationDate: 1,
+        bookedDate: 1,
         status: 1,
         amountFinanced: 1
     }).lean();
@@ -410,7 +682,8 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
         internalRelationshipId2: 1,
         communicationEventDatetime: 1,
         communicationType: 1,
-        communicationResult1: 1
+        communicationResult1: 1,
+        communicationUserFullName: 1
     }).lean();
 
     const commsByDealer = new Map();
@@ -429,7 +702,7 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
     const segmentCounts = {
         high_tlc: 0,
         self_sufficient: 0,
-        unresponsive: 0,
+        comfort_stop: 0,
         insufficient_data: 0
     };
     const urgencyCounts = {
@@ -472,8 +745,8 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
     console.log(`  Segment Distribution:`);
     console.log(`    🔴 High TLC (Visit-Dependent) : ${segmentCounts.high_tlc.toLocaleString()} (${(segmentCounts.high_tlc / dealers.length * 100).toFixed(1)}%)`);
     console.log(`    🟢 Self-Sufficient (Organic)   : ${segmentCounts.self_sufficient.toLocaleString()} (${(segmentCounts.self_sufficient / dealers.length * 100).toFixed(1)}%)`);
-    console.log(`    🟠 Unresponsive (Time Sink)   : ${segmentCounts.unresponsive.toLocaleString()} (${(segmentCounts.unresponsive / dealers.length * 100).toFixed(1)}%)`);
-    console.log(`    ⚪ Insufficient Data          : ${segmentCounts.insufficient_data.toLocaleString()} (${(segmentCounts.insufficient_data / dealers.length * 100).toFixed(1)}%)`);
+    console.log(`    🟠 Comfort Stop (Time Sink)   : ${segmentCounts.comfort_stop.toLocaleString()} (${(segmentCounts.comfort_stop / dealers.length * 100).toFixed(1)}%)`);
+    console.log(`    ⚪ Discovery Queue (Low Data) : ${segmentCounts.insufficient_data.toLocaleString()} (${(segmentCounts.insufficient_data / dealers.length * 100).toFixed(1)}%)`);
     console.log(`  Urgency Status:`);
     console.log(`    🚨 Overdue Visits             : ${urgencyCounts.overdue.toLocaleString()}`);
     console.log(`    ⏳ Due Soon                   : ${urgencyCounts.due_soon.toLocaleString()}`);
@@ -488,6 +761,9 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
 }
 
 module.exports = {
+    classifyCommType,
+    clusterVisits,
+    calculateUrgency,
     evaluateDealerProfile,
     recomputeAllProfiles
 };

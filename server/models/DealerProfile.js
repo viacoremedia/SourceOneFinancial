@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
 
 /**
- * Valid Relationship Demand Segments
+ * Valid Relationship Demand Segments (The 4 Core Operational Buckets)
  */
 const RELATIONSHIP_DEMAND_SEGMENTS = [
-    'high_tlc',        // Production strictly surges after visits and decays without contact
-    'self_sufficient', // Healthy baseline production regardless of visits; visits produce negligible lift
-    'unresponsive',    // 3+ visits with zero/negligible lifetime bookings (comfort stop / time sink)
-    'insufficient_data'// < 2 visits or < 6 months of historical data
+    'high_tlc',        // Spike & Decay: Production strictly surges after visits and decays without contact
+    'self_sufficient', // Autonomous Locomotive: Healthy organic flow via portal; visits produce negligible lift
+    'comfort_stop',    // Empty Friction: 3+ visits with $0 in lifetime booked loans (waste of travel budget)
+    'insufficient_data'// Discovery Queue: <2 visits and <5 applications
 ];
 
 /**
@@ -18,14 +18,14 @@ const URGENCY_STATUSES = [
     'due_soon',       // High TLC dealer approaching cadence deadline (within 7 days)
     'on_track',       // High TLC dealer visited recently
     'self_sufficient',// Autonomous dealer — no urgent in-person visit required
-    'not_monitored'   // Unresponsive or insufficient data
+    'not_monitored'   // Comfort Stop or Discovery Queue
 ];
 
 /**
  * DealerProfile Schema
  * 
  * Precomputed analytics and relationship demand profile for each dealer location.
- * Analyzes full lifetime application (2019-2026) and communication (2024-2026) timelines
+ * Analyzes full lifetime application (2019-2026) and normalized communication (2024-2026) timelines
  * to deliver actionable sales routing recommendations.
  */
 const dealerProfileSchema = new mongoose.Schema({
@@ -63,7 +63,7 @@ const dealerProfileSchema = new mongoose.Schema({
         default: null
     },
 
-    // ── DRD Classification ──
+    // ── 4 Primary DRD Classification Buckets ──
     relationshipDemand: {
         type: String,
         enum: {
@@ -73,6 +73,10 @@ const dealerProfileSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    patternType: {
+        type: String,
+        default: 'unexplored' // 'spike_and_decay' | 'autonomous_locomotive' | 'empty_friction' | 'unexplored'
+    },
     confidenceScore: {
         type: Number,
         min: 0,
@@ -81,7 +85,14 @@ const dealerProfileSchema = new mongoose.Schema({
     },
     recommendedCadenceDays: {
         type: Number,
-        default: null // e.g. 30, 45, 60, 90
+        default: null // 30, 45, 60, 90
+    },
+
+    // ── Secondary Diagnostic Flags ──
+    flags: {
+        isFadingTlc: { type: Boolean, default: false },          // Yield per visit dropped >40% over sequential cycles
+        isEmergingTlc: { type: Boolean, default: false },        // Exactly 1 verified cycle -> proactive confirmation visit
+        isCatalyticActivation: { type: Boolean, default: false } // Single onboarding visit unlocked sustained organic flow
     },
 
     // ── Operational Urgency & Touchpoint Recency ──
@@ -115,14 +126,22 @@ const dealerProfileSchema = new mongoose.Schema({
         index: true
     },
 
-    // ── Behavioral & Statistical Analytics ──
-    visitElasticity: {
+    // ── Empirical Metrics (Plain English) ──
+    postVisitBookedLiftPct: {
         type: Number,
-        default: null // Ratio of application rate during touched windows vs untouched windows
+        default: null // e.g. 240 (%)
     },
-    productionHalfLifeDays: {
+    organicBookedRatio: {
         type: Number,
-        default: null // Median days from visit to last application before dormancy
+        default: 0 // % of booked $ occurring >45d from any visit
+    },
+    lifetimeYieldPerVisit: {
+        type: Number,
+        default: 0 // Booked Volume ($) / Total In-Person Visits
+    },
+    verifiedCycleCount: {
+        type: Number,
+        default: 0 // Count of independent visit clusters
     },
 
     // ── Lifetime Totals ──
@@ -133,16 +152,42 @@ const dealerProfileSchema = new mongoose.Schema({
         totalTouchpoints: { type: Number, default: 0 },
         totalApplications: { type: Number, default: 0 },
         totalBookings: { type: Number, default: 0 },
-        totalBookedVolume: { type: Number, default: 0 },
-        yieldPerVisit: { type: Number, default: 0 } // Booked Volume / Visits
+        totalBookedVolume: { type: Number, default: 0 }
     },
 
-    // ── Dormancy & Recovery Patterns ──
-    dormancyStats: {
-        totalDormancyEpisodes: { type: Number, default: 0 }, // Number of times dealer went 60+ days with 0 apps
-        dormanciesEndedByVisit: { type: Number, default: 0 }, // Number of recoveries preceded by a rep visit
-        dormancyVisitRecoveryRate: { type: Number, default: 0 } // dormanciesEndedByVisit / totalDormancyEpisodes
-    },
+    // ── Structured Decision Audit & Interaction Cycles ──
+    decisionRationale: [{
+        type: String
+    }],
+    interactionCycles: [{
+        cycleNumber: Number,
+        startDate: Date,
+        endDate: Date,
+        triggerDate: Date,
+        triggerType: { type: String, default: 'visit' },
+        repName: String,
+        visitCountInCluster: { type: Number, default: 1 },
+        metrics: {
+            daysToFirstBooked: { type: Number, default: null },
+            bookedInWindow: { type: Number, default: 0 },
+            bookedVolumeInWindow: { type: Number, default: 0 },
+            appsInWindow: { type: Number, default: 0 },
+            relativeBookedLift: { type: Number, default: 0 },
+            dormancyDurationDaysAfter: { type: Number, default: 0 },
+            patternObserved: String
+        },
+        summaryText: String
+    }],
+
+    // ── Monthly Pre-Aggregated Chart Overlays ──
+    timelineMonthly: [{
+        monthKey: String, // "YYYY-MM"
+        bookedVolume: { type: Number, default: 0 },
+        bookedCount: { type: Number, default: 0 },
+        appCount: { type: Number, default: 0 },
+        visitCount: { type: Number, default: 0 },
+        callCount: { type: Number, default: 0 }
+    }],
 
     lastCalculatedAt: {
         type: Date,
@@ -152,7 +197,7 @@ const dealerProfileSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Composite index for fast sales manager routing: "Show all High TLC dealers for rep X sorted by urgency"
+// Composite indices for fast sales manager routing: "Show all High TLC dealers for rep X sorted by urgency"
 dealerProfileSchema.index({ assignedRep: 1, relationshipDemand: 1, urgencyStatus: 1 });
 dealerProfileSchema.index({ relationshipDemand: 1, urgencyStatus: 1 });
 dealerProfileSchema.index({ statePrefix: 1, relationshipDemand: 1 });

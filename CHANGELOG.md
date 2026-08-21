@@ -5,6 +5,53 @@ Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
 ----
 
+## [2026-08-21] — Dealer Relationship Demand (DRD) Engine & Visit Allocation (v6.2 Final)
+
+### Added
+- **Channel Normalization Layer** (`server/services/dealerRelationshipEngine.js`):
+  - Normalizes sales communications across Jeriko (`communicationType`) and Badger Maps (`communicationResult1`) eras.
+  - Recovers 5,694 in-person visits from 2026 that had null communicationType.
+- **Episodic Visit Clustering & Relative Booked Lift Engine** (`server/services/dealerRelationshipEngine.js`):
+  - Merges visits occurring within <45 days into discrete Visit Clusters $[t_{\text{start}}, t_{\text{end}}]$.
+  - Calculates relative booked lift $\Lambda \ge 2.0\times$ against baseline and verifies post-window decay.
+  - Implements lightweight monthly seasonal normalization (RV spring/summer peak vs. winter lull).
+  - Categorizes 3,940 dealer rooftops into 4 primary operational segments:
+    - 🔴 **High TLC** (Spike & Decay / Visit-Dependent): 206 accounts ($25.4M booked) with 116 overdue visit alerts.
+    - 🟢 **Self-Sufficient** (Autonomous Flow): 1,769 accounts ($1.84B booked) driven organically via portal.
+    - 🟠 **Comfort Stop** (Time Sink): 361 accounts with $\ge 3$ visits and $0 in lifetime booked loans.
+    - ⚪ **Discovery Queue** (Low Data): 1,604 accounts (<2 visits / <5 apps) for exploratory routing.
+  - Generates plain-English `decisionRationale[]` and structured `interactionCycles[]`.
+  - Computes pre-aggregated monthly timeline overlays (`timelineMonthly[]`) for instant UI rendering.
+- **Slide-Out Drawer** (`client/src/features/dashboard/components/DealerRelationshipDrawer/`):
+  - Full-height slide drawer (`DealerRelationshipDrawer.tsx` + `.module.css`) replacing floating popups.
+  - Interactive dual-axis SVG Cause & Effect Timeline Chart with Application (Blue) and Booked (Green) bars overlaid with In-Person Visit Pin Flags (📍 Red) and Phone Pins (📞 Purple).
+  - Structured Interaction Cycle Accordions with relative lift and decay status.
+- **Executive Relationship Demand View Overhaul** (`RelationshipDemandView.tsx`):
+  - 3 dedicated inner tabs: *Executive Allocation & Overdue Queue*, *Dealer Relationship Explorer*, *Rep Misallocation Diagnostics*.
+  - Interactive Sales Rep Allocation Matrix with click-to-filter badges (e.g. clicking "32 Overdue" immediately filters the master table).
+- **Backend Analytics Routes** (`server/routes/analytics/relationshipDemand.js`):
+  - `GET /analytics/relationship-demand/summary`
+  - `GET /analytics/relationship-demand/dealers` (search, sort, filter by demand, urgency, rep, state)
+  - `GET /analytics/relationship-demand/dealers/:clientDealerId/drawer` (<50ms response)
+  - `GET /analytics/relationship-demand/rep-allocation`
+  - `POST /analytics/relationship-demand/recalculate`
+
+### Changed
+- `server/models/DealerProfile.js`: Updated schema with `relationshipDemand` enum (`high_tlc`, `self_sufficient`, `comfort_stop`, `insufficient_data`), `flags`, `interactionCycles[]`, and `timelineMonthly[]`.
+- `client/src/core/services/api.ts`: Added TypeScript interfaces and drawer API client functions.
+- `client/src/components/Dealer360Modal/Dealer360Modal.tsx`: Updated to use new DRD fields and `comfort_stop` enum.
+
+### Tests Run
+- Full bulk database recomputation across all 3,940 dealer records in MongoDB: Completed in 26.0s.
+- Golden benchmarks verified:
+  - `FL319` (Auction Direct RV) $\implies$ **`high_tlc`** (98% confidence, 85% lift, $572K booked, Overdue alert).
+  - `FL340` (LDRV Tampa) $\implies$ **`high_tlc`** (98% confidence, 100% lift, $3.12M booked, On Track).
+  - `TX569` (RGV RV Sales) $\implies$ **`self_sufficient`** (95% confidence, 53 bookings, $2.58M booked with 2 visits).
+  - `MN329` (Hilltop Trailer Sales) $\implies$ **`comfort_stop`** (98% confidence, 28 visits, $0 booked).
+- Frontend production build (`npm run build` in `client`): 0 errors, all TypeScript types compile cleanly.
+
+---
+
 ## [2026-04-21] — Rolling Averages Dashboard + Rep Scorecard + Heat Index
 
 ### Added

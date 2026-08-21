@@ -592,9 +592,29 @@ export async function getUnderwriterScorecardApi(startDate?: string, endDate?: s
   return data;
 }
 
-// ── Relationship Demand & DRD Engine ──
-export type RelationshipDemandSegment = 'high_tlc' | 'self_sufficient' | 'unresponsive' | 'insufficient_data';
+// ── Relationship Demand & DRD Engine (v6.2 Final) ──
+export type RelationshipDemandSegment = 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data';
 export type UrgencyStatus = 'overdue' | 'due_soon' | 'on_track' | 'self_sufficient' | 'not_monitored';
+
+export interface InteractionCycleItem {
+  cycleNumber: number;
+  startDate: string;
+  endDate: string;
+  triggerDate: string;
+  triggerType: 'visit' | 'call';
+  repName: string;
+  visitCountInCluster: number;
+  metrics: {
+    daysToFirstBooked: number | null;
+    bookedInWindow: number;
+    bookedVolumeInWindow: number;
+    appsInWindow: number;
+    relativeBookedLift: number;
+    dormancyDurationDaysAfter: number;
+    patternObserved: 'spike_and_decay' | 'empty_friction' | 'autonomous_flow' | 'escalation';
+  };
+  summaryText: string;
+}
 
 export interface DealerProfileItem {
   _id: string;
@@ -604,16 +624,24 @@ export interface DealerProfileItem {
   statePrefix?: string | null;
   assignedRep?: string | null;
   relationshipDemand: RelationshipDemandSegment;
+  patternType?: string;
   confidenceScore: number;
   recommendedCadenceDays?: number | null;
+  flags?: {
+    isFadingTlc: boolean;
+    isEmergingTlc: boolean;
+    isCatalyticActivation: boolean;
+  };
   daysSinceLastVisit?: number | null;
   lastVisitDate?: string | null;
   daysSinceLastTouch?: number | null;
   lastTouchDate?: string | null;
   lastTouchType?: string | null;
   urgencyStatus: UrgencyStatus;
-  visitElasticity?: number | null;
-  productionHalfLifeDays?: number | null;
+  postVisitBookedLiftPct?: number | null;
+  organicBookedRatio?: number;
+  lifetimeYieldPerVisit?: number;
+  verifiedCycleCount?: number;
   lifetimeStats: {
     totalVisits: number;
     totalCalls: number;
@@ -622,13 +650,17 @@ export interface DealerProfileItem {
     totalApplications: number;
     totalBookings: number;
     totalBookedVolume: number;
-    yieldPerVisit: number;
   };
-  dormancyStats: {
-    totalDormancyEpisodes: number;
-    dormanciesEndedByVisit: number;
-    dormancyVisitRecoveryRate: number;
-  };
+  decisionRationale?: string[];
+  interactionCycles?: InteractionCycleItem[];
+  timelineMonthly?: Array<{
+    monthKey: string;
+    bookedVolume: number;
+    bookedCount: number;
+    appCount: number;
+    visitCount: number;
+    callCount: number;
+  }>;
   lastCalculatedAt: string;
 }
 
@@ -661,22 +693,30 @@ export interface RelationshipDemandDealersResponse {
   totalPages: number;
 }
 
-export interface RelationshipDemandTimelineResponse {
+export interface RelationshipDemandDrawerResponse {
   success: boolean;
   profile: DealerProfileItem;
-  recommendation: string;
-  monthlyTimeline: Array<{
-    month: string;
-    visits: number;
-    calls: number;
-    emails: number;
-    apps: number;
-    bookings: number;
-    bookedVolume: number;
+  recentCommunications: Array<{
+    _id: string;
+    date: string;
+    channel: 'visit' | 'call' | 'email' | 'text' | 'other';
+    repName: string;
+    result: string;
+    feedback: string;
   }>;
-  recentCommunications: Array<any>;
-  recentApplications: Array<any>;
+  recentApplications: Array<{
+    applicationId: string;
+    applicationDate: string;
+    bookedDate?: string | null;
+    status: string;
+    amountFinanced: number;
+    lender?: string | null;
+    collateralType?: string | null;
+    collateralYear?: string | null;
+  }>;
 }
+
+export type RelationshipDemandTimelineResponse = RelationshipDemandDrawerResponse;
 
 export interface RepAllocationDiagnosticResponse {
   success: boolean;
@@ -685,17 +725,19 @@ export interface RepAllocationDiagnosticResponse {
     totalDealers: number;
     highTlcCount: number;
     selfSuffCount: number;
-    unresponsiveCount: number;
+    comfortStopCount: number;
     insufficientCount: number;
     overdueCount: number;
+    dueSoonCount: number;
+    onTrackCount: number;
     totalVisits: number;
     highTlcVisits: number;
     selfSuffVisits: number;
-    unresponsiveVisits: number;
+    comfortStopVisits: number;
     totalBookedVolume: number;
     highTlcVisitPct: number;
     selfSuffVisitPct: number;
-    unresponsiveVisitPct: number;
+    comfortStopVisitPct: number;
     misallocatedWarning: boolean;
   }>;
 }
@@ -720,10 +762,12 @@ export async function getRelationshipDemandDealers(params?: {
   return data;
 }
 
-export async function getDealerRelationshipTimeline(clientDealerId: string): Promise<RelationshipDemandTimelineResponse> {
-  const { data } = await api.get(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/timeline`);
+export async function getDealerRelationshipDrawer(clientDealerId: string): Promise<RelationshipDemandDrawerResponse> {
+  const { data } = await api.get(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/drawer`);
   return data;
 }
+
+export const getDealerRelationshipTimeline = getDealerRelationshipDrawer;
 
 export async function getRepAllocationDiagnostics(): Promise<RepAllocationDiagnosticResponse> {
   const { data } = await api.get('/analytics/relationship-demand/rep-allocation');

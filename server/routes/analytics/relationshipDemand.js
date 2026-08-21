@@ -1,8 +1,8 @@
 /**
- * Relationship Demand & TLC Allocation Analytics Routes
+ * Relationship Demand & TLC Allocation Analytics Routes (v6.2 Final)
  * 
  * Endpoints for Dealer Relationship Demand (DRD) segmentation, sales routing recommendations,
- * overdue visit alerts, and rep effort allocation diagnostics.
+ * overdue visit alerts, rep effort allocation diagnostics, and single dealer drawer inspection.
  * 
  * @module routes/analytics/relationshipDemand
  */
@@ -13,8 +13,7 @@ const DealerProfile = require('../../models/DealerProfile');
 const DealerLocation = require('../../models/DealerLocation');
 const Application = require('../../models/Application');
 const DealerCommunication = require('../../models/DealerCommunication');
-const MonthlyDealerRollup = require('../../models/MonthlyDealerRollup');
-const { recomputeAllProfiles } = require('../../services/dealerRelationshipEngine');
+const { recomputeAllProfiles, classifyCommType } = require('../../services/dealerRelationshipEngine');
 const { getRepHandles } = require('../../config/repConfig');
 
 // ==========================================
@@ -26,11 +25,11 @@ router.get('/summary', async (req, res) => {
         const { rep, state } = req.query;
         const match = {};
 
-        if (rep && rep.trim()) {
+        if (rep && rep.trim() && rep !== 'all') {
             const handles = getRepHandles(rep);
             match.assignedRep = { $in: handles.map(h => new RegExp(h, 'i')) };
         }
-        if (state && state.trim()) {
+        if (state && state.trim() && state !== 'all') {
             match.statePrefix = state.trim().toUpperCase();
         }
 
@@ -40,7 +39,7 @@ router.get('/summary', async (req, res) => {
         const segments = {
             high_tlc: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
             self_sufficient: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
-            unresponsive: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
+            comfort_stop: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
             insufficient_data: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 }
         };
 
@@ -120,12 +119,12 @@ router.get('/dealers', async (req, res) => {
             match.urgencyStatus = urgency;
         }
 
-        if (rep && rep.trim()) {
+        if (rep && rep.trim() && rep !== 'all') {
             const handles = getRepHandles(rep);
             match.assignedRep = { $in: handles.map(h => new RegExp(h, 'i')) };
         }
 
-        if (state && state.trim()) {
+        if (state && state.trim() && state !== 'all') {
             match.statePrefix = state.trim().toUpperCase();
         }
 
@@ -143,11 +142,11 @@ router.get('/dealers', async (req, res) => {
 
         switch (sort) {
             case 'urgency':
-                // Custom sort: overdue (1), due_soon (2), on_track (3), self_sufficient (4), not_monitored (5)
                 sortObj = { daysSinceLastVisit: dir };
                 break;
-            case 'elasticity':
-                sortObj = { visitElasticity: dir };
+            case 'lift':
+            case 'postVisitBookedLiftPct':
+                sortObj = { postVisitBookedLiftPct: dir };
                 break;
             case 'visits':
                 sortObj = { 'lifetimeStats.totalVisits': dir };
@@ -156,10 +155,18 @@ router.get('/dealers', async (req, res) => {
                 sortObj = { 'lifetimeStats.totalBookings': dir };
                 break;
             case 'volume':
+            case 'bookedVolume':
                 sortObj = { 'lifetimeStats.totalBookedVolume': dir };
+                break;
+            case 'yield':
+            case 'lifetimeYieldPerVisit':
+                sortObj = { lifetimeYieldPerVisit: dir };
                 break;
             case 'daysSinceVisit':
                 sortObj = { daysSinceLastVisit: dir };
+                break;
+            case 'cycles':
+                sortObj = { verifiedCycleCount: dir };
                 break;
             default:
                 sortObj = { 'lifetimeStats.totalBookedVolume': -1 };
@@ -193,10 +200,10 @@ router.get('/dealers', async (req, res) => {
 });
 
 // ==========================================
-// GET /analytics/relationship-demand/dealers/:clientDealerId/timeline
-// Detailed Single Dealer Timeline & Pulse Visualization
+// GET /analytics/relationship-demand/dealers/:clientDealerId/drawer
+// Complete Payload for DealerRelationshipDrawer (<50ms response)
 // ==========================================
-router.get('/dealers/:clientDealerId/timeline', async (req, res) => {
+router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
     try {
         const clientDealerId = req.params.clientDealerId.trim().toUpperCase();
 
@@ -205,96 +212,49 @@ router.get('/dealers/:clientDealerId/timeline', async (req, res) => {
             return res.status(404).json({ success: false, message: `Profile not found for dealer ${clientDealerId}` });
         }
 
-        // Fetch communications (visits, calls, emails)
-        const comms = await DealerCommunication.find({
+        // Fetch recent communications (normalized)
+        const rawComms = await DealerCommunication.find({
             internalRelationshipId2: clientDealerId,
             communicationEventDatetime: { $ne: null }
         })
             .sort({ communicationEventDatetime: -1 })
-            .limit(100)
+            .limit(50)
             .lean();
 
-        // Fetch applications
-        const apps = await Application.find({
+        const recentCommunications = rawComms.map(c => ({
+            _id: c._id,
+            date: c.communicationEventDatetime,
+            channel: classifyCommType(c),
+            repName: c.communicationUserFullName || 'Sales Rep',
+            result: c.communicationResult1 || '',
+            feedback: c.communicationFeedback1 || ''
+        }));
+
+        // Fetch recent applications
+        const recentApplications = await Application.find({
             clientDealerId,
             applicationDate: { $ne: null }
         })
-            .select('applicationId applicationDate bookedDate status amountFinanced lender')
+            .select('applicationId applicationDate bookedDate status amountFinanced lender collateralType collateralYear')
             .sort({ applicationDate: -1 })
-            .limit(150)
+            .limit(50)
             .lean();
-
-        // Group into monthly buckets (2024-01 through 2026-12)
-        const monthlyMap = new Map();
-
-        // Populate monthly comms
-        for (const c of comms) {
-            const d = new Date(c.communicationEventDatetime);
-            const mKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-            if (!monthlyMap.has(mKey)) {
-                monthlyMap.set(mKey, { month: mKey, visits: 0, calls: 0, emails: 0, apps: 0, bookings: 0, bookedVolume: 0 });
-            }
-            const type = (c.communicationType || '').toLowerCase();
-            if (type.includes('visit') || type.includes('face to face') || type.includes('meeting')) {
-                monthlyMap.get(mKey).visits++;
-            } else if (type.includes('phone') || type.includes('call')) {
-                monthlyMap.get(mKey).calls++;
-            } else if (type.includes('email')) {
-                monthlyMap.get(mKey).emails++;
-            }
-        }
-
-        // Populate monthly apps & bookings
-        for (const a of apps) {
-            const d = new Date(a.applicationDate);
-            const mKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-            if (!monthlyMap.has(mKey)) {
-                monthlyMap.set(mKey, { month: mKey, visits: 0, calls: 0, emails: 0, apps: 0, bookings: 0, bookedVolume: 0 });
-            }
-            monthlyMap.get(mKey).apps++;
-            if (a.status === 'Booked') {
-                monthlyMap.get(mKey).bookings++;
-                monthlyMap.get(mKey).bookedVolume += (Number(a.amountFinanced) || 0);
-            }
-        }
-
-        const monthlyTimeline = Array.from(monthlyMap.values()).sort((a, b) => a.month.localeCompare(b.month));
-
-        // Generate Actionable Tactical Recommendation Text
-        let recommendation = '';
-        if (profile.relationshipDemand === 'high_tlc') {
-            if (profile.urgencyStatus === 'overdue') {
-                recommendation = `🚨 Critical High TLC Account. Last visited ${profile.daysSinceLastVisit || 'N/A'} days ago (Recommended Cadence: ${profile.recommendedCadenceDays}d). Schedule an in-person field visit immediately to prevent account dormancy.`;
-            } else if (profile.urgencyStatus === 'due_soon') {
-                recommendation = `⏳ High TLC Account. Visit due within 7 days to sustain recent application velocity (Production half-life is ~${profile.productionHalfLifeDays || 30} days).`;
-            } else {
-                recommendation = `✅ High TLC Account on track. Visited ${profile.daysSinceLastVisit} days ago. Maintain ${profile.recommendedCadenceDays}-day check-in cadence.`;
-            }
-        } else if (profile.relationshipDemand === 'self_sufficient') {
-            recommendation = `🟢 Autonomous Producer. Sustains organic volume (${profile.lifetimeStats.totalApplications} lifetime apps) with low visit elasticity (${profile.visitElasticity}x). Deprioritize routine driving visits; maintain via quarterly phone/email check-ins.`;
-        } else if (profile.relationshipDemand === 'unresponsive') {
-            recommendation = `🟠 Low-Yield Comfort Stop. Account received ${profile.lifetimeStats.totalVisits} in-person visits yielding 0 booked deals. Freeze field rep visits and audit relationship viability.`;
-        } else {
-            recommendation = `⚪ Insufficient Data. Schedule an exploratory discovery touchpoint to establish initial dealer baseline.`;
-        }
 
         res.status(200).json({
             success: true,
             profile,
-            recommendation,
-            monthlyTimeline,
-            recentCommunications: comms.slice(0, 15),
-            recentApplications: apps.slice(0, 15)
+            recentCommunications,
+            recentApplications
         });
     } catch (error) {
-        console.error('Error fetching dealer DRD timeline:', error);
+        console.error('Error fetching dealer DRD drawer payload:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // ==========================================
 // GET /analytics/relationship-demand/rep-allocation
-// Rep Visit Allocation Diagnostic (High TLC vs Autonomous vs Money Pits)
+// Rep Visit Allocation Diagnostic (High TLC vs Autonomous vs Comfort Stops)
 // ==========================================
 router.get('/rep-allocation', async (req, res) => {
     try {
@@ -310,13 +270,15 @@ router.get('/rep-allocation', async (req, res) => {
                     totalDealers: 0,
                     highTlcCount: 0,
                     selfSuffCount: 0,
-                    unresponsiveCount: 0,
+                    comfortStopCount: 0,
                     insufficientCount: 0,
                     overdueCount: 0,
+                    dueSoonCount: 0,
+                    onTrackCount: 0,
                     totalVisits: 0,
                     highTlcVisits: 0,
                     selfSuffVisits: 0,
-                    unresponsiveVisits: 0,
+                    comfortStopVisits: 0,
                     totalBookedVolume: 0
                 });
             }
@@ -332,12 +294,14 @@ router.get('/rep-allocation', async (req, res) => {
                 r.highTlcCount++;
                 r.highTlcVisits += visits;
                 if (p.urgencyStatus === 'overdue') r.overdueCount++;
+                else if (p.urgencyStatus === 'due_soon') r.dueSoonCount++;
+                else if (p.urgencyStatus === 'on_track') r.onTrackCount++;
             } else if (p.relationshipDemand === 'self_sufficient') {
                 r.selfSuffCount++;
                 r.selfSuffVisits += visits;
-            } else if (p.relationshipDemand === 'unresponsive') {
-                r.unresponsiveCount++;
-                r.unresponsiveVisits += visits;
+            } else if (p.relationshipDemand === 'comfort_stop') {
+                r.comfortStopCount++;
+                r.comfortStopVisits += visits;
             } else {
                 r.insufficientCount++;
             }
@@ -349,8 +313,8 @@ router.get('/rep-allocation', async (req, res) => {
                 ...r,
                 highTlcVisitPct: Math.round((r.highTlcVisits / vTotal) * 1000) / 10,
                 selfSuffVisitPct: Math.round((r.selfSuffVisits / vTotal) * 1000) / 10,
-                unresponsiveVisitPct: Math.round((r.unresponsiveVisits / vTotal) * 1000) / 10,
-                misallocatedWarning: (r.unresponsiveVisits / vTotal) > 0.25 || (r.overdueCount >= 5)
+                comfortStopVisitPct: Math.round((r.comfortStopVisits / vTotal) * 1000) / 10,
+                misallocatedWarning: (r.comfortStopVisits / vTotal) > 0.25 || (r.overdueCount >= 5)
             };
         }).sort((a, b) => b.totalBookedVolume - a.totalBookedVolume);
 
