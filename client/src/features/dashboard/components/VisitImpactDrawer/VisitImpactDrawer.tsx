@@ -47,9 +47,16 @@ type SubSortField =
   | 'reactivatedVolume'
   | 'visitCount';
 
+// Feature Flag: TLC Feature is hidden on frontend by default until ready to launch.
+// Can be enabled for testing via ?tlc=true in the URL or localStorage.setItem('ENABLE_TLC', 'true')
+const SHOW_TLC_FEATURE = typeof window !== 'undefined' && (
+  window.location.search.includes('tlc=true') ||
+  localStorage.getItem('ENABLE_TLC') === 'true'
+);
+
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
   const { openDealer360 } = useAnalyticsContext();
-  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('demand');
+  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('reactivation');
   const [windowDays, setWindowDays] = useState<number>(30);
   const [touchpointMode, setTouchpointMode] = useState<'visits' | 'all'>('visits');
   const [timeframe, setTimeframe] = useState<'ytd' | '30d' | '60d'>('ytd');
@@ -270,20 +277,24 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
               </div>
             ) : (
               <>
-                <div className={styles.topNavTabs}>
-                  <button
-                    className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
-                    onClick={() => setMainTab('demand')}
-                  >
-                    🎯 Relationship Demand & Allocation (TLC)
-                  </button>
-                  <button
-                    className={`${styles.topNavBtn} ${mainTab === 'reactivation' ? styles.topNavBtnActive : ''}`}
-                    onClick={() => setMainTab('reactivation')}
-                  >
-                    ⚡ Visit Reactivation Diagnostic
-                  </button>
-                </div>
+                {SHOW_TLC_FEATURE ? (
+                  <div className={styles.topNavTabs}>
+                    <button
+                      className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
+                      onClick={() => setMainTab('demand')}
+                    >
+                      🎯 Relationship Demand & Allocation (TLC)
+                    </button>
+                    <button
+                      className={`${styles.topNavBtn} ${mainTab === 'reactivation' ? styles.topNavBtnActive : ''}`}
+                      onClick={() => setMainTab('reactivation')}
+                    >
+                      ⚡ Visit Reactivation Diagnostic
+                    </button>
+                  </div>
+                ) : (
+                  <h2 className={styles.title}>⚡ Visit Reactivation Diagnostic</h2>
+                )}
 
                 {mainTab === 'reactivation' && impactData?.dateRangeLabel && (
                   <span
