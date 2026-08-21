@@ -1,0 +1,160 @@
+[dotenv@17.3.1] injecting env (4) from server/.env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+Connected to MongoDB. Auditing all 3,940 dealer relationship profiles...
+
+Total Profiles in DB: 3940
+=== SEGMENT BREAKDOWN ===
+┌───────────────────┬────────┐
+│ (index)           │ Values │
+├───────────────────┼────────┤
+│ high_tlc          │ 206    │
+│ self_sufficient   │ 1769   │
+│ comfort_stop      │ 361    │
+│ insufficient_data │ 1604   │
+└───────────────────┴────────┘
+
+=== URGENCY BREAKDOWN ===
+┌─────────────────┬────────┐
+│ (index)         │ Values │
+├─────────────────┼────────┤
+│ overdue         │ 116    │
+│ due_soon        │ 17     │
+│ on_track        │ 73     │
+│ self_sufficient │ 1769   │
+│ not_monitored   │ 1965   │
+└─────────────────┴────────┘
+
+==================================================
+1. AUDITING HIGH TLC DEALT WITH EDGE CASES & RISKS
+==================================================
+
+[ISSUE 1.1] High TLC with <= 1 Lifetime Visit: 3
+┌─────────┬──────────┬─────────────────────────────┬────────┬──────────┬───────────────────┬────────┬────────────┐
+│ (index) │ id       │ name                        │ visits │ bookings │ volume            │ cycles │ confidence │
+├─────────┼──────────┼─────────────────────────────┼────────┼──────────┼───────────────────┼────────┼────────────┤
+│ 0       │ 'NCA131' │ 'ET Quality RV - NCA131'    │ 1      │ 2        │ 125984.32         │ 1      │ 0.7        │
+│ 1       │ 'EUT104' │ 'The Boat Shack - EUT104'   │ 1      │ 1        │ 122005.68         │ 1      │ 0.7        │
+│ 2       │ 'WI742'  │ 'Team Winnebagoland LCC - ' │ 1      │ 2        │ 71134.95999999999 │ 1      │ 0.7        │
+└─────────┴──────────┴─────────────────────────────┴────────┴──────────┴───────────────────┴────────┴────────────┘
+
+[ISSUE 1.2] High TLC with $0 Booked Volume (Should never happen): 0
+
+[ISSUE 1.3] High TLC with only 1 Lifetime Booking: 45
+┌─────────┬─────────┬─────────────────────────────┬────────┬───────────┬──────────────────────┐
+│ (index) │ id      │ name                        │ visits │ volume    │ rep                  │
+├─────────┼─────────┼─────────────────────────────┼────────┼───────────┼──────────────────────┤
+│ 0       │ 'FL134' │ 'Central Marine - Tyrone -' │ 26     │ 247270.03 │ 'Ward Stoutimore'    │
+│ 1       │ 'VT100' │ 'Petes RV Center Vermont-V' │ 22     │ 45811.7   │ 'Genevieve Coulombe' │
+│ 2       │ 'OR107' │ 'RV COUNTRY OREGON, LLC - ' │ 11     │ 219571.65 │ 'Larry Jablonoski'   │
+│ 3       │ 'TX312' │ 'RV Station- Cleveland -TX' │ 14     │ 52083.56  │ 'George Ott'         │
+│ 4       │ 'FL322' │ 'LTD Motors, LLC - FL322'   │ 5      │ 45252.95  │ 'Ward Stoutimore'    │
+│ 5       │ 'CT106' │ 'BLUE COMPASS RV CONNECTIC' │ 12     │ 22262.99  │ 'Genevieve Coulombe' │
+│ 6       │ 'WA138' │ 'Bretz RV & Marine - Liber' │ 3      │ 86012.61  │ 'Larry Jablonoski'   │
+│ 7       │ 'FL251' │ 'Ryco Marine - FL251'       │ 15     │ 248656.95 │ 'Ward Stoutimore'    │
+│ 8       │ 'FL317' │ 'La Mesa RV Center - Ft. M' │ 14     │ 30410.1   │ 'Ward Stoutimore'    │
+│ 9       │ 'FL347' │ 'North Trail RV Center - F' │ 4      │ 183985.25 │ 'Ward Stoutimore'    │
+└─────────┴─────────┴─────────────────────────────┴────────┴───────────┴──────────────────────┘
+
+==================================================
+2. AUDITING SELF-SUFFICIENT (AUTONOMOUS) ISSUES
+==================================================
+
+[ISSUE 2.1] Self-Sufficient with $0 Booked Deals: 65
+┌─────────┬──────────┬─────────────────────────────┬──────┬────────┐
+│ (index) │ id       │ name                        │ apps │ visits │
+├─────────┼──────────┼─────────────────────────────┼──────┼────────┤
+│ 0       │ 'ID125'  │ 'Dennis Dillon RV Marine &' │ 15   │ 0      │
+│ 1       │ 'OR145'  │ 'Blue Compass RV - Medford' │ 56   │ 1      │
+│ 2       │ 'CO169'  │ 'Rocky Mountain Boat Compa' │ 9    │ 0      │
+│ 3       │ 'WA124'  │ "Sunrise Rv's - WA124"      │ 31   │ 2      │
+│ 4       │ 'MT117'  │ 'BRETZ RV & MARINE - BUTTE' │ 22   │ 0      │
+│ 5       │ 'ME113'  │ 'Long Lake Marina - ME113'  │ 27   │ 0      │
+│ 6       │ 'NM111'  │ 'Airstream of New Mexico -' │ 13   │ 0      │
+│ 7       │ 'MN520'  │ 'R and R Marine -MN520'     │ 15   │ 0      │
+│ 8       │ 'CO164'  │ 'Trailer Source Inc - Whea' │ 29   │ 1      │
+│ 9       │ 'NCA132' │ 'El Monte RV - Dublin - NC' │ 20   │ 2      │
+└─────────┴──────────┴─────────────────────────────┴──────┴────────┘
+
+[ISSUE 2.2] Self-Sufficient with < 3 Apps & <= 1 Booking: 0
+
+[ISSUE 2.3] Self-Sufficient with >= 5 Visits & >= 60% Lift (Potential False Negative TLC): 37
+┌─────────┬─────────┬─────────────────────────────┬────────┬──────────┬────────────────────┬──────┬────────┐
+│ (index) │ id      │ name                        │ visits │ bookings │ volume             │ lift │ cycles │
+├─────────┼─────────┼─────────────────────────────┼────────┼──────────┼────────────────────┼──────┼────────┤
+│ 0       │ 'FL237' │ 'General RV - Ocala - FL23' │ 21     │ 11       │ 847704.3300000001  │ 64   │ 4      │
+│ 1       │ 'FL284' │ 'SAVA RV - FL284'           │ 6      │ 3        │ 87231.44           │ 66   │ 5      │
+│ 2       │ 'TX539' │ 'Fun Town RV-Waller -TX539' │ 18     │ 51       │ 2316408.88         │ 60   │ 3      │
+│ 3       │ 'AL144' │ 'GREAT AMERICAN RV SUPERST' │ 39     │ 20       │ 1068572.3400000003 │ 63   │ 9      │
+│ 4       │ 'NV116' │ 'Fun Town RV - Las Vegas -' │ 8      │ 9        │ 454520.66000000003 │ 65   │ 2      │
+│ 5       │ 'AL145' │ 'GREAT AMERICAN RV SUPERST' │ 35     │ 25       │ 1588457.98         │ 64   │ 7      │
+│ 6       │ 'TX551' │ 'Blue Compass RV - South B' │ 22     │ 98       │ 4906357.079999999  │ 61   │ 5      │
+│ 7       │ 'MN822' │ 'Pleasureland RV South Met' │ 21     │ 10       │ 474701.77999999997 │ 63   │ 7      │
+│ 8       │ 'FL178' │ 'MILLERS MARINE - FL178'    │ 48     │ 42       │ 1852902.79         │ 69   │ 3      │
+│ 9       │ 'FL327' │ "Roy's RV Adventures LLC -" │ 5      │ 20       │ 412905.75          │ 69   │ 4      │
+└─────────┴─────────┴─────────────────────────────┴────────┴──────────┴────────────────────┴──────┴────────┘
+
+==================================================
+3. AUDITING COMFORT STOPS (TIME SINKS)
+==================================================
+
+[ISSUE 3.1] Comfort Stops with Booked Volume > $0: 0
+
+[ISSUE 3.2] Comfort Stops with >= 5 Apps (Dealer IS submitting, but underwriting declined/no books): 101
+┌─────────┬──────────┬─────────────────────────────┬────────┬──────┬──────────┬──────────────────────┐
+│ (index) │ id       │ name                        │ visits │ apps │ bookings │ rep                  │
+├─────────┼──────────┼─────────────────────────────┼────────┼──────┼──────────┼──────────────────────┤
+│ 0       │ 'OH128'  │ 'RCD Sales Co. LTD - Hebro' │ 24     │ 25   │ 0        │ 'Janet Harrington'   │
+│ 1       │ 'AL133'  │ 'RV CONNECTIONS SUPER CENT' │ 7      │ 52   │ 0        │ 'Jeff Smith'         │
+│ 2       │ 'IL264'  │ 'Zeigler Mercedes-Benz of ' │ 4      │ 10   │ 0        │ 'Genevieve Coulombe' │
+│ 3       │ 'IL105'  │ 'Fox Lake Harbor - IL105'   │ 9      │ 26   │ 0        │ 'Genevieve Coulombe' │
+│ 4       │ 'SCA162' │ 'La Mesa RV Center - West ' │ 3      │ 37   │ 0        │ 'John Rubi'          │
+│ 5       │ 'GA127'  │ 'N and C MARINE - GA127'    │ 7      │ 13   │ 0        │ 'Jeff Smith'         │
+│ 6       │ 'OR133'  │ 'Waterdog RV- OR133'        │ 5      │ 25   │ 0        │ 'Larry Jablonoski'   │
+│ 7       │ 'FL230'  │ 'Seven Sports Marine - FL2' │ 8      │ 10   │ 0        │ 'Ward Stoutimore'    │
+│ 8       │ 'FL346'  │ 'Ingman Marine - FL346'     │ 6      │ 9    │ 0        │ 'Ward Stoutimore'    │
+│ 9       │ 'SCA147' │ 'Sky River RV - Pismo Beac' │ 5      │ 9    │ 0        │ 'John Rubi'          │
+└─────────┴──────────┴─────────────────────────────┴────────┴──────┴──────────┴──────────────────────┘
+
+==================================================
+4. AUDITING DISCOVERY QUEUE (INSUFFICIENT DATA)
+==================================================
+
+[ISSUE 4.1] Discovery Queue with >= $100K Booked Volume: 51
+┌─────────┬──────────┬─────────────────────────────┬────────────────────┬──────────┬────────┬──────┐
+│ (index) │ id       │ name                        │ volume             │ bookings │ visits │ apps │
+├─────────┼──────────┼─────────────────────────────┼────────────────────┼──────────┼────────┼──────┤
+│ 0       │ 'EOR100' │ 'Lifestyle Wake LLC - EOR1' │ 446058.1           │ 2        │ 0      │ 3    │
+│ 1       │ 'EGA111' │ 'Jimmy Jones Polaris - Kin' │ 181589.88          │ 2        │ 0      │ 6    │
+│ 2       │ 'ECA112' │ 'Johnson Marine Supplies I' │ 101726             │ 1        │ 0      │ 1    │
+│ 3       │ 'WI5023' │ 'Friendship RV Inc -WI5023' │ 121316.17          │ 3        │ 4      │ 6    │
+│ 4       │ 'CA111'  │ 'SUN COUNTRY MARINE - IRVI' │ 249449.46          │ 2        │ 2      │ 6    │
+│ 5       │ 'TX562'  │ 'Texas Tige - TX562'        │ 216238.69          │ 2        │ 0      │ 6    │
+│ 6       │ 'OH217'  │ 'PERFORMANCE RV RENTAL - O' │ 213865.18          │ 1        │ 1      │ 4    │
+│ 7       │ 'TN152'  │ 'Lazydays RV  - Airstream ' │ 137412.27          │ 1        │ 0      │ 6    │
+│ 8       │ 'WA151'  │ 'Kent RV - WA151'           │ 136643.40000000002 │ 4        │ 1      │ 7    │
+│ 9       │ 'ECO110' │ 'RV Trailers America - ECO' │ 100298.29999999999 │ 4        │ 0      │ 7    │
+└─────────┴──────────┴─────────────────────────────┴────────────────────┴──────────┴────────┴──────┘
+
+[ISSUE 4.2] Discovery Queue with >= 3 Visits (Should be Comfort Stop or TLC): 45
+┌─────────┬──────────┬─────────────────────────────┬────────┬──────────┬──────┐
+│ (index) │ id       │ name                        │ visits │ bookings │ apps │
+├─────────┼──────────┼─────────────────────────────┼────────┼──────────┼──────┤
+│ 0       │ 'IN198'  │ 'Hoosier Hills Marina - IN' │ 3      │ 1        │ 2    │
+│ 1       │ 'WI5023' │ 'Friendship RV Inc -WI5023' │ 4      │ 3        │ 6    │
+│ 2       │ 'MN832'  │ 'Bricks Boatworks- MN832'   │ 5      │ 1        │ 5    │
+│ 3       │ 'FL295'  │ 'Castaway Marine - FL295'   │ 3      │ 1        │ 7    │
+│ 4       │ 'CA101'  │ 'Motorhomes Of California ' │ 11     │ 1        │ 2    │
+│ 5       │ 'WA152'  │ 'Valley RV Supercenter - W' │ 4      │ 1        │ 6    │
+│ 6       │ 'OH202'  │ 'Camper Care - OH202'       │ 18     │ 3        │ 4    │
+│ 7       │ 'SCA150' │ 'We are Airstream Ventura-' │ 16     │ 1        │ 7    │
+│ 8       │ 'AZ317'  │ 'CASA GRANDE RV SALES - AZ' │ 15     │ 1        │ 5    │
+│ 9       │ 'IN210'  │ 'Protech Marine INC-IN210'  │ 3      │ 1        │ 2    │
+└─────────┴──────────┴─────────────────────────────┴────────┴──────────┴──────┘
+
+==================================================
+5. AUDITING DATA INTEGRITY & TIMELINE AGGREGATION
+==================================================
+Missing Decision Rationale: 0
+Empty Monthly Timeline: 0
+Visit count > 0 but daysSinceLastVisit is null: 0
+
+Audit complete.

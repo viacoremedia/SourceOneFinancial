@@ -161,9 +161,9 @@ export function UnderwriterScorecard({ isOpen, onClose, onSelectUnderwriter }: P
   const [sortKey, setSortKey] = useState<string>('totalApps');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Compute date range parameters based on preset
+  // Compute date range parameters based on preset (anchored to current active date)
   const dateParams = useMemo(() => {
-    const now = new Date('2026-07-28T23:59:59.999Z');
+    const now = new Date();
     if (datePreset === 'all') return { startDate: undefined, endDate: undefined };
 
     let start: Date;
@@ -182,6 +182,15 @@ export function UnderwriterScorecard({ isOpen, onClose, onSelectUnderwriter }: P
       endDate: now.toISOString().split('T')[0],
     };
   }, [datePreset]);
+
+  const dateRangeLabel = useMemo(() => {
+    if (datePreset === 'all') return 'All Time';
+    if (!dateParams.startDate || !dateParams.endDate) return '';
+    const s = new Date(dateParams.startDate + 'T00:00:00Z');
+    const e = new Date(dateParams.endDate + 'T00:00:00Z');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[s.getUTCMonth()]} ${s.getUTCDate()}, ${s.getUTCFullYear()} – ${months[e.getUTCMonth()]} ${e.getUTCDate()}, ${e.getUTCFullYear()}`;
+  }, [datePreset, dateParams]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -312,6 +321,22 @@ export function UnderwriterScorecard({ isOpen, onClose, onSelectUnderwriter }: P
             <h2 className={styles.title}>
               <span>⚡ Underwriter & Lender Performance Scorecard</span>
             </h2>
+            {dateRangeLabel && (
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#38bdf8',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📅 {dateRangeLabel}
+              </span>
+            )}
           </div>
 
           <div className={styles.controlsGroup}>

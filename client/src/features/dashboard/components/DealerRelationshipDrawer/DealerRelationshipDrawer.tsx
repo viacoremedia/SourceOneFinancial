@@ -108,6 +108,8 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
         return styles.urgencyDueSoon;
       case 'on_track':
         return styles.urgencyOnTrack;
+      case 'dormant':
+        return styles.urgencyDormant;
       default:
         return styles.urgencyDueSoon;
     }
@@ -122,6 +124,8 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
         return `⏳ DUE SOON (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'on_track':
         return `✅ ON TRACK (${profile.daysSinceLastVisit || 0}d unvisited)`;
+      case 'dormant':
+        return `💤 DORMANT (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'self_sufficient':
         return '🟢 AUTONOMOUS (Portal Flow)';
       default:
@@ -226,6 +230,60 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                 </span>
               </div>
             </div>
+
+            {/* Pipeline & Underwriting Conversion Strip */}
+            {profile.pipelineStats && profile.pipelineStats.totalApplications > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '12px',
+                background: 'rgba(15, 23, 42, 0.75)',
+                border: '1px solid rgba(56, 189, 248, 0.22)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                marginBottom: '18px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Apps Submitted</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>
+                    {profile.pipelineStats.totalApplications}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    {profile.pipelineStats.totalDeclined} declined / wdn
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Approvals</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#38bdf8' }}>
+                    {profile.pipelineStats.totalApproved}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 500 }}>
+                    {profile.pipelineStats.approvalRatePct}% approval rate
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Look-to-Book</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: profile.pipelineStats.lookToBookPct > 15 ? '#34d399' : '#f59e0b' }}>
+                    {profile.pipelineStats.lookToBookPct}%
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    {profile.pipelineStats.totalBookings} booked loans
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Top Lender / UW</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {profile.pipelineStats.topLender || 'Standard Tier'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    UW: {profile.pipelineStats.topUnderwriter || 'Assigned'}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Decision Audit Box */}
             <div className={styles.auditBox}>

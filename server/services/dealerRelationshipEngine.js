@@ -162,6 +162,11 @@ function calculateUrgency(daysSinceLastVisit, cadenceDays, segment) {
     if (segment === 'comfort_stop' || segment === 'insufficient_data') return 'not_monitored';
     if (!cadenceDays) return 'not_monitored';
 
+    // If unvisited for > 365 days, it is dormant (special reactivation, not active weekly route)
+    if (daysSinceLastVisit !== null && daysSinceLastVisit > 365) {
+        return 'dormant';
+    }
+
     if (daysSinceLastVisit === null || daysSinceLastVisit > cadenceDays) {
         return 'overdue';
     }
@@ -397,8 +402,39 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     // Sort interaction cycles newest first for UI display
     interactionCycles.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
-    // ── 5. Secondary Diagnostic Flags ──
-    // Check for Fading TLC: Yield in latest cycle is <60% of earlier cycle
+    // ── 5. Pipeline & Underwriting Conversion Metrics ──
+    let totalApproved = 0;
+    let totalDeclined = 0;
+    const underwriterCounts = {};
+    const lenderCounts = {};
+
+    for (const app of apps) {
+        if (app.status === 'Approved' || app.status === 'Booked') totalApproved++;
+        if (app.status === 'Declined' || app.status === 'Withdrawn') totalDeclined++;
+        if (app.underwriter) underwriterCounts[app.underwriter] = (underwriterCounts[app.underwriter] || 0) + 1;
+        if (app.lender) lenderCounts[app.lender] = (lenderCounts[app.lender] || 0) + 1;
+    }
+
+    const topUnderwriter = Object.entries(underwriterCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    const topLender = Object.entries(lenderCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+    const approvalRatePct = totalApplications > 0 ? Math.round((totalApproved / totalApplications) * 100) : 0;
+    const lookToBookPct = totalApplications > 0 ? Math.round((totalBookings / totalApplications) * 100) : 0;
+    const approvalToBookPct = totalApproved > 0 ? Math.round((totalBookings / totalApproved) * 100) : 0;
+
+    const pipelineStats = {
+        totalApplications,
+        totalApproved,
+        totalBookings,
+        totalDeclined,
+        approvalRatePct,
+        lookToBookPct,
+        approvalToBookPct,
+        topUnderwriter,
+        topLender
+    };
+
+    // Secondary Diagnostic Flags
     let isFadingTlc = false;
     if (cycleYields.length >= 2) {
         const lastYield = cycleYields[cycleYields.length - 1];
@@ -408,7 +444,6 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         }
     }
 
-    // Check for Catalytic Activation: First visit in history unlocked permanent sustained flow
     let isCatalyticActivation = false;
     if (visitClusters.length === 1 && totalBookings >= 5 && totalApplications >= 15) {
         const clusterEndMs = visitClusters[0].endDate.getTime();
@@ -417,6 +452,20 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
             isCatalyticActivation = true;
         }
     }
+
+    const lastAppDate = validApps.length > 0 ? validApps[validApps.length - 1].appDate : null;
+    let lastBookedDate = null;
+    for (let i = validApps.length - 1; i >= 0; i--) {
+        if (validApps[i].isBooked) {
+            lastBookedDate = validApps[i].bookedDate;
+            break;
+        }
+    }
+    const daysSinceLastApp = lastAppDate ? Math.max(0, Math.floor((nowMs - lastAppDate.getTime()) / DAY_MS)) : null;
+    const daysSinceLastBooked = lastBookedDate ? Math.max(0, Math.floor((nowMs - lastBookedDate.getTime()) / DAY_MS)) : null;
+
+    const isLapsed = (daysSinceLastApp !== null && daysSinceLastApp > 180);
+    const isDormant = (daysSinceLastApp === null && daysSinceLastVisit !== null && daysSinceLastVisit > 365) || (daysSinceLastApp !== null && daysSinceLastApp > 365) || (daysSinceLastVisit !== null && daysSinceLastVisit > 365);
 
     // Calculate Organic vs. Post-Visit Booked Ratio
     const organicBookedRatio = totalBookedVolume > 0
@@ -427,48 +476,85 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         ? Math.round((touchedBookedVolume / totalBookedVolume) * 100)
         : null;
 
+    const yieldPerVisit = totalVisits > 0 ? Math.round(totalBookedVolume / totalVisits) : 0;
+
+    const isOverVisitedSink = (totalVisits >= 15 && yieldPerVisit < 25000 && totalBookedVolume < 500000);
+    const isUnderwritingFriction = (
+        (totalVisits >= 3 && totalApplications >= 8 && (totalBookings === 0 || (totalBookings <= 1 && totalBookedVolume < 50000 && (approvalRatePct <= 35 || lookToBookPct <= 5)))) ||
+        (totalVisits >= 3 && totalApplications >= 35 && (approvalRatePct <= 20 || lookToBookPct <= 8) && (yieldPerVisit < 35000 || totalVisits >= 10))
+    );
+    const isStrategicTlc = (totalBookedVolume >= 500000 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && totalVisits >= 3 && yieldPerVisit >= 25000 && !isLapsed);
+
     // ── 6. Classification & Operational Decision Rules ──
     let relationshipDemand = 'insufficient_data';
     let patternType = 'unexplored';
     let confidenceScore = 0.35;
     let recommendedCadenceDays = null;
-    const isEmergingTlc = (spikeAndDecayCycleCount === 1 && visitClusters.length <= 2 && totalBookings >= 1 && totalBookings <= 3);
 
-    if (totalVisits < 2 && totalApplications < 5) {
-        // Discovery Queue / Insufficient Data
+    // Emerging TLC: exactly 1 cycle with high lift AND at least 2 bookings AND not lapsed AND yield >= 25K
+    const isEmergingTlc = (spikeAndDecayCycleCount === 1 && visitClusters.length <= 2 && totalBookings >= 2 && totalBookings <= 4 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && yieldPerVisit >= 25000 && !isLapsed);
+
+    // A dealer is DOMINATED by organic production if >=50% of volume is organic or postVisitLift < 50%
+    const isOrganicDominated = (organicBookedRatio !== null && organicBookedRatio >= 50) || (postVisitBookedLiftPct !== null && postVisitBookedLiftPct < 50);
+
+    // If an account was unvisited for > 120 days and generated >= $100K (or >= 3 bookings) unvisited, they proved autonomy
+    const hasDemonstratedAutonomy = (daysSinceLastVisit !== null && daysSinceLastVisit > 120 && totalBookedVolume >= 100000 && (organicBookedRatio === null || organicBookedRatio >= 35) && !isLapsed);
+
+    if (totalVisits < 2 && totalApplications < 5 && totalBookedVolume < 100000) {
+        // Discovery Queue / Insufficient Data (Black & White)
         relationshipDemand = 'insufficient_data';
         patternType = 'unexplored';
         confidenceScore = 0.40;
         recommendedCadenceDays = null;
-    } else if (totalVisits >= 3 && totalBookings === 0) {
-        // Comfort Stop / Empty Friction ($0 Booked Deals over 3+ visits)
+    } else if (
+        (totalVisits >= 3 && totalBookings === 0) ||
+        (totalVisits >= 5 && totalBookings <= 1 && totalBookedVolume < 50000) ||
+        (totalVisits >= 10 && totalBookings <= 2 && totalBookedVolume < 150000) ||
+        (isOverVisitedSink) ||
+        (isUnderwritingFriction && yieldPerVisit < 35000)
+    ) {
+        // Comfort Stop / Empty Friction ($0 or trivial booked volume over 3+ visits, or UW bottleneck)
         relationshipDemand = 'comfort_stop';
-        patternType = 'empty_friction';
+        patternType = isUnderwritingFriction ? 'underwriting_friction' : 'empty_friction';
         confidenceScore = Math.min(0.98, 0.75 + (totalVisits * 0.04));
         recommendedCadenceDays = null; // Do not recommend field road trips
+    } else if (isLapsed && (totalBookings >= 2 || totalBookedVolume >= 50000)) {
+        // Lapsed / Churned Account: Previously productive, but dark for 180+ days
+        relationshipDemand = 'self_sufficient';
+        patternType = 'lapsed_churn';
+        confidenceScore = 0.85;
+        recommendedCadenceDays = null; // Exclude from active weekly routes
+    } else if (isOrganicDominated && (totalBookings >= 2 || totalBookedVolume >= 75000 || totalApplications >= 8)) {
+        // SELF-SUFFICIENT: Active organic production
+        relationshipDemand = 'self_sufficient';
+        patternType = isCatalyticActivation ? 'catalytic_activation' : 'autonomous_locomotive';
+        confidenceScore = Math.min(0.98, 0.75 + Math.min(0.20, totalBookings * 0.01));
+        recommendedCadenceDays = 90; // Quarterly digital/phone check-in
+    } else if (hasDemonstratedAutonomy) {
+        // SELF-SUFFICIENT: Dealer sustained production across 120+ unvisited days
+        relationshipDemand = 'self_sufficient';
+        patternType = 'autonomous_locomotive';
+        confidenceScore = Math.min(0.98, 0.75 + Math.min(0.20, totalBookings * 0.01));
+        recommendedCadenceDays = 90;
     } else if (
-        (totalVisits >= 2 && totalBookings >= 1 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 70) ||
-        (spikeAndDecayCycleCount >= 2) ||
-        (totalVisits >= 4 && totalBookings >= 3 && organicBookedRatio <= 30)
+        !isLapsed &&
+        ((totalVisits >= 2 && totalBookings >= 3 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && yieldPerVisit >= 20000) ||
+        (spikeAndDecayCycleCount >= 2 && totalBookings >= 2 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 60 && yieldPerVisit >= 20000) ||
+        (isStrategicTlc) ||
+        (totalVisits >= 4 && totalBookings >= 4 && organicBookedRatio <= 35 && yieldPerVisit >= 20000))
     ) {
-        // Confirmed High TLC (Spike & Decay / Visit-Dependent)
+        // Confirmed High TLC (Multi-cycle touch dependency and viable economics)
         relationshipDemand = 'high_tlc';
-        patternType = isFadingTlc ? 'fading_tlc' : 'spike_and_decay';
+        patternType = isStrategicTlc ? 'strategic_tlc' : (isFadingTlc ? 'fading_tlc' : 'spike_and_decay');
         confidenceScore = Math.min(0.98, 0.65 + (Math.min(3, totalVisits) * 0.08) + Math.min(0.15, totalBookings * 0.02));
         recommendedCadenceDays = 35; // Strict 30-45 day in-person route cadence
     } else if (isEmergingTlc) {
-        // Emerging High TLC (1 verified cycle -> Proactively schedule confirmation visit)
+        // Emerging High TLC
         relationshipDemand = 'high_tlc';
         patternType = 'spike_and_decay';
         confidenceScore = 0.70;
         recommendedCadenceDays = 30;
-    } else if (totalBookings >= 5 && (organicBookedRatio >= 60 || totalVisits <= 2)) {
-        // Self-Sufficient / Autonomous Locomotive
-        relationshipDemand = 'self_sufficient';
-        patternType = isCatalyticActivation ? 'catalytic_activation' : 'autonomous_locomotive';
-        confidenceScore = Math.min(0.98, 0.70 + Math.min(0.25, totalBookings * 0.01));
-        recommendedCadenceDays = 90; // Quarterly digital/phone check-in
-    } else if (totalApplications >= 8) {
+    } else if (totalBookings >= 2 || totalBookedVolume >= 75000 || totalApplications >= 8) {
         // Self-Sufficient baseline
         relationshipDemand = 'self_sufficient';
         patternType = 'autonomous_locomotive';
@@ -482,45 +568,76 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     }
 
     // Urgency Calculation
-    const urgencyStatus = calculateUrgency(daysSinceLastVisit, recommendedCadenceDays, relationshipDemand);
+    const urgencyStatus = (isDormant || isLapsed)
+        ? 'dormant'
+        : calculateUrgency(daysSinceLastVisit, recommendedCadenceDays, relationshipDemand);
 
-    // ── 7. Generate Plain-English Decision Rationale ──
+    // ── 7. Generate Plain-English Decision Rationale with When-and-Why Traceability ──
     const decisionRationale = [];
     const pctLiftStr = postVisitBookedLiftPct !== null ? `${postVisitBookedLiftPct}%` : '0%';
     const bookedVolStr = totalBookedVolume >= 1000000
         ? `$${(totalBookedVolume / 1000000).toFixed(2)}M`
         : `$${(totalBookedVolume / 1000).toFixed(0)}K`;
 
-    if (relationshipDemand === 'high_tlc') {
-        if (isEmergingTlc) {
+    const lastAppStr = lastAppDate ? lastAppDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never';
+
+    if (patternType === 'lapsed_churn') {
+        decisionRationale.push(`Classified as Lapsed / Churned Account (Confidence ${Math.round(confidenceScore * 100)}%).`);
+        decisionRationale.push(`⚠️ Churned / Inactive: Zero application submissions in over ${daysSinceLastApp} days (last active: ${lastAppStr}).`);
+        decisionRationale.push(`Historical Performance: Generated ${bookedVolStr} across ${totalBookings} deals prior to going silent.`);
+        decisionRationale.push(`Recommendation: Exclude from active weekly sales routes. Queue for Marketing Win-Back / Reactivation Campaign.`);
+    } else if (relationshipDemand === 'high_tlc') {
+        if (isStrategicTlc) {
+            decisionRationale.push(`Classified as Strategic High TLC (Confidence ${Math.round(confidenceScore * 100)}%).`);
+            decisionRationale.push(`High-Volume Enterprise Account: ${bookedVolStr} in funded volume across ${totalBookings} deals with ${pctLiftStr} generated directly inside visit windows.`);
+            decisionRationale.push(`Why this rule applied: High revenue magnitude justifies proactive regular field maintenance to protect core production.`);
+            decisionRationale.push(`Recommendation: Maintain continuous 30–45 day executive relationship touch.`);
+        } else if (isEmergingTlc) {
             decisionRationale.push(`Classified as Emerging High TLC (Confidence ${Math.round(confidenceScore * 100)}%).`);
             decisionRationale.push(`1 verified Spike & Decay cycle observed: In-person visit generated ${bookedVolStr} in funded loans.`);
+            decisionRationale.push(`Why this rule applied: Single high-yield response following road visit indicates strong touch sensitivity.`);
             decisionRationale.push(`Recommendation: Schedule a proactive confirmation visit within 30 days.`);
         } else {
             decisionRationale.push(`Classified as High TLC / Visit-Dependent (Confidence ${Math.round(confidenceScore * 100)}%).`);
             decisionRationale.push(`${pctLiftStr} of all lifetime funded loan volume (${bookedVolStr} across ${totalBookings} booked deal${totalBookings > 1 ? 's' : ''}) occurred exclusively within active in-person visit envelopes.`);
             decisionRationale.push(`Funded loan production flatlines to zero during unvisited gaps.`);
+            decisionRationale.push(`Why this rule applied: ${spikeAndDecayCycleCount} independent Spike & Decay cycles verified across multi-year history.`);
             decisionRationale.push(`Recommendation: Enforce strict 30–45 day in-person route cadence. Currently ${daysSinceLastVisit !== null ? `${daysSinceLastVisit} days unvisited` : 'unvisited'}.`);
         }
         if (isFadingTlc) {
             decisionRationale.push(`⚠️ Flag: Fading TLC detected — dollar yield per visit dropped >40% over sequential cycles. Investigate F&I manager turnover or competitor pressure.`);
         }
     } else if (relationshipDemand === 'comfort_stop') {
-        decisionRationale.push(`Classified as Comfort Stop / Time Sink (Confidence ${Math.round(confidenceScore * 100)}%).`);
-        decisionRationale.push(`Field reps have conducted ${totalVisits} in-person visits across multiple quarters, resulting in $0 in lifetime booked loan volume.`);
-        decisionRationale.push(`Recommendation: Freeze field driving visits immediately. Reallocate travel hours to overdue High TLC accounts.`);
+        if (isUnderwritingFriction) {
+            decisionRationale.push(`Classified as Underwriting / Credit Box Review (Confidence ${Math.round(confidenceScore * 100)}%).`);
+            decisionRationale.push(`Field rep logged ${totalVisits} in-person visits and successfully generated ${totalApplications} application submissions.`);
+            decisionRationale.push(`Why this rule applied: ${totalApplications} apps submitted but only ${totalBookings} booked (${bookedVolStr} volume) due to low conversion (${approvalRatePct}% approved). Rep is driving dealership adoption, but applicant credit tier requires lender review.`);
+            decisionRationale.push(`Recommendation: Do not penalize sales rep. Coordinate with Underwriting / Lender Management to review credit tier guidelines.`);
+        } else {
+            decisionRationale.push(`Classified as Comfort Stop / Time Sink (Confidence ${Math.round(confidenceScore * 100)}%).`);
+            decisionRationale.push(`Field reps have conducted ${totalVisits} in-person visits across multiple quarters, resulting in ${totalBookings > 0 ? `only ${bookedVolStr} across ${totalBookings} deal` : '$0 in lifetime booked loan volume'}.`);
+            decisionRationale.push(`Why this rule applied: Extremely low yield (${totalBookedVolume > 0 ? `$${Math.round(totalBookedVolume / totalVisits / 1000)}K/visit` : '$0/visit'}) across ${totalVisits} visits.`);
+            decisionRationale.push(`Recommendation: Freeze field driving visits immediately. Reallocate travel hours to overdue High TLC accounts.`);
+        }
     } else if (relationshipDemand === 'self_sufficient') {
         decisionRationale.push(`Classified as Self-Sufficient / Autonomous (Confidence ${Math.round(confidenceScore * 100)}%).`);
         decisionRationale.push(`Rooftop generates steady, high-volume funded loans organically (${bookedVolStr} across ${totalBookings} deals) with only ${totalVisits} lifetime visit${totalVisits > 1 ? 's' : ''}.`);
         decisionRationale.push(`${organicBookedRatio}% of funded loan volume occurred without a recent sales visit.`);
+        decisionRationale.push(`Why this rule applied: High organic baseline proves dealer utilizes portal independently.`);
         decisionRationale.push(`Recommendation: Deprioritize in-person road trips. Maintain via quarterly digital/phone check-in.`);
-        if (isCatalyticActivation) {
+        if (isCatalyticActivation && !isLapsed) {
             decisionRationale.push(`🚀 Catalytic Activation: A single onboarding visit unlocked permanent, sustained organic flow.`);
         }
     } else {
         decisionRationale.push(`Classified as Discovery Queue / Insufficient Data.`);
         decisionRationale.push(`Rooftop has received ${totalVisits} in-person visit${totalVisits > 1 ? 's' : ''} and submitted ${totalApplications} application${totalApplications > 1 ? 's' : ''}.`);
+        decisionRationale.push(`Why this rule applied: Inconclusive interaction history (<2 visits and <5 apps).`);
         decisionRationale.push(`Recommendation: Schedule an exploratory baseline visit to assess dealership loan potential.`);
+    }
+
+    if (urgencyStatus === 'dormant' && patternType !== 'lapsed_churn') {
+        decisionRationale.push(`💤 Inactive / Dormant Status: Unvisited for ${daysSinceLastVisit} days (last visit was ${lastVisitDate ? lastVisitDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}).`);
+        decisionRationale.push(`Why this rule applied: Unvisited for over a year (>365 days). Excluded from active weekly sales rep route alerts and marked for a Dormant Reactivation campaign.`);
     }
 
     // ── 8. Generate Pre-Aggregated Monthly Timeline (2024-2026) ──
@@ -592,8 +709,12 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         flags: {
             isFadingTlc,
             isEmergingTlc,
-            isCatalyticActivation
+            isCatalyticActivation,
+            isStrategicTlc,
+            isUnderwritingFriction,
+            isDormant
         },
+        pipelineStats,
         daysSinceLastVisit,
         lastVisitDate,
         daysSinceLastTouch,
@@ -625,12 +746,13 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
  * 
  * @param {Object} [options]
  * @param {Date} [options.referenceDate=new Date()]
+ * @param {Date} [options.startDate=new Date('2025-01-01T00:00:00.000Z')] - Operational baseline start date (Jan 1, 2025)
  * @param {string[]} [options.dealerIds=null] - Optional filter for specific clientDealerIds
  * @returns {Promise<Object>} Execution summary with counts per DRD segment
  */
-async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = null } = {}) {
+async function recomputeAllProfiles({ referenceDate = new Date(), startDate = new Date('2025-01-01T00:00:00.000Z'), dealerIds = null } = {}) {
     const startTime = Date.now();
-    console.log(`\n=== RECOMPUTING DEALER RELATIONSHIP PROFILES (v6.2 Engine) ===`);
+    console.log(`\n=== RECOMPUTING DEALER RELATIONSHIP PROFILES (v6.2 Engine - 2025+ Baseline) ===`);
 
     // 1. Load active DealerLocations
     const dealerQuery = { omniDealerId: { $exists: true, $ne: null } };
@@ -648,10 +770,10 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
         dealerRepresentative: 1
     }).lean();
 
-    console.log(`Loaded ${dealers.length} dealer location(s). Indexing applications and comms...`);
+    console.log(`Loaded ${dealers.length} dealer location(s). Indexing 2025+ applications and comms...`);
 
-    // 2. Pre-fetch and index all Applications by clientDealerId
-    const appQuery = { applicationDate: { $ne: null } };
+    // 2. Pre-fetch and index Applications from Jan 1, 2025 onward by clientDealerId
+    const appQuery = { applicationDate: { $gte: startDate } };
     if (dealerIds && dealerIds.length > 0) {
         appQuery.clientDealerId = { $in: dealerIds.map(d => d.toUpperCase()) };
     }
@@ -672,8 +794,8 @@ async function recomputeAllProfiles({ referenceDate = new Date(), dealerIds = nu
         appsByDealer.get(key).push(app);
     }
 
-    // 3. Pre-fetch and index all Communications by internalRelationshipId2 (clientDealerId)
-    const commQuery = { communicationEventDatetime: { $ne: null } };
+    // 3. Pre-fetch and index Communications from Jan 1, 2025 onward by internalRelationshipId2 (clientDealerId)
+    const commQuery = { communicationEventDatetime: { $gte: startDate } };
     if (dealerIds && dealerIds.length > 0) {
         commQuery.internalRelationshipId2 = { $in: dealerIds.map(d => d.toUpperCase()) };
     }

@@ -14,9 +14,10 @@ const RELATIONSHIP_DEMAND_SEGMENTS = [
  * Valid Urgency Statuses for Sales Field Rep Routing
  */
 const URGENCY_STATUSES = [
-    'overdue',        // High TLC dealer exceeding recommended visit cadence
+    'overdue',        // High TLC dealer exceeding recommended visit cadence (30-365 days)
     'due_soon',       // High TLC dealer approaching cadence deadline (within 7 days)
     'on_track',       // High TLC dealer visited recently
+    'dormant',        // Inactive > 1 year (>365 days unvisited) — requires reactivation, not weekly route
     'self_sufficient',// Autonomous dealer — no urgent in-person visit required
     'not_monitored'   // Comfort Stop or Discovery Queue
 ];
@@ -92,7 +93,23 @@ const dealerProfileSchema = new mongoose.Schema({
     flags: {
         isFadingTlc: { type: Boolean, default: false },          // Yield per visit dropped >40% over sequential cycles
         isEmergingTlc: { type: Boolean, default: false },        // Exactly 1 verified cycle -> proactive confirmation visit
-        isCatalyticActivation: { type: Boolean, default: false } // Single onboarding visit unlocked sustained organic flow
+        isCatalyticActivation: { type: Boolean, default: false }, // Single onboarding visit unlocked sustained organic flow
+        isStrategicTlc: { type: Boolean, default: false },        // High-volume account ($500K+) with strong touch sensitivity
+        isUnderwritingFriction: { type: Boolean, default: false }, // Submitting apps (5+) but low approval rate prevents bookings
+        isDormant: { type: Boolean, default: false }              // No activity/visits in >365 days
+    },
+
+    // ── Underwriting & Pipeline Conversion Stats ──
+    pipelineStats: {
+        totalApplications: { type: Number, default: 0 },
+        totalApproved: { type: Number, default: 0 },
+        totalBookings: { type: Number, default: 0 },
+        totalDeclined: { type: Number, default: 0 },
+        approvalRatePct: { type: Number, default: 0 },
+        lookToBookPct: { type: Number, default: 0 },
+        approvalToBookPct: { type: Number, default: 0 },
+        topUnderwriter: { type: String, default: null },
+        topLender: { type: String, default: null }
     },
 
     // ── Operational Urgency & Touchpoint Recency ──

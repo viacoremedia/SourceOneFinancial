@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dealer Relationship Demand (DRD) Decision Flowchart</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --border: #1e293b;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-blue: #3b82f6;
+      --tlc-red: #ef4444;
+      --self-green: #10b981;
+      --comfort-orange: #f59e0b;
+      --disc-gray: #64748b;
+      --lapsed-purple: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      max-width: 900px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      margin-bottom: 12px;
+    }
+
+    .flow-container {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+      position: relative;
+    }
+
+    /* Node Cards */
+    .node-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 24px;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      position: relative;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .node-card:hover {
+      transform: translateY(-2px);
+      border-color: #3b82f6;
+    }
+
+    .node-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .node-desc {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .conditions-list {
+      margin-top: 10px;
+      padding-left: 18px;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
+    .conditions-list li { margin-bottom: 4px; }
+    .conditions-list code {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #38bdf8;
+      font-family: monospace;
+    }
+
+    /* Decision Diamond / Question Block */
+    .decision-block {
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1.5px solid #3b82f6;
+      border-radius: 12px;
+      padding: 16px 20px;
+      text-align: center;
+      max-width: 580px;
+      width: 100%;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+    }
+
+    .decision-title {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #60a5fa;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .decision-question {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* Branch Container */
+    .branch-split {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      width: 100%;
+    }
+
+    /* Terminal Buckets */
+    .bucket-card {
+      border-radius: 14px;
+      padding: 22px;
+      background: #111827;
+      border: 1.5px solid;
+      position: relative;
+    }
+
+    .bucket-tlc {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: linear-gradient(180deg, rgba(239, 68, 68, 0.08) 0%, rgba(17, 24, 39, 0.9) 100%);
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.1);
+    }
+
+    .bucket-self {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(17, 24, 39, 0.9) 100%);
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.1);
+    }
+
+    .bucket-comfort {
+      border-color: rgba(245, 158, 11, 0.5);
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(17, 24, 39, 0.9) 100%);
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.1);
+    }
+
+    .bucket-disc {
+      border-color: rgba(100, 116, 139, 0.5);
+      background: linear-gradient(180deg, rgba(100, 116, 139, 0.08) 0%, rgba(17, 24, 39, 0.9) 100%);
+    }
+
+    .bucket-lapsed {
+      border-color: rgba(139, 92, 246, 0.5);
+      background: linear-gradient(180deg, rgba(139, 92, 246, 0.08) 0%, rgba(17, 24, 39, 0.9) 100%);
+    }
+
+    .tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .tag-red { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .tag-green { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .tag-orange { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .tag-purple { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); }
+    .tag-gray { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.4); }
+
+    /* Flow Arrows */
+    .arrow-down {
+      width: 2px;
+      height: 28px;
+      background: #334155;
+      position: relative;
+    }
+    .arrow-down::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: -4px;
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid #334155;
+    }
+
+    .action-box {
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      font-size: 12.5px;
+      border-left: 3px solid;
+    }
+
+    .action-tlc { border-color: var(--tlc-red); color: #fca5a5; }
+    .action-self { border-color: var(--self-green); color: #6ee7b7; }
+    .action-comfort { border-color: var(--comfort-orange); color: #fde68a; }
+    .action-lapsed { border-color: var(--lapsed-purple); color: #ddd6fe; }
+    .action-disc { border-color: var(--disc-gray); color: #cbd5e1; }
+
+    .example-dealers {
+      margin-top: 10px;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+    .example-dealers strong { color: #f1f5f9; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="badge">Engine v6.2 • Ground-Truth Logic</div>
+    <h1>Dealer Relationship Demand Decision Architecture</h1>
+    <p>How every dealership is categorized from raw applications, field communications, and 2025–2026 performance</p>
+  </div>
+
+  <div class="flow-container">
+
+    <!-- Step 1: Baseline -->
+    <div class="node-card" style="border-top: 4px solid var(--accent-blue);">
+      <div class="node-title">
+        <span>1. Live 2025+ Operational Anchor</span>
+        <span class="tag tag-gray">Baseline Filter</span>
+      </div>
+      <div class="node-desc">
+        All applications and rep communications prior to <strong>Jan 1, 2025</strong> are excluded. Eliminates stale historical 2020–2024 activity and focuses exclusively on live dealership health.
+      </div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Step 2: Discovery Gate -->
+    <div class="decision-block">
+      <div class="decision-title">Step 2: Interaction History Gate</div>
+      <div class="decision-question">Is total visits &lt; 2 AND applications &lt; 5 AND volume &lt; $100K?</div>
+    </div>
+
+    <div class="branch-split">
+      <!-- Yes -> Discovery Queue -->
+      <div class="bucket-card bucket-disc">
+        <div class="node-title">
+          <span style="color: #cbd5e1;">⚪ DISCOVERY QUEUE (50.1%)</span>
+          <span class="tag tag-gray">1,973 Accounts</span>
+        </div>
+        <p class="node-desc">Inconclusive relationship history. Dealership is either brand new or has minimal interaction history.</p>
+        <div class="action-box action-disc">
+          <strong>Field Recommendation:</strong> Schedule an exploratory baseline visit to assess dealership loan potential.
+        </div>
+        <div class="example-dealers">
+          <strong>Examples:</strong> MO193 (0 apps in 2025+), CO104 (0 apps in 2025+)
+        </div>
+      </div>
+
+      <!-- No -> Continue Evaluation -->
+      <div class="node-card" style="border-left: 4px solid #3b82f6;">
+        <div class="node-title">
+          <span style="color: #60a5fa;">Proceed to Operational Performance Checks</span>
+          <span class="tag tag-gray">Active Rooftops</span>
+        </div>
+        <p class="node-desc">Dealer has sufficient volume or field interactions (1,967 Accounts). Engine evaluates touch sensitivity vs. conversion friction.</p>
+      </div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Step 3: Comfort Stop & Underwriting Friction -->
+    <div class="decision-block">
+      <div class="decision-title">Step 3: Conversion & Efficiency Filter</div>
+      <div class="decision-question">Did 3+ field visits yield $0/low conversion OR heavy underwriting declines?</div>
+    </div>
+
+    <div class="branch-split">
+      <!-- Comfort Stop A: Time Sink -->
+      <div class="bucket-card bucket-comfort">
+        <div class="node-title">
+          <span style="color: #fbbf24;">🟠 COMFORT STOP (Time Sink)</span>
+          <span class="tag tag-orange">Rep Efficiency</span>
+        </div>
+        <ul class="conditions-list">
+          <li><code>Visits &ge; 3</code> resulting in <strong>$0 funded loan volume</strong></li>
+          <li><code>Visits &ge; 15</code> with yield <code>&lt; $25,000 / visit</code></li>
+        </ul>
+        <div class="action-box action-comfort">
+          <strong>Recommendation:</strong> Freeze field visits immediately. Reallocate rep hours to High TLC accounts.
+        </div>
+      </div>
+
+      <!-- Comfort Stop B: UW Friction -->
+      <div class="bucket-card bucket-comfort">
+        <div class="node-title">
+          <span style="color: #fbbf24;">🟠 COMFORT STOP (UW Review)</span>
+          <span class="tag tag-orange">Lender Friction</span>
+        </div>
+        <ul class="conditions-list">
+          <li><code>Visits &ge; 3</code> and <code>Apps &ge; 35</code>, but <code>Approval Rate &le; 20%</code></li>
+          <li>Rep successfully driving volume, but deals get declined</li>
+        </ul>
+        <div class="action-box action-comfort">
+          <strong>Recommendation:</strong> <em>Do not penalize sales rep.</em> Coordinate with Underwriting to review credit tiers.
+        </div>
+        <div class="example-dealers">
+          <strong>Example:</strong> TX246 (27 visits, 106 apps, 8% approval rate)
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Step 4: Live 180-Day Recency Gate -->
+    <div class="decision-block">
+      <div class="decision-title">Step 4: Live 180-Day Recency Gate</div>
+      <div class="decision-question">Has the dealer submitted 0 applications in the last 180 days (Silent in 2026)?</div>
+    </div>
+
+    <div class="branch-split">
+      <!-- Lapsed / Churned -->
+      <div class="bucket-card bucket-lapsed">
+        <div class="node-title">
+          <span style="color: #a78bfa;">💤 LAPSED / CHURNED ACCOUNT</span>
+          <span class="tag tag-purple">Win-Back Queue</span>
+        </div>
+        <p class="node-desc">Produced volume in early 2025, but went silent for 6–15 months. <strong>Not active self-sufficient.</strong></p>
+        <div class="action-box action-lapsed">
+          <strong>Recommendation:</strong> Exclude from active weekly sales rep routes. Target for Marketing Win-Back / Reactivation.
+        </div>
+        <div class="example-dealers">
+          <strong>Examples:</strong> NC128 (Silent 349d), KY112 (Silent 255d), OH194 (Silent 493d)
+        </div>
+      </div>
+
+      <!-- Active in 2026 -->
+      <div class="node-card" style="border-left: 4px solid var(--self-green);">
+        <div class="node-title">
+          <span style="color: #34d399;">Active 2026 Production Confirmed</span>
+          <span class="tag tag-green">Live Accounts</span>
+        </div>
+        <p class="node-desc">Dealer has submitted applications recently in 2026. Evaluating <strong>Organic Baseline vs. Touch Sensitivity</strong>.</p>
+      </div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Step 5: Organic Baseline vs High TLC -->
+    <div class="decision-block">
+      <div class="decision-title">Step 5: Organic Baseline vs Touch Sensitivity</div>
+      <div class="decision-question">Does dealer produce organically (&ge;50% outside visits) OR require in-person visits (&ge;60% lift)?</div>
+    </div>
+
+    <div class="branch-split">
+      <!-- Self-Sufficient -->
+      <div class="bucket-card bucket-self">
+        <div class="node-title">
+          <span style="color: #34d399;">🟢 SELF-SUFFICIENT (1,167 Accounts)</span>
+          <span class="tag tag-green">Autonomous Flow</span>
+        </div>
+        <ul class="conditions-list">
+          <li><code>Organic Ratio &ge; 50%</code> (Deals flow independently)</li>
+          <li><code>Unvisited &gt; 120 Days</code> with sustained <code>&ge; $100K</code> production</li>
+          <li><code>Catalytic Activation:</code> Single onboarding visit unlocked flow</li>
+        </ul>
+        <div class="action-box action-self">
+          <strong>Cadence:</strong> Deprioritize road trips. Maintain via quarterly (90-day) digital check-ins.
+        </div>
+        <div class="example-dealers">
+          <strong>Examples:</strong> 17401746 ($32M vol, 0 visits), TX108 ($16.8M vol, 87% organic)
+        </div>
+      </div>
+
+      <!-- High TLC -->
+      <div class="bucket-card bucket-tlc">
+        <div class="node-title">
+          <span style="color: #f87171;">🔴 HIGH TLC (119 Accounts)</span>
+          <span class="tag tag-red">Visit-Dependent</span>
+        </div>
+        <ul class="conditions-list">
+          <li><code>Post-Visit Lift &ge; 60%</code> (Deals occur in 45-day visit window)</li>
+          <li><code>Multi-Cycle Proof:</code> &ge; 2 confirmed cycles / &ge; 3 deals</li>
+          <li><code>Economic Viability:</code> Yield &ge; $20,000 / visit</li>
+        </ul>
+        <div class="action-box action-tlc">
+          <strong>Cadence:</strong> Enforce strict <strong>30–45 day in-person route cadence</strong> to prevent volume cliff.
+        </div>
+        <div class="example-dealers">
+          <strong>Examples:</strong> FL340 ($3.12M, 100% lift), AZ252 ($2.19M, 73% lift)
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-down"></div>
+
+    <!-- Step 6: High TLC Urgency Engine -->
+    <div class="node-card" style="border-top: 4px solid var(--tlc-red); max-width: 900px; width: 100%;">
+      <div class="node-title">
+        <span style="color: #f87171;">6. High TLC Sales Rep Urgency Router</span>
+        <span class="tag tag-red">Dynamic Road Alerts</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 14px;">
+        <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: 700; color: #f87171; font-size: 13px;">🚨 OVERDUE (65 Accounts)</div>
+          <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">Unvisited for &gt; 35 days. Immediate road visit required to protect volume.</div>
+        </div>
+        <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: 700; color: #fbbf24; font-size: 13px;">⏳ DUE SOON (8 Accounts)</div>
+          <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">Unvisited for 28–35 days. Add to next week's route schedule.</div>
+        </div>
+        <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: 700; color: #34d399; font-size: 13px;">✅ ON TRACK (46 Accounts)</div>
+          <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">Visited within the last 28 days. Post-visit lift envelope currently active.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

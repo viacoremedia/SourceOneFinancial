@@ -47,16 +47,12 @@ type SubSortField =
   | 'reactivatedVolume'
   | 'visitCount';
 
-// Feature Flag: TLC Feature is hidden on frontend by default until ready to launch.
-// Can be enabled for testing via ?tlc=true in the URL or localStorage.setItem('ENABLE_TLC', 'true')
-const SHOW_TLC_FEATURE = typeof window !== 'undefined' && (
-  window.location.search.includes('tlc=true') ||
-  localStorage.getItem('ENABLE_TLC') === 'true'
-);
+// Feature Flag: TLC Feature is enabled for development/review. Can be disabled via localStorage.setItem('ENABLE_TLC', 'false')
+const SHOW_TLC_FEATURE = typeof window !== 'undefined' ? (localStorage.getItem('ENABLE_TLC') !== 'false') : true;
 
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
   const { openDealer360 } = useAnalyticsContext();
-  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('reactivation');
+  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('demand');
   const [windowDays, setWindowDays] = useState<number>(30);
   const [touchpointMode, setTouchpointMode] = useState<'visits' | 'all'>('visits');
   const [timeframe, setTimeframe] = useState<'ytd' | '30d' | '60d'>('ytd');

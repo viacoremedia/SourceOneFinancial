@@ -87,15 +87,28 @@ async function getDealerStatsMap({ dealerIds = null, startDate = null, endDate =
 
     // ── Pipeline 1: Lead Date Model (applicationDate match) ──
     const leadMatch = { ...baseMatch };
+    let maxLeadBookedDate = null;
     if (startDate || endDate) {
         leadMatch.applicationDate = {};
         if (startDate) leadMatch.applicationDate.$gte = new Date(startDate);
         if (endDate) {
-            const endD = new Date(endDate);
-            endD.setUTCHours(23, 59, 59, 999);
-            leadMatch.applicationDate.$lte = endD;
+            maxLeadBookedDate = new Date(endDate);
+            maxLeadBookedDate.setUTCHours(23, 59, 59, 999);
+            leadMatch.applicationDate.$lte = maxLeadBookedDate;
         }
     }
+
+    const leadBookedCond = maxLeadBookedDate ? {
+        $and: [
+            { $eq: ['$status', 'Booked'] },
+            {
+                $or: [
+                    { $eq: ['$bookedDate', null] },
+                    { $lte: ['$bookedDate', maxLeadBookedDate] }
+                ]
+            }
+        ]
+    } : { $eq: ['$status', 'Booked'] };
 
     const leadPipeline = [
         { $match: leadMatch },
@@ -129,7 +142,7 @@ async function getDealerStatsMap({ dealerIds = null, startDate = null, endDate =
                 leadBooked: {
                     $sum: {
                         $cond: [
-                            { $eq: ['$status', 'Booked'] },
+                            leadBookedCond,
                             1,
                             0
                         ]
@@ -138,7 +151,7 @@ async function getDealerStatsMap({ dealerIds = null, startDate = null, endDate =
                 leadBookedDollars: {
                     $sum: {
                         $cond: [
-                            { $eq: ['$status', 'Booked'] },
+                            leadBookedCond,
                             { $ifNull: ['$amountFinanced', 0] },
                             0
                         ]

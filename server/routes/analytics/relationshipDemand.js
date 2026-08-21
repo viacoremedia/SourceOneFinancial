@@ -47,6 +47,7 @@ router.get('/summary', async (req, res) => {
             overdue: 0,
             due_soon: 0,
             on_track: 0,
+            dormant: 0,
             self_sufficient: 0,
             not_monitored: 0
         };

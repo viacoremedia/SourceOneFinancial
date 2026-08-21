@@ -594,7 +594,7 @@ export async function getUnderwriterScorecardApi(startDate?: string, endDate?: s
 
 // ── Relationship Demand & DRD Engine (v6.2 Final) ──
 export type RelationshipDemandSegment = 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data';
-export type UrgencyStatus = 'overdue' | 'due_soon' | 'on_track' | 'self_sufficient' | 'not_monitored';
+export type UrgencyStatus = 'overdue' | 'due_soon' | 'on_track' | 'dormant' | 'self_sufficient' | 'not_monitored';
 
 export interface InteractionCycleItem {
   cycleNumber: number;
@@ -631,6 +631,20 @@ export interface DealerProfileItem {
     isFadingTlc: boolean;
     isEmergingTlc: boolean;
     isCatalyticActivation: boolean;
+    isStrategicTlc?: boolean;
+    isUnderwritingFriction?: boolean;
+    isDormant?: boolean;
+  };
+  pipelineStats?: {
+    totalApplications: number;
+    totalApproved: number;
+    totalBookings: number;
+    totalDeclined: number;
+    approvalRatePct: number;
+    lookToBookPct: number;
+    approvalToBookPct: number;
+    topUnderwriter?: string | null;
+    topLender?: string | null;
   };
   daysSinceLastVisit?: number | null;
   lastVisitDate?: string | null;

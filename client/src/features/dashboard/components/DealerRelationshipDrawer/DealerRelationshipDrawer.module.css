@@ -203,6 +203,12 @@
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+.urgencyDormant {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 /* Scrollable Content */
 .drawerContent {
   flex: 1;
