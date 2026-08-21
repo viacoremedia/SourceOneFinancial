@@ -39,6 +39,23 @@ const MONTHLY_SEASONAL_INDEX = {
 };
 
 /**
+ * Calculate dynamic post-visit active window based on calendar month of the visit.
+ * Spring / Summer Peak (Mar - Aug): 55 days (Extended consumer shopping cycle)
+ * Shoulder Season (Sep - Oct): 45 days
+ * Winter / Off-Season (Nov - Feb): 35 days (Tighter turnaround required)
+ * 
+ * @param {Date} date - Date of the visit episode
+ * @returns {number} Days in active post-visit envelope
+ */
+function getSeasonalPostWindowDays(date) {
+    if (!date || isNaN(date.getTime())) return 45;
+    const month = date.getMonth(); // 0 = Jan, 11 = Dec
+    if (month >= 2 && month <= 7) return 55; // Mar - Aug
+    if (month >= 8 && month <= 9) return 45; // Sep - Oct
+    return 35; // Nov - Feb
+}
+
+/**
  * Classify and normalize communication records across both Jeriko (2024-2025) and Badger Maps (2026).
  * 
  * @param {Object} comm - Raw communication document
@@ -269,11 +286,14 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     const visitClusters = clusterVisits(rawVisits);
     const verifiedCycleCount = visitClusters.length;
 
-    // Build merged active visit envelopes: [visit.startDate, visit.endDate + 45 days]
-    const rawEnvelopes = visitClusters.map(c => ({
-        start: c.startDate.getTime(),
-        end: c.endDate.getTime() + POST_WINDOW_MS
-    }));
+    // Build merged active visit envelopes: [visit.startDate, visit.endDate + seasonalPostWindowDays]
+    const rawEnvelopes = visitClusters.map(c => {
+        const windowDays = getSeasonalPostWindowDays(c.startDate);
+        return {
+            start: c.startDate.getTime(),
+            end: c.endDate.getTime() + (windowDays * DAY_MS)
+        };
+    });
     const mergedEnvelopes = mergeIntervals(rawEnvelopes);
 
     // Measure Touched vs Untouched Bookings & Applications across entire history
@@ -312,10 +332,11 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         const cluster = visitClusters[i];
         const clusterEndMs = cluster.endDate.getTime();
         const clusterStartMs = cluster.startDate.getTime();
-        const postEndMs = clusterEndMs + POST_WINDOW_MS;
-        const preStartMs = clusterStartMs - POST_WINDOW_MS;
+        const seasonalWindowDays = getSeasonalPostWindowDays(cluster.startDate);
+        const postEndMs = clusterEndMs + (seasonalWindowDays * DAY_MS);
+        const preStartMs = clusterStartMs - (seasonalWindowDays * DAY_MS);
 
-        // Apps & Bookings inside Cluster Envelope [startDate, endDate + 45d]
+        // Apps & Bookings inside Cluster Envelope [startDate, endDate + seasonalWindowDays]
         const clusterApps = validApps.filter(a => {
             const t = a.appDate.getTime();
             return t >= clusterStartMs && t <= postEndMs;
@@ -327,7 +348,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         const appsInWindow = clusterApps.length;
         cycleYields.push(bookedVolumeInWindow);
 
-        // Pre-Window baseline [startDate - 45d, startDate]
+        // Pre-Window baseline [startDate - seasonalWindowDays, startDate]
         const preApps = validApps.filter(a => {
             const t = a.appDate.getTime();
             return t >= preStartMs && t < clusterStartMs;
@@ -338,8 +359,8 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         // Calculate Relative Booked Lift (seasonally normalized)
         const startMonth = cluster.startDate.getMonth();
         const seasonWeight = MONTHLY_SEASONAL_INDEX[startMonth] || 1.0;
-        const preRate = (preBookedVolume / 45) * 30 * seasonWeight;
-        const postRate = (bookedVolumeInWindow / 45) * 30;
+        const preRate = (preBookedVolume / seasonalWindowDays) * 30 * seasonWeight;
+        const postRate = (bookedVolumeInWindow / seasonalWindowDays) * 30;
         const relativeBookedLift = Math.round(((postRate - preRate) / Math.max(preRate, 5000)) * 100) / 100;
 
         // Days to first booked deal
@@ -349,7 +370,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
             daysToFirstBooked = Math.max(0, Math.floor((firstBookedMs - clusterStartMs) / DAY_MS));
         }
 
-        // Measure subsequent decay in [endDate + 45d, nextClusterStart or +90d]
+        // Measure subsequent decay in [endDate + seasonalWindowDays, nextClusterStart or +90d]
         const nextClusterStartMs = (i + 1 < visitClusters.length) ? visitClusters[i + 1].startDate.getTime() : postEndMs + (45 * DAY_MS);
         const decayApps = validApps.filter(a => {
             const t = a.appDate.getTime();
@@ -644,6 +665,43 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         decisionRationale.push(`Why this rule applied: Unvisited for over a year (>365 days). Excluded from active weekly sales rep route alerts and marked for a Dormant Reactivation campaign.`);
     }
 
+    // ── CRM Notes Intelligence (Personnel Turnover & Competitor Friction) ──
+    let turnoverAlert = null;
+    let competitorAlert = null;
+
+    for (const comm of comms) {
+        if (!comm.communicationEventDatetime) continue;
+        const dt = new Date(comm.communicationEventDatetime);
+        const daysAgo = Math.floor((nowMs - dt.getTime()) / DAY_MS);
+        const res = (comm.communicationResult1 || '').toLowerCase();
+        const feed = (comm.communicationFeedback1 || '').toLowerCase();
+
+        // Check for F&I / Management Turnover (Last 180 Days)
+        if (!turnoverAlert && daysAgo <= 180) {
+            if (feed.includes('new f&i') || feed.includes('new finance') || feed.includes('new manager') || feed.includes('manager left') || feed.includes('f&i left') || feed.includes('turnover') || feed.includes('no longer with') || feed.includes('new director')) {
+                turnoverAlert = {
+                    date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                };
+            }
+        }
+
+        // Check for Competitor Friction (Last 120 Days)
+        if (!competitorAlert && daysAgo <= 120) {
+            if (res.includes('lost to competitor') || feed.includes('lost to competitor') || feed.includes('competitor rate') || feed.includes('cheaper rate') || feed.includes('ally') || feed.includes('huntington') || feed.includes('us bank')) {
+                competitorAlert = {
+                    date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                };
+            }
+        }
+    }
+
+    if (turnoverAlert) {
+        decisionRationale.push(`⚠️ Personnel Alert: Rep CRM notes report F&I / Management turnover on ${turnoverAlert.date}. Volume trajectory may reflect onboarding new staff.`);
+    }
+    if (competitorAlert) {
+        decisionRationale.push(`⚔️ Competitor Friction: Field rep logged deals lost to competitor rate sheets on ${competitorAlert.date}.`);
+    }
+
     // ── 8. Generate Pre-Aggregated Monthly Timeline (2024-2026) ──
     const monthlyMap = new Map();
     const startYear = 2024;
@@ -809,6 +867,7 @@ async function recomputeAllProfiles({ referenceDate = new Date(), startDate = ne
         communicationEventDatetime: 1,
         communicationType: 1,
         communicationResult1: 1,
+        communicationFeedback1: 1,
         communicationUserFullName: 1
     }).lean();
 
