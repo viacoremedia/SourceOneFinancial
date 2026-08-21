@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAnalyticsContext } from '../../core/contexts/AnalyticsContext';
+import { useAuth } from '../../features/auth/hooks/useAuth';
 import {
   getDealer360,
   getDealer360Timeline,
@@ -54,6 +55,8 @@ export function Dealer360Modal() {
     closeDealer360,
     setFocusedRep,
   } = useAnalyticsContext();
+  const { user } = useAuth();
+  const isJoshua = (user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com') || (typeof window !== 'undefined' && localStorage.getItem('ENABLE_TLC') === 'true');
 
   const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'mom' | 'touchpoints' | 'apps'>('overview');
   const [timelineFilter, setTimelineFilter] = useState<'all' | 'visits' | 'apps' | 'booked'>('all');
@@ -159,7 +162,7 @@ export function Dealer360Modal() {
                     {overviewData.status.replace('_', ' ')}
                   </span>
                 )}
-                {drdData?.profile?.relationshipDemand && (
+                {isJoshua && drdData?.profile?.relationshipDemand && (
                   <span
                     className={styles.statusBadge}
                     style={{

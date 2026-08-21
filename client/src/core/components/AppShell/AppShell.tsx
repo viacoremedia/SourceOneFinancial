@@ -22,16 +22,28 @@ interface AppShellProps {
   onOpenVisitImpact?: () => void;
 }
 
-export function AppShell({ children, latestReportDate, rollingWindow = 7, onRollingWindowChange, onSelectRep, onSelectRepState, onSelectUnderwriter, activityMode, onActivityModeChange, onOpenMoMAnalytics, onOpenVisitImpact }: AppShellProps) {
+export function AppShell({
+  children,
+  latestReportDate,
+  rollingWindow = 7,
+  onRollingWindowChange,
+  onSelectRep,
+  onSelectRepState,
+  onSelectUnderwriter,
+  activityMode,
+  onActivityModeChange,
+  onOpenMoMAnalytics,
+  onOpenVisitImpact
+}: AppShellProps) {
   const { user } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [underwriterOpen, setUnderwriterOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const formattedDate = latestReportDate
     ? (() => {
-        // Parse as UTC to avoid timezone shift (API sends midnight UTC)
         const d = new Date(latestReportDate);
         return d.toLocaleDateString('en-US', {
           month: 'short',
@@ -41,8 +53,6 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
         });
       })()
     : null;
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className={styles.appShell}>
@@ -173,13 +183,22 @@ export function AppShell({ children, latestReportDate, rollingWindow = 7, onRoll
                   <span>Historical MoM Analytics</span>
                 </button>
               )}
+              {onOpenVisitImpact && (
+                <button
+                  className={styles.mobileDrawerItem}
+                  onClick={() => { setMobileMenuOpen(false); onOpenVisitImpact(); }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  <span>{user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com' ? 'Relationship Demand (DRD)' : 'Visit Impact'}</span>
+                </button>
+              )}
               {user && (
                 <>
                   <button
                     className={styles.mobileDrawerItem}
                     onClick={() => { setMobileMenuOpen(false); setScorecardOpen(true); }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>
                     <span>Rep Scorecard</span>
                   </button>
                   <button

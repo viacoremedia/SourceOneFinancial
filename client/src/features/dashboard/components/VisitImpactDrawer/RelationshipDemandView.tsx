@@ -197,165 +197,129 @@ export function RelationshipDemandView() {
       </div>
 
       {/* 3 Inner View Tabs */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
+      <div className={styles.innerTabsBar}>
         <button
           onClick={() => setActiveTab('allocation')}
-          style={{
-            background: activeTab === 'allocation' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-            color: activeTab === 'allocation' ? '#38bdf8' : '#94a3b8',
-            border: activeTab === 'allocation' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer'
-          }}
+          className={`${styles.innerTabPill} ${activeTab === 'allocation' ? styles.innerTabPillActive : ''}`}
         >
-          <Layers size={15} />
-          <span>Executive Allocation & Overdue Queue</span>
+          <Layers size={14} />
+          <span>Executive Queue</span>
         </button>
 
         <button
           onClick={() => setActiveTab('explorer')}
-          style={{
-            background: activeTab === 'explorer' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-            color: activeTab === 'explorer' ? '#38bdf8' : '#94a3b8',
-            border: activeTab === 'explorer' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer'
-          }}
+          className={`${styles.innerTabPill} ${activeTab === 'explorer' ? styles.innerTabPillActive : ''}`}
         >
-          <Search size={15} />
-          <span>Dealer Relationship Explorer ({totalDealers.toLocaleString()})</span>
+          <Search size={14} />
+          <span>Dealer Explorer ({totalDealers.toLocaleString()})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('diagnostics')}
-          style={{
-            background: activeTab === 'diagnostics' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-            color: activeTab === 'diagnostics' ? '#38bdf8' : '#94a3b8',
-            border: activeTab === 'diagnostics' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer'
-          }}
+          className={`${styles.innerTabPill} ${activeTab === 'diagnostics' ? styles.innerTabPillActive : ''}`}
         >
-          <Briefcase size={15} />
-          <span>Rep Misallocation Diagnostics</span>
+          <Briefcase size={14} />
+          <span>Misallocation Diagnostics</span>
         </button>
       </div>
 
       {/* ── TAB 1: EXECUTIVE ALLOCATION & OVERDUE ACTION QUEUE ── */}
       {activeTab === 'allocation' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* 4 Hero KPI Banners */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+          <div className={styles.heroKpiGrid}>
             {/* High TLC Card */}
-            <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+            <div className={styles.heroKpiCard} style={{ background: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)' }}>
+              <div className={styles.heroKpiTopRow}>
+                <span className={styles.heroKpiBadge} style={{ color: '#f87171' }}>
                   🔴 High TLC (Visit-Dependent)
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#fca5a5', fontWeight: 600 }}>
+                <span className={styles.heroKpiPct} style={{ color: '#fca5a5' }}>
                   {summary?.segments.high_tlc.pct || 0}%
                 </span>
               </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>
+              <div className={styles.heroKpiCount}>
                 {summary?.segments.high_tlc.count || 0} Rooftops
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+              <div className={styles.heroKpiSub}>
                 Funded Volume: <strong>{formatDollar(summary?.segments.high_tlc.bookedVolume || 0)}</strong>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600, marginTop: '4px' }}>
+              <div className={styles.heroKpiAlert} style={{ color: '#ef4444' }}>
                 🚨 {summary?.urgency.overdue || 0} Overdue • ⏳ {summary?.urgency.due_soon || 0} Due Soon
               </div>
             </div>
 
             {/* Self-Sufficient Card */}
-            <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+            <div className={styles.heroKpiCard} style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.25)' }}>
+              <div className={styles.heroKpiTopRow}>
+                <span className={styles.heroKpiBadge} style={{ color: '#34d399' }}>
                   🟢 Self-Sufficient (Organic)
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#6ee7b7', fontWeight: 600 }}>
+                <span className={styles.heroKpiPct} style={{ color: '#6ee7b7' }}>
                   {summary?.segments.self_sufficient.pct || 0}%
                 </span>
               </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>
+              <div className={styles.heroKpiCount}>
                 {summary?.segments.self_sufficient.count || 0} Rooftops
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+              <div className={styles.heroKpiSub}>
                 Funded Volume: <strong>{formatDollar(summary?.segments.self_sufficient.bookedVolume || 0)}</strong>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600, marginTop: '4px' }}>
+              <div className={styles.heroKpiAlert} style={{ color: '#34d399' }}>
                 ✅ Portal flow — Deprioritize road trips
               </div>
             </div>
 
             {/* Comfort Stop Card */}
-            <div style={{ background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.25)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fb923c', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+            <div className={styles.heroKpiCard} style={{ background: 'rgba(249, 115, 22, 0.08)', borderColor: 'rgba(249, 115, 22, 0.25)' }}>
+              <div className={styles.heroKpiTopRow}>
+                <span className={styles.heroKpiBadge} style={{ color: '#fb923c' }}>
                   🟠 Comfort Stop (Time Sink)
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#fdba74', fontWeight: 600 }}>
+                <span className={styles.heroKpiPct} style={{ color: '#fdba74' }}>
                   {summary?.segments.comfort_stop.pct || 0}%
                 </span>
               </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>
+              <div className={styles.heroKpiCount}>
                 {summary?.segments.comfort_stop.count || 0} Rooftops
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+              <div className={styles.heroKpiSub}>
                 Wasted Visits: <strong>{summary?.segments.comfort_stop.totalVisits.toLocaleString() || 0} visits</strong>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#fb923c', fontWeight: 600, marginTop: '4px' }}>
+              <div className={styles.heroKpiAlert} style={{ color: '#fb923c' }}>
                 ⚠️ $0 Booked Loans — Freeze visits
               </div>
             </div>
 
             {/* Discovery Queue Card */}
-            <div style={{ background: 'rgba(148, 163, 184, 0.08)', border: '1px solid rgba(148, 163, 184, 0.25)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+            <div className={styles.heroKpiCard} style={{ background: 'rgba(148, 163, 184, 0.08)', borderColor: 'rgba(148, 163, 184, 0.25)' }}>
+              <div className={styles.heroKpiTopRow}>
+                <span className={styles.heroKpiBadge} style={{ color: '#cbd5e1' }}>
                   ⚪ Discovery Queue (Low Data)
                 </span>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>
+                <span className={styles.heroKpiPct} style={{ color: '#94a3b8' }}>
                   {summary?.segments.insufficient_data.pct || 0}%
                 </span>
               </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>
+              <div className={styles.heroKpiCount}>
                 {summary?.segments.insufficient_data.count.toLocaleString() || 0} Rooftops
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+              <div className={styles.heroKpiSub}>
                 Unexplored: <strong>&lt;2 visits / &lt;5 apps</strong>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, marginTop: '4px' }}>
+              <div className={styles.heroKpiAlert} style={{ color: '#94a3b8' }}>
                 🔍 Schedule baseline check-in
               </div>
             </div>
           </div>
 
           {/* Interactive Sales Rep Allocation Matrix */}
-          <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Users size={16} color="#38bdf8" />
-                  <span>Sales Rep Route Allocation Matrix (Click Badge to Filter Table)</span>
+                  <span>Sales Rep Route Allocation Matrix</span>
                 </h3>
                 <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
                   Clicking any red overdue badge instantly filters the master dealer table to that representative's overdue High TLC accounts.
@@ -363,8 +327,8 @@ export function RelationshipDemandView() {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+            <div className={styles.matrixTableScroll}>
+              <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', fontSize: '0.75rem', textTransform: 'uppercase' }}>
                     <th style={{ padding: '10px 12px' }}>Sales Representative</th>

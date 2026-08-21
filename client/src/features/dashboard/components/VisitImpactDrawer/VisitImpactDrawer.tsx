@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
+import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './VisitImpactDrawer.module.css';
 import { RelationshipDemandView } from './RelationshipDemandView';
 import {
@@ -47,12 +48,23 @@ type SubSortField =
   | 'reactivatedVolume'
   | 'visitCount';
 
-// Feature Flag: TLC Feature is enabled for development/review. Can be disabled via localStorage.setItem('ENABLE_TLC', 'false')
-const SHOW_TLC_FEATURE = typeof window !== 'undefined' ? (localStorage.getItem('ENABLE_TLC') !== 'false') : true;
-
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
   const { openDealer360 } = useAnalyticsContext();
-  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('demand');
+  const { user } = useAuth();
+
+  // Whitelist check: only joshua@viacoremedia.com can see the DRD feature
+  const isJoshua = (user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com') || (typeof window !== 'undefined' && localStorage.getItem('ENABLE_TLC') === 'true');
+
+  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('reactivation');
+
+  useEffect(() => {
+    if (isJoshua) {
+      setMainTab('demand');
+    } else {
+      setMainTab('reactivation');
+    }
+  }, [isJoshua]);
+
   const [windowDays, setWindowDays] = useState<number>(30);
   const [touchpointMode, setTouchpointMode] = useState<'visits' | 'all'>('visits');
   const [timeframe, setTimeframe] = useState<'ytd' | '30d' | '60d'>('ytd');
@@ -273,7 +285,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
               </div>
             ) : (
               <>
-                {SHOW_TLC_FEATURE ? (
+                {isJoshua ? (
                   <div className={styles.topNavTabs}>
                     <button
                       className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
