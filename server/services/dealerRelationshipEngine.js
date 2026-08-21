@@ -601,7 +601,11 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
             decisionRationale.push(`Classified as High TLC / Visit-Dependent (Confidence ${Math.round(confidenceScore * 100)}%).`);
             decisionRationale.push(`${pctLiftStr} of all lifetime funded loan volume (${bookedVolStr} across ${totalBookings} booked deal${totalBookings > 1 ? 's' : ''}) occurred exclusively within active in-person visit envelopes.`);
             decisionRationale.push(`Funded loan production flatlines to zero during unvisited gaps.`);
-            decisionRationale.push(`Why this rule applied: ${spikeAndDecayCycleCount} independent Spike & Decay cycles verified across multi-year history.`);
+            if (spikeAndDecayCycleCount >= 2) {
+                decisionRationale.push(`Why this rule applied: ${spikeAndDecayCycleCount} independent Spike & Decay cycles verified across interaction history.`);
+            } else {
+                decisionRationale.push(`Why this rule applied: High concentration of loan volume (${pctLiftStr} lift) tied directly to sales rep road visits.`);
+            }
             decisionRationale.push(`Recommendation: Enforce strict 30–45 day in-person route cadence. Currently ${daysSinceLastVisit !== null ? `${daysSinceLastVisit} days unvisited` : 'unvisited'}.`);
         }
         if (isFadingTlc) {
