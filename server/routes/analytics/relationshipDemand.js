@@ -231,12 +231,11 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
             feedback: c.communicationFeedback1 || ''
         }));
 
-        // Fetch recent applications
+        // Fetch recent applications with full fields for detail inspection
         const recentApplications = await Application.find({
             clientDealerId,
             applicationDate: { $ne: null }
         })
-            .select('applicationId applicationDate bookedDate status amountFinanced lender collateralType collateralYear')
             .sort({ applicationDate: -1 })
             .limit(50)
             .lean();

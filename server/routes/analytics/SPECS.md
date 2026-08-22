@@ -94,11 +94,39 @@ Triggers full background recompute across all 3,940 dealer locations.
 
 ---
 
+## Routes — `routes/analytics/pdfScorecard.js` (PDF Scorecard Engine)
+
+### `POST /analytics/pdf-scorecard/generate`
+Asynchronously triggers PDF scorecard generation across all reps and company overview.
+- **Body**: `{ name?, scorecard: { windowSize, statusFilter, activityMode, finPeriod }, visitImpact: { reactivationWindow, touchpointMode, timeframe }, drd: { includeTlcList } }`
+- **Response**: `{ success: true, reportId, status: 'generating' }`
+
+### `GET /analytics/pdf-scorecard/reports`
+Paginated history of all generated report batches.
+- **Query Params**: `page` (default 1), `limit` (default 10, max 50)
+- **Response**: `{ success: true, reports: [...], total, page, totalPages }`
+
+### `GET /analytics/pdf-scorecard/reports/:id`
+Retrieves single report metadata, status, summary stats, and file manifest.
+
+### `GET /analytics/pdf-scorecard/reports/:id/files/:filename`
+Streams individual PDF file from disk for browser and in-app iframe rendering.
+
+### `GET /analytics/pdf-scorecard/reports/:id/download`
+Streams on-the-fly ZIP archive bundle containing all generated PDF scorecards.
+
+### `DELETE /analytics/pdf-scorecard/reports/:id`
+Deletes report record and purges all PDF files from disk.
+
+---
+
 ## Files
 
 | File | Lines | Description |
 |---|---|---|
 | `index.js` | ~880 | Main analytics API (groups, dealers, rolling avgs) |
 | `relationshipDemand.js` | ~380 | DRD engine routes (summary, dealers, drawer payload, rep-allocation) |
-| `dealerRelationshipEngine.js` | ~510 | Core episodic pattern engine, channel normalizer & visit clusterer |
-| `DealerProfile.js` | ~160 | Precomputed relationship demand profiles schema |
+| `pdfScorecard.js` | ~210 | PDF scorecard generation, streaming, and archive management routes |
+| `pdfGenerator.js` | ~580 | PDFKit multi-page layout generator for Company Overview & 5-page Rep scorecards |
+| `ScorecardReport.js` | ~110 | Scorecard report batch metadata and file manifest model |
+

@@ -72,8 +72,26 @@
 
 .kpiGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
   gap: 12px;
+}
+
+@media (min-width: 1536px) {
+  .kpiGrid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1120px) and (max-width: 1535px) {
+  .kpiGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1119px) {
+  .kpiGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .kpiCard {
@@ -84,6 +102,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
   transition: all 0.2s ease;
 }
 
@@ -98,36 +118,47 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .kpiLabel {
-  font-size: 0.68rem;
+  font-size: clamp(0.62rem, 0.72vw, 0.68rem);
   font-weight: 700;
   color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .kpiValue {
-  font-size: 1.35rem;
+  font-size: clamp(1.18rem, 1.4vw, 1.35rem);
   font-weight: 800;
   color: #ffffff;
   line-height: 1.1;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trendTag {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 5px;
   white-space: nowrap;
+  max-width: 100%;
+  flex-shrink: 0;
 }
 
 .trendUp {

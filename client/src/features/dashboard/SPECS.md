@@ -73,3 +73,17 @@ Fetches high-level counts.
 | `BestWorst`        | `{ best: number \| null, worst: number \| null }`  |
 | `ActivityStatus`   | `'active' \| '30d_inactive' \| '60d_inactive' \| 'long_inactive' \| 'never_active'` |
 | `TabId`           | `'groups' \| 'dealers'`                          |
+
+### `ScorecardReports` Component (`ScorecardReports.tsx`)
+Master configurator modal for generating, previewing, and downloading PDF sales scorecards across all representatives and company totals.
+
+- **Configurator Panel**: Scorecard settings (status filter, activity mode, financial period, rolling window), Visit Impact settings (reactivation window, touchpoint mode, timeframe), DRD High TLC settings.
+- **Report History Archives**: Paginated history with live status polling (ready, generating, failed), summary stats pills, ZIP bundle downloads, and deletion.
+- **In-App PDF Viewer**: Interactive viewer with `<iframe>`, prev/next rep navigation, rep selection dropdown, and single/batch download actions.
+
+### `useScorecardReports` Hooks (`useScorecardReports.ts`)
+- `useScorecardReportsList(page, limit)`: Paginated report list with auto-polling for in-flight jobs.
+- `useScorecardReportDetail(reportId)`: Single report polling hook.
+- `useGenerateScorecardReport()`: Async generation mutation.
+- `useDeleteScorecardReport()`: Report and disk purge mutation.
+

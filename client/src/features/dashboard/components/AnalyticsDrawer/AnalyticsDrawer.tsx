@@ -1,6 +1,12 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
-import { getHistoricalMoM, getDealerApplicationsHistory, searchDealers, getRepCommunicationHistory } from '../../../../core/services/api';
+import {
+  getHistoricalMoM,
+  getDealerApplicationsHistory,
+  searchDealers,
+  getRepCommunicationHistory,
+  getUnderwriterScorecardApi
+} from '../../../../core/services/api';
 import type { RepMappings, RepCommunicationHistoryResponse } from '../../../../core/services/api';
 import type {
   HistoricalMoMItem,
@@ -10,6 +16,7 @@ import type {
   ApplicationHistoryItem
 } from '../../types';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
+import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
 import styles from './AnalyticsDrawer.module.css';
 
 interface AnalyticsDrawerProps {
@@ -22,6 +29,9 @@ interface AnalyticsDrawerProps {
   initialDealerId?: string | null;
   initialGroupSlug?: string | null;
   initialUnderwriter?: string | null;
+  initialStartDate?: string | null;
+  initialEndDate?: string | null;
+  initialDatePreset?: string | null;
   initialTab?: 'mom' | 'applications' | 'communications';
   onSelectDealerId?: (dealerId: string | null) => void;
   onSelectGroupSlug?: (groupSlug: string | null) => void;
@@ -52,25 +62,6 @@ function renderBadge(trendObj?: MetricTrend) {
   );
 }
 
-export type SeriesKey = 'apps' | 'approvals' | 'booked' | 'bookedDollars' | 'lookToBook' | 'approvalToBook';
-
-interface SeriesOption {
-  key: SeriesKey;
-  label: string;
-  color: string;
-  getValue: (item: HistoricalMoMItem) => number;
-  format: (val: number) => string;
-}
-
-const SERIES_OPTIONS: SeriesOption[] = [
-  { key: 'apps', label: 'Apps', color: '#3b82f6', getValue: (m) => m.stats.apps || 0, format: (v) => v.toLocaleString() },
-  { key: 'approvals', label: 'Approvals', color: '#a855f7', getValue: (m) => m.stats.approvals || 0, format: (v) => v.toLocaleString() },
-  { key: 'booked', label: 'Booked (#)', color: '#f59e0b', getValue: (m) => m.stats.booked || 0, format: (v) => v.toLocaleString() },
-  { key: 'bookedDollars', label: 'Booked Vol ($)', color: '#4ade80', getValue: (m) => m.stats.bookedDollars || 0, format: (v) => formatCurrency(v) },
-  { key: 'lookToBook', label: 'L-B %', color: '#38bdf8', getValue: (m) => m.stats.lookToBook || 0, format: (v) => `${(v * 100).toFixed(1)}%` },
-  { key: 'approvalToBook', label: 'A-B %', color: '#ec4899', getValue: (m) => m.stats.approvalToBook || 0, format: (v) => `${(v * 100).toFixed(1)}%` },
-];
-
 export function AnalyticsDrawer({
   isOpen,
   onClose,
@@ -81,6 +72,9 @@ export function AnalyticsDrawer({
   initialDealerId = null,
   initialGroupSlug = null,
   initialUnderwriter = null,
+  initialStartDate = null,
+  initialEndDate = null,
+  initialDatePreset = null,
   initialTab = 'mom',
   onSelectDealerId,
   onSelectGroupSlug,
@@ -92,6 +86,10 @@ export function AnalyticsDrawer({
   // Selected Dealer Filter (ID or Mongo _id)
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(initialDealerId);
   const [selectedUnderwriter, setSelectedUnderwriter] = useState<string>(initialUnderwriter || '');
+  const [appStartDate, setAppStartDate] = useState<string>(initialStartDate || '');
+  const [appEndDate, setAppEndDate] = useState<string>(initialEndDate || '');
+  const [appDatePreset, setAppDatePreset] = useState<string>(initialDatePreset || 'all');
+  const [underwriterList, setUnderwriterList] = useState<string[]>([]);
   const [selectedDealerObj, setSelectedDealerObj] = useState<{
     _id: string;
     dealerName: string;
@@ -119,7 +117,6 @@ export function AnalyticsDrawer({
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedRep, setSelectedRep] = useState<string>('');
   const [selectedGroup, setSelectedGroup] = useState<string>(initialGroupSlug || '');
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // Application History State
   const [appHistoryData, setAppHistoryData] = useState<DealerApplicationHistoryResponse | null>(null);
@@ -134,11 +131,23 @@ export function AnalyticsDrawer({
 
   // Application Detail Drawer State
   const [selectedAppDetail, setSelectedAppDetail] = useState<ApplicationHistoryItem | null>(null);
-
-  // Active series toggles for line chart
-  const [activeSeriesKeys, setActiveSeriesKeys] = useState<SeriesKey[]>(['apps', 'bookedDollars']);
+  const [selectedCommDetail, setSelectedCommDetail] = useState<CommunicationDetailItem | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch underwriter list for filter dropdown
+  useEffect(() => {
+    if (isOpen) {
+      getUnderwriterScorecardApi()
+        .then((res) => {
+          if (res?.underwriters) {
+            const list = res.underwriters.map((u: any) => u.underwriter).filter(Boolean).sort();
+            setUnderwriterList(list);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [isOpen]);
 
   // Sync initial props whenever drawer opens or props change
   useEffect(() => {
@@ -147,6 +156,15 @@ export function AnalyticsDrawer({
       setSelectedDealerId(initialDealerId);
       if (initialUnderwriter != null) {
         setSelectedUnderwriter(initialUnderwriter);
+      }
+      if (initialStartDate !== undefined) {
+        setAppStartDate(initialStartDate || '');
+      }
+      if (initialEndDate !== undefined) {
+        setAppEndDate(initialEndDate || '');
+      }
+      if (initialDatePreset) {
+        setAppDatePreset(initialDatePreset);
       }
       if (!initialDealerId) {
         setSelectedDealerObj(null);
@@ -157,7 +175,33 @@ export function AnalyticsDrawer({
       setCommHistoryPage(1);
       setCommHistoryData(null);
     }
-  }, [isOpen, initialDealerId, initialGroupSlug, initialUnderwriter, initialTab]);
+  }, [isOpen, initialDealerId, initialGroupSlug, initialUnderwriter, initialStartDate, initialEndDate, initialDatePreset, initialTab]);
+
+  const handleAppDatePresetChange = (preset: string) => {
+    setAppDatePreset(preset);
+    setAppHistoryPage(1);
+    const now = new Date();
+    if (preset === 'all') {
+      setAppStartDate('');
+      setAppEndDate('');
+    } else if (preset === 'mtd') {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      setAppStartDate(start.toISOString().split('T')[0]);
+      setAppEndDate(now.toISOString().split('T')[0]);
+    } else if (preset === '30d') {
+      const start = new Date(now.getTime() - 30 * 86400 * 1000);
+      setAppStartDate(start.toISOString().split('T')[0]);
+      setAppEndDate(now.toISOString().split('T')[0]);
+    } else if (preset === '90d') {
+      const start = new Date(now.getTime() - 90 * 86400 * 1000);
+      setAppStartDate(start.toISOString().split('T')[0]);
+      setAppEndDate(now.toISOString().split('T')[0]);
+    } else if (preset === 'ytd') {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      setAppStartDate(start.toISOString().split('T')[0]);
+      setAppEndDate(now.toISOString().split('T')[0]);
+    }
+  };
 
   // Click outside to close dealer search dropdown
   useEffect(() => {
@@ -289,16 +333,6 @@ export function AnalyticsDrawer({
     };
   }, [isOpen, activeTab, selectedDealerId, selectedGroup, selectedState, selectedRep, commTypeFilter, commHistoryPage]);
 
-  const toggleSeries = (key: SeriesKey) => {
-    setActiveSeriesKeys((prev) => {
-      if (prev.includes(key)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((k) => k !== key);
-      }
-      return [...prev, key];
-    });
-  };
-
   // Rep list
   const repList = useMemo(() => {
     const budgetReps = Object.keys(repStatesMap);
@@ -330,33 +364,6 @@ export function AnalyticsDrawer({
     return matched ? matched.name : selectedGroup;
   }, [selectedGroup, availableGroups]);
 
-  if (!isOpen) return null;
-
-  const months = data?.months || [];
-  const displayedMonths = timeframeMode === 'ytd' ? months.filter((m) => m.year === 2026) : months;
-
-  // Aggregate Totals across current items displayed in table/chart
-  const totals = {
-    apps: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0),
-    approvals: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0),
-    leadBooked: displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || 0), 0),
-    leadBookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBookedDollars || 0), 0),
-    booked: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBooked || m.stats?.booked || 0), 0),
-    bookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBookedDollars || m.stats?.bookedDollars || 0), 0),
-    lookToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0) > 0
-      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
-      : 0,
-    approvalToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0) > 0
-      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
-      : 0,
-    latestCohort: displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null,
-  };
-
-  // SVG Line Chart calculations
-  const svgWidth = 800;
-  const svgHeight = 180;
-  const padding = 30;
-
   const handleSelectDealer = (dealer: { _id: string; dealerName: string; dealerId: string; clientDealerId: string; statePrefix: string } | null) => {
     if (!dealer) {
       setSelectedDealerId(null);
@@ -378,7 +385,7 @@ export function AnalyticsDrawer({
   };
 
   // Header Title & Location derivation
-  const isDealerSelected = Boolean(selectedDealerId);
+  const isDealerSelected = Boolean(selectedDealerId && selectedDealerId !== 'all');
   const isGroupSelected = Boolean(selectedGroup);
   const headerLocation = isDealerSelected ? (selectedDealerObj || appHistoryData?.location) : null;
 
@@ -386,7 +393,31 @@ export function AnalyticsDrawer({
     ? (headerLocation?.dealerName || selectedDealerObj?.dealerName || selectedDealerId)
     : isGroupSelected
     ? `Group: ${groupName}`
-    : 'Month-over-Month Historical Analytics';
+    : selectedUnderwriter
+    ? `Underwriter Applications: ${selectedUnderwriter}`
+    : 'Network Historical Analytics';
+
+  if (!isOpen) return null;
+
+  const months = data?.months || [];
+  const displayedMonths = timeframeMode === 'ytd' ? months.filter((m) => m.year === 2026) : months;
+
+  // Aggregate Totals across current items displayed in table/chart
+  const totals = {
+    apps: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0),
+    approvals: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0),
+    leadBooked: displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || 0), 0),
+    leadBookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBookedDollars || 0), 0),
+    booked: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBooked || m.stats?.booked || 0), 0),
+    bookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBookedDollars || m.stats?.bookedDollars || 0), 0),
+    lookToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0) > 0
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
+      : 0,
+    approvalToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0) > 0
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
+      : 0,
+    latestCohort: displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null,
+  };
 
   return (
     <div className={styles.backdrop} onClick={onClose}>
@@ -604,204 +635,99 @@ export function AnalyticsDrawer({
             </div>
 
             {/* Drawer Body (Chart + Rollup Table) */}
+            {/* Drawer Body (Table) */}
             <div className={styles.drawerContent}>
               {isLoading ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                   Loading historical analytics...
                 </div>
               ) : (
-                <>
-                  {/* Performance Line Chart */}
-                  <div className={styles.chartCard}>
-                    <div className={styles.chartHeader}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span className={styles.chartTitle}>Historical Performance Trends</span>
-                        {hoveredIndex !== null && displayedMonths[hoveredIndex] && (
-                          <div className={styles.hoverMetricsBar}>
-                            <strong style={{ color: '#38bdf8' }}>{displayedMonths[hoveredIndex].label}</strong>
-                            <span>Apps: <strong>{displayedMonths[hoveredIndex].stats.apps}</strong></span>
-                            <span>Appr: <strong>{displayedMonths[hoveredIndex].stats.approvals}</strong></span>
-                            <span>Bkd: <strong>{displayedMonths[hoveredIndex].stats.booked}</strong></span>
-                            <span>Vol: <strong>{formatCurrency(displayedMonths[hoveredIndex].stats.bookedDollars)}</strong></span>
-                          </div>
-                        )}
-                      </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Month</th>
+                        <th>Active Dealers</th>
+                        <th>30d / 60d / 90d+ Inactive</th>
+                        <th>Apps</th>
+                        <th>Approvals</th>
+                        <th>App BKD</th>
+                        <th>App $</th>
+                        <th>Funded BKD</th>
+                        <th>Funded $</th>
+                        <th>L-B %</th>
+                        <th>A-B %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Summary Totals Row */}
+                      <tr className={styles.totalsRow}>
+                        <td style={{ color: '#60a5fa', fontWeight: 800 }}>
+                          TOTAL / OVERALL ({timeframeMode === 'ytd' ? 'YTD 2026' : '2025–Present'})
+                        </td>
+                        <td>
+                          {totals.latestCohort ? (
+                            <>
+                              <strong>{totals.latestCohort.active}</strong>{' '}
+                              <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                ({totals.latestCohort.activePct}% of {totals.latestCohort.total})
+                              </span>
+                            </>
+                          ) : '—'}
+                        </td>
+                        <td style={{ color: '#94a3b8' }}>
+                          {totals.latestCohort ? `${totals.latestCohort.inactive30} / ${totals.latestCohort.inactive60} / ${totals.latestCohort.longInactive}` : '—'}
+                        </td>
+                        <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.apps.toLocaleString()}</td>
+                        <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.approvals.toLocaleString()}</td>
+                        <td style={{ color: '#38bdf8', fontWeight: 800 }}>{totals.leadBooked.toLocaleString()}</td>
+                        <td style={{ color: '#38bdf8', fontWeight: 800 }}>{formatCurrency(totals.leadBookedDollars)}</td>
+                        <td style={{ color: '#4ade80', fontWeight: 800 }}>{totals.booked.toLocaleString()}</td>
+                        <td style={{ color: '#4ade80', fontWeight: 800 }}>{formatCurrency(totals.bookedDollars)}</td>
+                        <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
+                        <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.approvalToBook * 100).toFixed(1)}%</td>
+                      </tr>
 
-                      {/* Interactive Metric Series Toggles */}
-                      <div className={styles.legend}>
-                        {SERIES_OPTIONS.map((ser) => {
-                          const isActive = activeSeriesKeys.includes(ser.key);
-                          return (
-                            <div
-                              key={ser.key}
-                              className={styles.legendItem}
-                              onClick={() => toggleSeries(ser.key)}
-                              style={{
-                                cursor: 'pointer',
-                                opacity: isActive ? 1 : 0.4,
-                                transition: 'opacity 0.2s',
-                              }}
-                            >
-                              <span className={styles.dot} style={{ background: ser.color }} />
-                              <span style={{ fontWeight: isActive ? 600 : 400 }}>{ser.label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* SVG Chart Area */}
-                    <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
-                      <svg
-                        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                        style={{ width: '100%', height: '180px', display: 'block' }}
-                      >
-                        {/* Grid lines */}
-                        <line x1={padding} y1={20} x2={svgWidth - padding} y2={20} stroke="rgba(255,255,255,0.05)" />
-                        <line x1={padding} y1={svgHeight / 2} x2={svgWidth - padding} y2={svgHeight / 2} stroke="rgba(255,255,255,0.05)" />
-                        <line x1={padding} y1={svgHeight - 20} x2={svgWidth - padding} y2={svgHeight - 20} stroke="rgba(255,255,255,0.1)" />
-
-                        {/* Render active series lines */}
-                        {SERIES_OPTIONS.filter((ser) => activeSeriesKeys.includes(ser.key)).map((ser) => {
-                          const values = displayedMonths.map((m) => ser.getValue(m));
-                          const maxVal = Math.max(...values, 1);
-                          const points = displayedMonths.map((m, idx) => {
-                            const x = padding + (idx / Math.max(1, displayedMonths.length - 1)) * (svgWidth - 2 * padding);
-                            const val = ser.getValue(m);
-                            const y = (svgHeight - 20) - (val / maxVal) * (svgHeight - 40);
-                            return `${x},${y}`;
-                          }).join(' ');
-
-                          return (
-                            <polyline
-                              key={ser.key}
-                              fill="none"
-                              stroke={ser.color}
-                              strokeWidth="2.5"
-                              points={points}
-                            />
-                          );
-                        })}
-
-                        {/* Hover Overlay Points */}
-                        {displayedMonths.map((m, idx) => {
-                          const x = padding + (idx / Math.max(1, displayedMonths.length - 1)) * (svgWidth - 2 * padding);
-                          return (
-                            <g key={m.key}>
-                              <line
-                                x1={x}
-                                y1={10}
-                                x2={x}
-                                y2={svgHeight - 10}
-                                stroke={hoveredIndex === idx ? 'rgba(56, 189, 248, 0.4)' : 'transparent'}
-                                strokeWidth="2"
-                                strokeDasharray="3,3"
-                              />
-                              <rect
-                                x={x - 15}
-                                y={0}
-                                width={30}
-                                height={svgHeight}
-                                fill="transparent"
-                                style={{ cursor: 'pointer' }}
-                                onMouseEnter={() => setHoveredIndex(idx)}
-                                onMouseLeave={() => setHoveredIndex(null)}
-                              />
-                            </g>
-                          );
-                        })}
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* Monthly Rollup Data Table */}
-                  <div className={styles.tableWrapper}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Month</th>
-                          <th>Active Dealers</th>
-                          <th>30d / 60d / 90d+ Inactive</th>
-                          <th>Apps</th>
-                          <th>Approvals</th>
-                          <th>App BKD</th>
-                          <th>App $</th>
-                          <th>Funded BKD</th>
-                          <th>Funded $</th>
-                          <th>L-B %</th>
-                          <th>A-B %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Summary Totals Row */}
-                        <tr className={styles.totalsRow}>
-                          <td style={{ color: '#60a5fa', fontWeight: 800 }}>
-                            TOTAL / OVERALL ({timeframeMode === 'ytd' ? 'YTD 2026' : '2025–Present'})
-                          </td>
+                      {/* Monthly Rows (Most Recent First) */}
+                      {[...displayedMonths].reverse().map((m: HistoricalMoMItem) => (
+                        <tr key={m.key}>
+                          <td style={{ fontWeight: 700, color: '#60a5fa' }}>{m.label}</td>
                           <td>
-                            {totals.latestCohort ? (
-                              <>
-                                <strong>{totals.latestCohort.active}</strong>{' '}
-                                <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                                  ({totals.latestCohort.activePct}% of {totals.latestCohort.total})
-                                </span>
-                              </>
-                            ) : '—'}
+                            <strong>{m.cohorts.active}</strong>{' '}
+                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                              ({m.cohorts.activePct}% of {m.cohorts.total})
+                            </span>
                           </td>
                           <td style={{ color: '#94a3b8' }}>
-                            {totals.latestCohort ? `${totals.latestCohort.inactive30} / ${totals.latestCohort.inactive60} / ${totals.latestCohort.longInactive}` : '—'}
+                            {m.cohorts.inactive30} / {m.cohorts.inactive60} / {m.cohorts.longInactive}
                           </td>
-                          <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.apps.toLocaleString()}</td>
-                          <td style={{ color: '#60a5fa', fontWeight: 800 }}>{totals.approvals.toLocaleString()}</td>
-                          <td style={{ color: '#38bdf8', fontWeight: 800 }}>{totals.leadBooked.toLocaleString()}</td>
-                          <td style={{ color: '#38bdf8', fontWeight: 800 }}>{formatCurrency(totals.leadBookedDollars)}</td>
-                          <td style={{ color: '#4ade80', fontWeight: 800 }}>{totals.booked.toLocaleString()}</td>
-                          <td style={{ color: '#4ade80', fontWeight: 800 }}>{formatCurrency(totals.bookedDollars)}</td>
-                          <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
-                          <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.approvalToBook * 100).toFixed(1)}%</td>
+                          <td>
+                            {m.stats.apps} {renderBadge(m.trends?.apps)}
+                          </td>
+                          <td>
+                            {m.stats.approvals} {renderBadge(m.trends?.approvals)}
+                          </td>
+                          <td>
+                            {m.stats.leadBooked ?? m.stats.booked} {renderBadge(m.trends?.leadBooked || m.trends?.booked)}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>
+                            {formatCurrency(m.stats.leadBookedDollars ?? m.stats.bookedDollars)}{' '}
+                            {renderBadge(m.trends?.leadBookedDollars || m.trends?.bookedDollars)}
+                          </td>
+                          <td>
+                            {m.stats.closeBooked ?? m.stats.booked} {renderBadge(m.trends?.closeBooked || m.trends?.booked)}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>
+                            {formatCurrency(m.stats.closeBookedDollars ?? m.stats.bookedDollars)}{' '}
+                            {renderBadge(m.trends?.closeBookedDollars || m.trends?.bookedDollars)}
+                          </td>
+                          <td>{(m.stats.lookToBook * 100).toFixed(1)}% {renderBadge(m.trends?.lookToBook)}</td>
+                          <td>{(m.stats.approvalToBook * 100).toFixed(1)}% {renderBadge(m.trends?.approvalToBook)}</td>
                         </tr>
-
-                        {/* Monthly Rows (Most Recent First) */}
-                        {[...displayedMonths].reverse().map((m: HistoricalMoMItem) => (
-                          <tr key={m.key}>
-                            <td style={{ fontWeight: 700, color: '#60a5fa' }}>{m.label}</td>
-                            <td>
-                              <strong>{m.cohorts.active}</strong>{' '}
-                              <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                                ({m.cohorts.activePct}% of {m.cohorts.total})
-                              </span>
-                            </td>
-                            <td style={{ color: '#94a3b8' }}>
-                              {m.cohorts.inactive30} / {m.cohorts.inactive60} / {m.cohorts.longInactive}
-                            </td>
-                            <td>
-                              {m.stats.apps} {renderBadge(m.trends?.apps)}
-                            </td>
-                            <td>
-                              {m.stats.approvals} {renderBadge(m.trends?.approvals)}
-                            </td>
-                            <td>
-                              {m.stats.leadBooked ?? m.stats.booked} {renderBadge(m.trends?.leadBooked || m.trends?.booked)}
-                            </td>
-                            <td style={{ fontWeight: 600 }}>
-                              {formatCurrency(m.stats.leadBookedDollars ?? m.stats.bookedDollars)}{' '}
-                              {renderBadge(m.trends?.leadBookedDollars || m.trends?.bookedDollars)}
-                            </td>
-                            <td>
-                              {m.stats.closeBooked ?? m.stats.booked} {renderBadge(m.trends?.closeBooked || m.trends?.booked)}
-                            </td>
-                            <td style={{ fontWeight: 600 }}>
-                              {formatCurrency(m.stats.closeBookedDollars ?? m.stats.bookedDollars)}{' '}
-                              {renderBadge(m.trends?.closeBookedDollars || m.trends?.bookedDollars)}
-                            </td>
-                            <td>{(m.stats.lookToBook * 100).toFixed(1)}% {renderBadge(m.trends?.lookToBook)}</td>
-                            <td>{(m.stats.approvalToBook * 100).toFixed(1)}% {renderBadge(m.trends?.approvalToBook)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </>
@@ -858,12 +784,115 @@ export function AnalyticsDrawer({
                   </div>
                 </div>
 
-                {/* Application Records Table */}
+                {/* Application Records Table & Sub-filters */}
                 <div className={styles.tableSection}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <h3 className={styles.sectionTitle}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                    <h3 className={styles.sectionTitle} style={{ margin: 0 }}>
                       Application Records ({appHistoryData?.pagination?.totalCount || 0})
                     </h3>
+
+                    {/* Filter Controls: Underwriter + Date Range */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      {/* Underwriter Dropdown */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>Underwriter:</span>
+                        <select
+                          value={selectedUnderwriter || ''}
+                          onChange={(e) => {
+                            setSelectedUnderwriter(e.target.value);
+                            setAppHistoryPage(1);
+                          }}
+                          style={{
+                            background: '#1e293b',
+                            border: '1px solid #334155',
+                            color: '#f8fafc',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="">All Underwriters</option>
+                          {underwriterList.map((uw) => (
+                            <option key={uw} value={uw}>
+                              {uw}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Date Range Presets */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>Period:</span>
+                        <div style={{ display: 'flex', gap: '2px', background: 'rgba(255, 255, 255, 0.05)', padding: '2px', borderRadius: '6px' }}>
+                          {[
+                            { key: 'all', label: 'All' },
+                            { key: 'mtd', label: 'MTD' },
+                            { key: '30d', label: '30d' },
+                            { key: '90d', label: '90d' },
+                            { key: 'ytd', label: 'YTD' },
+                            { key: 'custom', label: 'Custom' },
+                          ].map((p) => (
+                            <button
+                              key={p.key}
+                              onClick={() => handleAppDatePresetChange(p.key)}
+                              style={{
+                                background: appDatePreset === p.key ? '#0284c7' : 'transparent',
+                                color: appDatePreset === p.key ? '#ffffff' : '#94a3b8',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '3px 8px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom Date Inputs */}
+                      {appDatePreset === 'custom' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <input
+                            type="date"
+                            value={appStartDate || ''}
+                            onChange={(e) => {
+                              setAppStartDate(e.target.value);
+                              setAppHistoryPage(1);
+                            }}
+                            style={{
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              color: '#f8fafc',
+                              padding: '3px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.72rem',
+                            }}
+                          />
+                          <span style={{ color: '#64748b', fontSize: '0.72rem' }}>–</span>
+                          <input
+                            type="date"
+                            value={appEndDate || ''}
+                            onChange={(e) => {
+                              setAppEndDate(e.target.value);
+                              setAppHistoryPage(1);
+                            }}
+                            style={{
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              color: '#f8fafc',
+                              padding: '3px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.72rem',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {appHistoryData?.applications.length === 0 ? (
@@ -877,6 +906,7 @@ export function AnalyticsDrawer({
                           <tr>
                             <th>Application ID</th>
                             {!isDealerSelected && <th>Dealer</th>}
+                            <th>Underwriter</th>
                             <th>Status</th>
                             <th>Date</th>
                             <th>Days Ago</th>
@@ -913,6 +943,9 @@ export function AnalyticsDrawer({
                                   )}
                                 </td>
                               )}
+                              <td style={{ fontWeight: 600, color: app.underwriter ? '#60a5fa' : '#64748b' }}>
+                                {app.underwriter || '—'}
+                              </td>
                               <td>
                                 <span
                                   className={`${styles.statusTag} ${
@@ -1032,7 +1065,17 @@ export function AnalyticsDrawer({
                     </thead>
                     <tbody>
                       {commHistoryData?.items.map((item) => (
-                        <tr key={item.id}>
+                        <tr
+                          key={item.id}
+                          onClick={() =>
+                            setSelectedCommDetail({
+                              ...item,
+                              feedback: item.notes || item.feedback,
+                            })
+                          }
+                          style={{ cursor: 'pointer' }}
+                          title="Click to view full touchpoint notes and discussion"
+                        >
                           <td style={{ whiteSpace: 'nowrap' }}>
                             <div style={{ fontSize: '12px', fontWeight: 600, color: '#f8fafc' }}>
                               {item.date ? new Date(item.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
@@ -1070,7 +1113,10 @@ export function AnalyticsDrawer({
                             <td>
                               <div
                                 style={{ fontWeight: 600, color: '#38bdf8', cursor: 'pointer', textDecoration: 'underline' }}
-                                onClick={() => openDealer360(item.clientDealerId || item.dealerName, item.dealerName)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDealer360(item.clientDealerId || item.dealerName, item.dealerName);
+                                }}
                                 title={`Click to view 360° inspection for ${item.dealerName}`}
                               >
                                 {item.dealerName || '—'}
@@ -1126,6 +1172,12 @@ export function AnalyticsDrawer({
         <ApplicationDetailDrawer
           app={selectedAppDetail}
           onClose={() => setSelectedAppDetail(null)}
+        />
+
+        {/* Communication Detail Modal */}
+        <CommunicationDetailModal
+          comm={selectedCommDetail}
+          onClose={() => setSelectedCommDetail(null)}
         />
       </div>
     </div>

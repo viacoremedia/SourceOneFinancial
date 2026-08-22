@@ -5,6 +5,50 @@ Format: [Added / Changed / Fixed / Removed] + Tests Run section.
 
 ----
 
+## [2026-08-22] — PDF Rep Scorecard Generation Engine & Master Configurator
+
+### Added
+- **Multi-Engine PDF Scorecard Generator** (`server/services/pdfGenerator.js`):
+  - High-performance, streaming PDFKit generator orchestrating live data across 3 engines:
+    - **Scorecard Engine**: Rolling averages, 4 portfolio recency buckets, underwriting & financial pipeline, 10-factor Heat Index composite breakdown.
+    - **Visit Impact Engine**: In-person visits, communication touchpoints, reactivation rates, $ volume recovered, and 2x2 visit allocation matrix.
+    - **DRD Engine**: High TLC priority action queues, overdue/due soon alerts, and Comfort Stop zero-yield diagnostics.
+  - Multi-page printable documents:
+    - **Company-Wide Executive Summary** (3 Pages): Network totals, portfolio recency distribution, master rep leaderboard, and DRD sales routing matrix.
+    - **Individual Rep Scorecards** (5 Pages per rep): Heat Index breakdown, Portfolio Health & Peer Benchmarking, Financials & Pipeline Conversion, Field Travel Attribution & Reactivations, and High TLC Action Plan Queue.
+- **Scorecard Reports Management Routes** (`server/routes/analytics/pdfScorecard.js`):
+  - `POST /analytics/pdf-scorecard/generate`: Asynchronous generation job queue.
+  - `GET /analytics/pdf-scorecard/reports`: Paginated report archives with total count and metadata.
+  - `GET /analytics/pdf-scorecard/reports/:id`: Single report manifest and status.
+  - `GET /analytics/pdf-scorecard/reports/:id/files/:filename`: Direct PDF streaming for in-app browser viewer.
+  - `GET /analytics/pdf-scorecard/reports/:id/download`: On-the-fly streaming ZIP archiving of all generated PDFs.
+  - `DELETE /analytics/pdf-scorecard/reports/:id`: Deletion and disk file cleanup.
+- **Persistent Report Model** (`server/models/ScorecardReport.js`):
+  - MongoDB model storing generation parameters, execution status, summary statistics, and file manifests.
+- **Interactive Master Configurator & In-App PDF Viewer** (`client/src/features/dashboard/components/ScorecardReports/`):
+  - `ScorecardReports.tsx` + `ScorecardReports.module.css`:
+    - Full-screen modal with split view: Left Configurator + Right History Archives.
+    - Interactive in-app PDF viewer with `<iframe>`, previous/next rep cycling, jump dropdown, and single/batch downloads.
+    - Live polling for in-flight generation jobs.
+- **Client React Hooks & API Layer** (`client/src/features/dashboard/hooks/useScorecardReports.ts`, `client/src/core/services/api.ts`):
+  - Native React hooks for paginated listing, polling, generating, and deleting scorecard reports.
+- **RepScorecard Header Integration** (`client/src/features/dashboard/components/RepScorecard/RepScorecard.tsx`):
+  - Prominent "📄 PDF Reports" action button launching the reports configurator and viewer.
+
+### Changed
+- `server/middleware/authMiddleware.js`: Extended `requireAuth` to accept `token` query param to allow authenticated `<iframe>` previewing and `<a download>` links.
+- `server/routes/analytics/index.js`: Mounted `/pdf-scorecard` subroute.
+
+### Tests Run
+- Live automated script test (`server/scripts/testPdfGeneration.js`):
+  - Created ScorecardReport in MongoDB.
+  - Generated Company Overview PDF (3 pages) + 12 individual representative PDF scorecards (5 pages each, 63 total pages) in 11.89 seconds.
+  - Verified all generated PDF files exist on disk, are non-empty, and contain structured tables and charts.
+- Frontend production build (`npm run build` in `client`):
+  - `tsc -b && vite build` passed cleanly with 0 TypeScript or lint errors.
+
+----
+
 ## [2026-08-21] — Dealer Relationship Demand (DRD) Engine & Visit Allocation (v6.2 Final)
 
 ### Added

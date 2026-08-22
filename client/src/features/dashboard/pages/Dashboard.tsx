@@ -11,6 +11,7 @@ import { DealerTable } from '../components/DealerTable';
 import { ExecutiveSummaryBanner } from '../components/ExecutiveSummaryBanner/ExecutiveSummaryBanner';
 import { AnalyticsDrawer } from '../components/AnalyticsDrawer/AnalyticsDrawer';
 import { VisitImpactDrawer } from '../components/VisitImpactDrawer/VisitImpactDrawer';
+import type { UnderwriterDateRange } from '../components/UnderwriterScorecard/UnderwriterScorecard';
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
@@ -428,13 +429,25 @@ function DashboardContent() {
     return allDealers.filter((loc) => loc.latestSnapshot?.activityStatus === statusFilter);
   }, [allDealers, statusFilter]);
 
-  const [drawerUnderwriter, setDrawerUnderwriter] = useState<string | null>(null);
+  const handleRepStateChange = useCallback((rep: string, state: string) => {
+    setRep(rep);
+    setState(state);
+    setTransitionFilter(null);
+  }, [setRep, setState, setTransitionFilter]);
 
-  const handleSelectUnderwriter = useCallback((underwriterName: string) => {
+  const [drawerUnderwriter, setDrawerUnderwriter] = useState<string | null>(null);
+  const [drawerStartDate, setDrawerStartDate] = useState<string | null>(null);
+  const [drawerEndDate, setDrawerEndDate] = useState<string | null>(null);
+  const [drawerDatePreset, setDrawerDatePreset] = useState<string | null>(null);
+
+  const handleSelectUnderwriter = useCallback((underwriterName: string, dateRange?: UnderwriterDateRange) => {
     setDrawerDealerId('all');
     setDrawerGroupSlug(null);
     setDrawerTab('applications');
     setDrawerUnderwriter(underwriterName);
+    setDrawerStartDate(dateRange?.startDate || null);
+    setDrawerEndDate(dateRange?.endDate || null);
+    setDrawerDatePreset(dateRange?.preset || 'all');
     setDrawerOpen(true);
   }, []);
 
@@ -448,6 +461,7 @@ function DashboardContent() {
       activityMode={activityMode}
       onActivityModeChange={handleActivityModeChange}
       onSelectRep={handleRepChange}
+      onSelectRepState={handleRepStateChange}
       onSelectUnderwriter={handleSelectUnderwriter}
     >
       <div style={{ marginBottom: '16px' }}>
@@ -530,6 +544,9 @@ function DashboardContent() {
         initialDealerId={drawerDealerId}
         initialGroupSlug={drawerGroupSlug}
         initialUnderwriter={drawerUnderwriter}
+        initialStartDate={drawerStartDate}
+        initialEndDate={drawerEndDate}
+        initialDatePreset={drawerDatePreset}
         initialTab={drawerTab}
         onSelectDealerId={setDrawerDealerId}
         onSelectGroupSlug={setDrawerGroupSlug}

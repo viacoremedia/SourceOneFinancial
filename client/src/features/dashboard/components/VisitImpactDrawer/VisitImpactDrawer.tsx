@@ -5,10 +5,10 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { useAnalyticsContext } from '../../../../core/contexts/AnalyticsContext';
 import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './VisitImpactDrawer.module.css';
 import { RelationshipDemandView } from './RelationshipDemandView';
+import { ReactivationDealerDrawer, type ReactivationDealerItem } from './ReactivationDealerDrawer';
 import {
   getVisitImpact,
   getRepCommunicationHistory,
@@ -49,8 +49,8 @@ type SubSortField =
   | 'visitCount';
 
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
-  const { openDealer360 } = useAnalyticsContext();
   const { user } = useAuth();
+  const [selectedReactivationDealer, setSelectedReactivationDealer] = useState<ReactivationDealerItem | null>(null);
 
   // Whitelist check: only joshua@viacoremedia.com can see the DRD feature
   const isJoshua = (user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com') || (typeof window !== 'undefined' && localStorage.getItem('ENABLE_TLC') === 'true');
@@ -835,8 +835,8 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                                                 <tr key={d.clientDealerId}>
                                                   <td
                                                     className={styles.interactiveCell}
-                                                    onClick={() => openDealer360(d.clientDealerId || d.dealerName, d.dealerName, 'timeline', d.firstContactDate)}
-                                                    title={`Click to open 360° Cause & Effect Timeline for ${d.dealerName} (Anchored to ${d.firstContactDate})`}
+                                                    onClick={() => setSelectedReactivationDealer({ ...d, repName: r.rep })}
+                                                    title={`Click to open Reactivation Analysis Drawer for ${d.dealerName}`}
                                                   >
                                                     <span className={styles.dealerNameLink}>
                                                       {d.dealerName}
@@ -1029,6 +1029,14 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
           </div>
         </div>
       )}
+
+      {/* Dedicated Reactivation Dealer Drawer */}
+      <ReactivationDealerDrawer
+        dealer={selectedReactivationDealer}
+        isOpen={Boolean(selectedReactivationDealer)}
+        onClose={() => setSelectedReactivationDealer(null)}
+        windowDays={windowDays}
+      />
     </>
   );
 }

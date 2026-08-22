@@ -10,13 +10,19 @@ import styles from './UnderwriterScorecard.module.css';
 import type { UnderwriterStats } from '../../types';
 import { getUnderwriterScorecardApi } from '../../../../core/services/api';
 
+export interface UnderwriterDateRange {
+  startDate?: string;
+  endDate?: string;
+  preset: DatePreset;
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSelectUnderwriter?: (underwriterName: string) => void;
+  onSelectUnderwriter?: (underwriterName: string, dateRange?: UnderwriterDateRange) => void;
 }
 
-type DatePreset = 'mtd' | '30d' | '90d' | 'ytd' | 'all';
+export type DatePreset = 'mtd' | '30d' | '90d' | 'ytd' | 'all';
 
 interface ColumnDef {
   key: string;
@@ -395,8 +401,8 @@ export function UnderwriterScorecard({ isOpen, onClose, onSelectUnderwriter }: P
                       <td style={{ fontWeight: 600 }}>
                         <span
                           className={styles.underwriterLink}
-                          onClick={() => onSelectUnderwriter?.(u.underwriter)}
-                          title={`Click to view ${u.underwriter}'s application history`}
+                          onClick={() => onSelectUnderwriter?.(u.underwriter, { startDate: dateParams.startDate, endDate: dateParams.endDate, preset: datePreset })}
+                          title={`Click to view ${u.underwriter}'s application history for ${dateRangeLabel || 'selected period'}`}
                         >
                           {u.underwriter}
                         </span>

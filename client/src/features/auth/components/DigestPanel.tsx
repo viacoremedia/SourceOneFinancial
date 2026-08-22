@@ -52,13 +52,26 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   active: { label: 'Active', color: '#34d399' },
   '30d_inactive': { label: '30d Inactive', color: '#fbbf24' },
   '60d_inactive': { label: '60d Inactive', color: '#f97316' },
-  long_inactive: { label: 'Long Inactive', color: '#ef4444' },
+  '90d_inactive': { label: '90d Inactive', color: '#ef4444' },
+  '90d_plus_inactive': { label: '90d+ Inactive', color: '#ef4444' },
+  long_inactive: { label: '90d+ Inactive', color: '#ef4444' },
   never_active: { label: 'Never Active', color: '#64748b' },
+  inactive30: { label: '30d Inactive', color: '#fbbf24' },
+  inactive60: { label: '60d Inactive', color: '#f97316' },
+  inactive90Plus: { label: '90d+ Inactive', color: '#ef4444' },
+  neverActive: { label: 'Never Active', color: '#64748b' },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_LABELS[status] || { label: status, color: '#94a3b8' };
-  return <span className={styles.statusBadge} style={{ color: s.color }}>{s.label}</span>;
+  const clean = (status || '').toLowerCase().trim();
+  const matched = STATUS_LABELS[clean] || STATUS_LABELS[status];
+  const formattedLabel = matched
+    ? matched.label
+    : (status || '—')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+  const color = matched ? matched.color : clean.includes('90') || clean.includes('long') ? '#ef4444' : clean.includes('60') ? '#f97316' : clean.includes('30') ? '#fbbf24' : clean.includes('active') ? '#34d399' : '#94a3b8';
+  return <span className={styles.statusBadge} style={{ color, fontWeight: 700 }}>{formattedLabel}</span>;
 }
 
 export function DigestPanel({ open, onClose }: DigestPanelProps) {

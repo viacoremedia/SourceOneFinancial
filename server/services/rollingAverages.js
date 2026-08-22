@@ -431,9 +431,12 @@ async function computeStatusFlows(dates, locationFilter = null, targetStatus = '
  * @param {number} windowSize - 7 or 30 (clamped to max 60)
  * @param {string[]|null} statusFilter - Optional activity status filter (e.g. ['active'])
  * @param {string} activityMode - 'application' | 'approval' | 'booking'
+ * @param {string} finPeriod - 'mtd' | '30d' | '90d' | 'ytd' | 'all' | 'custom'
+ * @param {string|null} customStartDate - Optional start date string
+ * @param {string|null} customEndDate - Optional end date string
  * @returns {Promise<Object>} RepScorecardResponse shape
  */
-async function computeRepScorecard(windowSize, statusFilter = null, activityMode = 'application', finPeriod = 'mtd') {
+async function computeRepScorecard(windowSize, statusFilter = null, activityMode = 'application', finPeriod = 'mtd', customStartDate = null, customEndDate = null) {
     const clampedWindow = Math.min(Math.max(windowSize, 1), 60);
     const { currentDates, previousDates } = await getWindowDates(clampedWindow);
 
@@ -559,35 +562,46 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
     // ── Financial Metrics from Application data ──
     const { getLatestDataDate } = require('../utils/dateUtils');
     const now = await getLatestDataDate();
-    let finStartDate;
-    switch (finPeriod) {
-        case 'mtd':
-            finStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-            break;
-        case '30d':
-            finStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            break;
-        case '90d':
-            finStartDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-            break;
-        case 'ytd':
-            finStartDate = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-            break;
-        case 'all':
-        default:
-            finStartDate = null;
-            break;
+    let finStartDate = null;
+    let finEndDate = null;
+
+    if (finPeriod === 'custom' && (customStartDate || customEndDate)) {
+        if (customStartDate) finStartDate = new Date(customStartDate.includes('T') ? customStartDate : `${customStartDate}T00:00:00Z`);
+        if (customEndDate) finEndDate = new Date(customEndDate.includes('T') ? customEndDate : `${customEndDate}T23:59:59.999Z`);
+    } else {
+        switch (finPeriod) {
+            case 'mtd':
+                finStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+                break;
+            case '30d':
+                finStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                break;
+            case '90d':
+                finStartDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+                break;
+            case 'ytd':
+                finStartDate = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+                break;
+            case 'all':
+            default:
+                finStartDate = null;
+                break;
+        }
     }
 
     // ── Financial Metrics from Application data (Dual Pipeline) ──
     const leadMatch = {};
-    if (finStartDate) {
-        leadMatch.applicationDate = { $gte: finStartDate };
+    if (finStartDate || finEndDate) {
+        leadMatch.applicationDate = {};
+        if (finStartDate) leadMatch.applicationDate.$gte = finStartDate;
+        if (finEndDate) leadMatch.applicationDate.$lte = finEndDate;
     }
 
     const closeMatch = { status: 'Booked' };
-    if (finStartDate) {
-        closeMatch.bookedDate = { $gte: finStartDate };
+    if (finStartDate || finEndDate) {
+        closeMatch.bookedDate = {};
+        if (finStartDate) closeMatch.bookedDate.$gte = finStartDate;
+        if (finEndDate) closeMatch.bookedDate.$lte = finEndDate;
     }
 
     // Lead Pipeline: totalApps, approvedCount, leadBookedCount, leadBookedVolume

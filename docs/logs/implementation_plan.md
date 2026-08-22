@@ -1,167 +1,113 @@
-# Dealer Relationship Demand (DRD) & Visit Allocation Engine
-## Production Implementation Plan & Detailed Tasks (v6.2 Final)
+# Dealer 360 & Rep 360 — Unified Intelligence Hubs
+
+## Problem
+
+Right now, to understand a single dealer or rep you have to hop between 5+ features:
+- **Main table row click** → Opens `DealerDrawer` (just apps list)
+- **Dealer360Modal** → Opens from Visit Impact / DRD clicks (overview, timeline, MoM, touchpoints, apps)
+- **AnalyticsDrawer** → Separate MoM, apps, and comm tabs with different filters
+- **DealerRelationshipDrawer** → Separate DRD-specific view with its own apps/comms
+- **VisitImpactDrawer** → Rep-level visit data, no unified rep profile
+- **RepScorecard** → Heat Index and comparison table, no drill-down per rep
+
+We want **one place** for a dealer, and **one place** for a rep, with everything consolidated and the UI elevated to match the quality of the Dealer360Modal we built for Visit Impact / DRD.
 
 ---
 
-## 1. Cleaned TypeScript Interfaces & Data Contracts
+## Proposed Changes
 
-```typescript
-export type RelationshipDemandSegment = 
-  | 'high_tlc'           // Spike & Decay: deal flow strictly follows visits
-  | 'self_sufficient'    // Autonomous Locomotive: portal-driven organic deal flow
-  | 'comfort_stop'       // Empty Friction: 3+ visits with $0 in lifetime booked loans
-  | 'insufficient_data'; // Discovery Queue: <2 visits and <5 applications
+### Phase 1: Dealer 360 Upgrade
 
-export type UrgencyStatus = 
-  | 'overdue'            // High TLC: daysSinceLastVisit > recommendedCadenceDays
-  | 'due_soon'           // High TLC: daysSinceLastVisit >= recommendedCadenceDays - 7
-  | 'on_track'           // High TLC: daysSinceLastVisit < recommendedCadenceDays - 7
-  | 'self_sufficient'    // Autonomous: digital/quarterly monitoring only
-  | 'not_monitored';     // Comfort Stop / Discovery
+Upgrade the existing [Dealer360Modal.tsx](file:///home/joshg/work/SourceOneFinancial/client/src/components/Dealer360Modal/Dealer360Modal.tsx) to become the **single unified dealer view** that opens from everywhere.
 
-export interface InteractionCycle {
-  cycleNumber: number;
-  startDate: string; // ISO date
-  endDate: string;
-  triggerDate: string;
-  triggerType: 'visit' | 'call';
-  repName: string;
-  visitCountInCluster: number;
-  metrics: {
-    daysToFirstBooked: number | null;
-    bookedInWindow: number;
-    bookedVolumeInWindow: number;
-    appsInWindow: number;
-    relativeBookedLift: number;
-    dormancyDurationDaysAfter: number;
-    patternObserved: 'spike_and_decay' | 'empty_friction' | 'autonomous_flow' | 'escalation';
-  };
-  summaryText: string; // e.g. "Visit Cluster (2 visits) on Jan 14 → $48.5K Booked (1 deal), 4 apps → Flatlined at Day 42"
-}
+#### What Changes
 
-export interface DealerRelationshipProfile {
-  dealerLocationId: string;
-  clientDealerId: string;
-  dealerName: string;
-  statePrefix: string;
-  dealerGroup: string | null;
-  assignedRep: string | null;
+**Current tabs**: Overview, Cause & Effect Timeline, MoM, Touchpoints, Apps
 
-  // 4 Core Primary Buckets
-  relationshipDemand: RelationshipDemandSegment;
-  confidenceScore: number; // 0.0 to 1.0
-  recommendedCadenceDays: number | null; // 30, 45, 60, 90
+**New unified tabs** (keeping the good stuff, consolidating the rest):
 
-  // Secondary Diagnostic Flags
-  flags: {
-    isFadingTlc: boolean;          // Yield per visit dropped >40% over consecutive cycles
-    isEmergingTlc: boolean;        // Exactly 1 verified cycle -> schedule confirmation visit
-    isCatalyticActivation: boolean;// Single onboarding visit unlocked sustained organic flow
-  };
+| Tab | Content | Data Source |
+|-----|---------|-------------|
+| **Profile** | Dealer identity card (name, ID, state, rep, group), recency gauges, status badge, DRD classification + DNA card, lifetime stats grid (apps, approvals, booked vol, L2B%, A2B%), 12-month sparkline | `dealer-360` API + `dealer-relationship-timeline` API |
+| **Activity Feed** | Unified chronological stream of ALL events (visits, calls, apps submitted, apps booked) with the existing cause-and-effect flow chart anchored on visits | `dealer-360/timeline` API |
+| **Financials** | MoM table (enhanced with approval & booked columns), apps table with status badges and inline detail expansion, avg deal size and APR summaries | `dealer-360` sparkline + `dealer-applications-history` API |
+| **Field Ops** | Touchpoints table (visits, calls, emails with notes), DRD behavioral metrics grid, recommended cadence, post-visit lift %, visit yield per dollar | `rep-communication-history` API + `dealer-relationship-timeline` API |
 
-  // Operational Urgency
-  urgencyStatus: UrgencyStatus;
-  daysSinceLastVisit: number | null;
-  lastVisitDate: string | null;
-  daysSinceLastTouch: number | null;
-  lastTouchDate: string | null;
-  lastTouchType: 'visit' | 'call' | 'email' | 'other' | null;
-
-  // Key Empirical Business Metrics
-  postVisitBookedLiftPct: number | null; // e.g. +240%
-  organicBookedRatio: number;            // % of booked $ occurring >45d from any visit
-  lifetimeYieldPerVisit: number;          // Total Booked $ / Total In-Person Visits
-  verifiedCycleCount: number;             // Count of independent visit clusters
-
-  // Lifetime Production Totals
-  lifetimeStats: {
-    totalBookings: number;
-    totalBookedVolume: number;
-    totalApplications: number;
-    totalVisits: number;
-    totalCalls: number;
-    totalEmails: number;
-  };
-
-  // Human-Auditable Decision Trail
-  decisionRationale: string[];
-  interactionCycles: InteractionCycle[];
-
-  // Monthly Pre-Aggregated Chart Overlays
-  timelineMonthly: Array<{
-    monthKey: string; // "2026-03"
-    bookedVolume: number;
-    bookedCount: number;
-    appCount: number;
-    visitCount: number;
-    callCount: number;
-  }>;
-}
-```
+#### UI/UX Upgrades
+- Replace all emojis with Lucide React icons (consistent with rest of app)
+- Redesign tab bar into a segmented pill strip matching ScorecardReports configurator style
+- Add a "Rep 360" link on the rep name that opens the Rep 360 modal
+- Make the main `DealerTable` row click open THIS modal instead of the old `DealerDrawer`
+- Standardize the modal width/height and add smooth slide-in animation
 
 ---
 
-## 2. SPEC PLAN (Branch: `feature/drd-visit-impact-engine`)
+### Phase 2: Rep 360 — New Component
 
-### Phase 1: Backend Channel Normalizer, Pattern Engine & Database Recompute
-- [ ] [server] Task 1.1: Build Channel Normalizer & Visit Clusterer in `dealerRelationshipEngine.js`
-- [ ] [server] Task 1.2: Implement Relative Booked Lift, Seasonality Normalizer & 4 Core Classifiers
-- [ ] [server] Task 1.3: Update `server/models/DealerProfile.js` Schema with unified `'comfort_stop'` enum & fields
-- [ ] [server] Task 1.4: Execute Bulk Database Recompute & Verify Golden Test Cases (`FL319`, `FL340`, `TX569`, `AR126`, `MN329`)
-- [ ] [server] Task 1.5: Update `server/routes/analytics/SPECS.md` & engine tests
+Create a new `Rep360Modal` component that consolidates all rep-level data into one unified view.
 
-### Phase 2: Backend API Endpoints & Drawer Payload Service
-- [ ] [server] Task 2.1: Add multi-parameter filter queries (`?rep=...&demand=high_tlc&urgency=overdue`) in `relationshipDemand.js`
-- [ ] [server] Task 2.2: Add detail endpoint `GET /api/analytics/relationship-demand/dealer/:id` returning drawer payload
-- [ ] [both] Task 2.3: Update TypeScript interfaces in `client/src/core/services/api.ts`
+#### [NEW] `client/src/components/Rep360Modal/Rep360Modal.tsx`
+#### [NEW] `client/src/components/Rep360Modal/Rep360Modal.module.css`
 
-### Phase 3: Frontend Slide-Out Drawer & Relationship View Overhaul
-- [ ] [client] Task 3.1: Build `DealerRelationshipDrawer.tsx` with header audit box, Recharts Cause & Effect chart (bars + visit pins), and structured cycle accordions
-- [ ] [client] Task 3.2: Rebuild `RelationshipDemandView.tsx` with 3 inner tabs (*Executive Allocation*, *Dealer Explorer*, *Rep Diagnostics*) & wire matrix click-to-filter
-- [ ] [client] Task 3.3: Deprecate `Dealer360Modal.tsx` and redirect all modal triggers to the new drawer
-- [ ] [client] Task 3.4: Run `npm run build` in `client` and execute end-to-end user interaction validation
+| Tab | Content | Data Source |
+|-----|---------|-------------|
+| **Profile** | Rep identity (name, assigned territory states, dealer count), Heat Index score badge with 10-factor breakdown, classification, peer rank, capacity ratio | `computeRepScorecard` via `/analytics/rep-scorecard` API |
+| **Portfolio** | Territory dealer table: all assigned dealers with status, days since app, booked vol — sortable, searchable, with click-through to Dealer 360 | `/analytics/dealers` API filtered by rep |
+| **Financials** | Pipeline funnel: total apps, approvals, booked count/volume, L2B%, A2B%, avg deal size, avg APR, time-to-book. State-by-state breakdown. | `computeRepScorecard` financials |
+| **Field Ops** | Visit Impact metrics: total visits, reactivation count/rate, 2×2 matrix, growth effort %. Paginated communication history log. | `computeVisitImpactV2` per-rep + `rep-communication-history` API |
+| **DRD Routing** | High TLC accounts list with urgency status, overdue queue, comfort stop waste list, recommended cadence compliance | `DealerProfile` filtered by rep |
+
+#### Trigger Points
+- Clicking a rep name in any table (main dashboard, Rep Scorecard, Visit Impact) opens Rep 360
+- Add to `AnalyticsContext` with `openRep360(repName)` / `closeRep360()`
 
 ---
 
-## 3. Phase 1 Detailed Tasks (Ready for Implementation)
+### Phase 3: Wiring & Cleanup
 
-### Task 1.1: Channel Normalizer & Visit Clusterer
-**Description:** Unify Jeriko (`communicationType`) and Badger Maps (`communicationResult1`) records to standard channels (`visit`, `call`, `email`, `other`). Merge in-person visits occurring within $<45$ days of each other into single discrete `VisitCluster` objects $[t_{\text{start}}, t_{\text{end}}]$.  
-**Files:** `server/services/dealerRelationshipEngine.js`  
-**Acceptance Criteria:**
-- [ ] Correctly maps 2026 Badger records (`"Met with existing contact"`, `"Training completed"`, etc.) to in-person visits.
-- [ ] Merges visits $<45$ days apart into single clusters; measures post-window strictly from $t_{\text{end}}$.
-- [ ] Correctly computes `verifiedCycleCount` based on independent clusters separated by $\ge 45$-day cold gaps.
+#### [MODIFY] `client/src/core/contexts/AnalyticsContext.tsx`
+- Add `rep360Open`, `focusedRepName`, `openRep360()`, `closeRep360()` state
+- Ensure Dealer360 and Rep360 can cross-link (dealer → rep, rep → dealer)
 
-### Task 1.2: Relative Booked Lift & 4 Core Pattern Engine
-**Description:** Implement relative booked lift formula focused primarily on funded volume ($) and booked deals, apply lightweight monthly seasonal index, verify post-window decay, and classify into High TLC, Self-Sufficient, Comfort Stop, and Discovery.  
-**Files:** `server/services/dealerRelationshipEngine.js`  
-**Acceptance Criteria:**
-- [ ] Measures funded loan volume ($) as primary signal; dealers with $0 booked are never classified as High TLC.
-- [ ] Confirmed High TLC requires $\ge 2$ independent clusters, relative booked lift $\ge 2.0\times$, and post-window decay.
-- [ ] Single cycle flagged as `isEmergingTlc: true`.
-- [ ] $\ge 3$ visits with $0 booked classified as `comfort_stop`.
-- [ ] Generates plain-English `decisionRationale` array with actual dates and dollars.
+#### [MODIFY] `client/src/features/dashboard/components/DealerTable/DealerTable.tsx`
+- Change `onSelectDealer` row click to open `Dealer360Modal` (via `openDealer360`) instead of old `DealerDrawer`
 
-### Task 1.3: Update DealerProfile Schema
-**Description:** Update Mongoose model to support unified `'comfort_stop'` enum, `interactionCycles[]`, `timelineMonthly[]`, `flags`, and empirical metrics.  
-**Files:** `server/models/DealerProfile.js`  
-**Acceptance Criteria:**
-- [ ] `relationshipDemand` enum strictly `['high_tlc', 'self_sufficient', 'comfort_stop', 'insufficient_data']`.
-- [ ] Mongoose schema validates clean types with index on `{ assignedRep: 1, relationshipDemand: 1, urgencyStatus: 1 }`.
+#### [MODIFY] `client/src/core/components/AppShell/AppShell.tsx`
+- Mount `Rep360Modal` alongside `Dealer360Modal`
 
-### Task 1.4: Bulk Database Recomputation & Golden Benchmark Verification
-**Description:** Run bulk recompute across all 3,940 dealer records in MongoDB and verify against golden benchmarks.  
-**Files:** `server/scripts/classifyDealers.js`  
-**Acceptance Criteria:**
-- [ ] `FL319` (Auction Direct RV) & `FL340` (LDRV Tampa) $\implies$ **`high_tlc`** ($>90\%$ confidence, $572K/$3.1M booked).
-- [ ] `TX569` (RGV RV) & `AR126` (Fun Town Little Rock) $\implies$ **`self_sufficient`** (53/62 booked deals with $\le 2$ visits).
-- [ ] `MN329` (Hilltop Trailer Sales) & `FL321` (Como RV) $\implies$ **`comfort_stop`** (28/6 visits with $0 booked).
-- [ ] Recomputation completes in $<5$ seconds.
+#### Backend — No new endpoints needed
+All data is already served by existing APIs:
+- `GET /analytics/dealer-360/:dealerId` (overview)
+- `GET /analytics/dealer-360/:dealerId/timeline` (activity stream)
+- `GET /analytics/dealer-applications-history/:dealerId` (apps)
+- `GET /analytics/rep-communication-history` (touchpoints)
+- `GET /analytics/dealer-relationship-timeline/:dealerId` (DRD profile)
+- `GET /analytics/rep-scorecard` (Heat Index + financials)
+- `GET /analytics/visit-impact` (visit attribution)
 
-### Task 1.5: Update Analytics SPECS.md & Tests
-**Description:** Update backend analytics specs and run test suite.  
-**Files:** `server/routes/analytics/SPECS.md`  
-**Acceptance Criteria:**
-- [ ] `SPECS.md` reflects the v6.2 architecture and naming conventions.
-- [ ] All unit tests pass.
+> [!IMPORTANT]
+> We may need one new endpoint: `GET /analytics/rep-360/:repName` that consolidates rep-level data into a single payload to avoid N+1 waterfall requests in the Rep 360 modal.
+
+---
+
+## Open Questions
+
+1. **Should clicking a dealer row in the main table open the full Dealer 360 modal, or keep the lightweight DealerDrawer for quick app history glances?**
+   - Option A: Always open Dealer 360 (one unified experience)
+   - Option B: Keep DealerDrawer for quick view, add a "Full 360" button that escalates to the modal
+
+2. **Rep 360 trigger from header nav bar?** Should there be a top-level "Rep 360" button in the nav cell strip, or is it sufficient to just click rep names throughout the app?
+
+3. **Priority order?** Should I do Dealer 360 upgrade first (Phase 1), then Rep 360 (Phase 2), or both in parallel?
+
+---
+
+## Verification Plan
+
+### Manual Verification
+- Click a dealer row in main table → Dealer 360 opens with all 4 tabs populated
+- Click a rep name anywhere → Rep 360 opens with all 5 tabs populated
+- Cross-link: Dealer 360 rep name → Rep 360; Rep 360 dealer row → Dealer 360
+- All data matches what you'd see in the individual features (Visit Impact, DRD, RepScorecard, etc.)
+- Zero emojis, all Lucide icons
+- Smooth animations, premium glassmorphism styling

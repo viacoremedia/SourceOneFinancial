@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { getDealerRelationshipDrawer } from '../../../../core/services/api';
 import type { RelationshipDemandDrawerResponse } from '../../../../core/services/api';
+import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
+import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
 import styles from './DealerRelationshipDrawer.module.css';
 
 interface DealerRelationshipDrawerProps {
@@ -36,6 +38,8 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'comms' | 'apps'>('overview');
   const [hoveredMonth, setHoveredMonth] = useState<any | null>(null);
+  const [selectedAppDetail, setSelectedAppDetail] = useState<any | null>(null);
+  const [selectedCommDetail, setSelectedCommDetail] = useState<CommunicationDetailItem | null>(null);
 
   // Close on ESC key
   useEffect(() => {
@@ -534,6 +538,15 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   data.recentCommunications.map((comm) => (
                     <div
                       key={comm._id}
+                      onClick={() =>
+                        setSelectedCommDetail({
+                          ...comm,
+                          dealerName: profile?.dealerName,
+                          clientDealerId: profile?.clientDealerId,
+                          state: profile?.statePrefix || undefined,
+                          groupName: (profile as any)?.groupName || undefined,
+                        })
+                      }
                       style={{
                         background: 'rgba(255,255,255,0.02)',
                         border: '1px solid rgba(255,255,255,0.06)',
@@ -542,8 +555,11 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        fontSize: '0.82rem'
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
+                      title="Click to view full touchpoint notes and discussion"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {comm.channel === 'visit' ? (
@@ -582,6 +598,15 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   data.recentApplications.map((app) => (
                     <div
                       key={app.applicationId}
+                      onClick={() =>
+                        setSelectedAppDetail({
+                          ...app,
+                          dealerName: app.dealerName || profile?.dealerName,
+                          clientDealerId: app.clientDealerId || profile?.clientDealerId,
+                          dealerState: app.dealerState || profile?.statePrefix,
+                          dealerRepresentative: app.dealerRepresentative || profile?.assignedRep,
+                        })
+                      }
                       style={{
                         background: 'rgba(255,255,255,0.02)',
                         border: '1px solid rgba(255,255,255,0.06)',
@@ -590,11 +615,14 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        fontSize: '0.82rem'
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
+                      title={`Click to inspect application #${app.applicationId} full data`}
                     >
                       <div>
-                        <div style={{ fontWeight: 600, color: '#ffffff' }}>
+                        <div style={{ fontWeight: 600, color: '#38bdf8' }}>
                           App #{app.applicationId} {app.lender ? `— ${app.lender}` : ''}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
@@ -608,15 +636,15 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                             fontWeight: 700,
                             padding: '2px 8px',
                             borderRadius: '6px',
-                            background: app.status === 'Booked' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.12)',
-                            color: app.status === 'Booked' ? '#34d399' : '#94a3b8',
-                            border: `1px solid ${app.status === 'Booked' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.2)'}`
+                            background: app.status === 'Booked' || app.status === 'funded' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.12)',
+                            color: app.status === 'Booked' || app.status === 'funded' ? '#34d399' : '#94a3b8',
+                            border: `1px solid ${app.status === 'Booked' || app.status === 'funded' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.2)'}`
                           }}
                         >
                           {app.status}
                         </span>
                         <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
-                          {new Date(app.applicationDate).toLocaleDateString()}
+                          {app.applicationDate ? new Date(app.applicationDate).toLocaleDateString() : '—'}
                         </div>
                       </div>
                     </div>
@@ -631,6 +659,24 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
           </div>
         ) : null}
       </div>
+
+      {/* Application Detail Drawer */}
+      <ApplicationDetailDrawer
+        app={selectedAppDetail}
+        onClose={() => setSelectedAppDetail(null)}
+      />
+
+      {/* Communication Detail Modal */}
+      <CommunicationDetailModal
+        comm={selectedCommDetail}
+        onClose={() => setSelectedCommDetail(null)}
+        dealerContext={{
+          dealerName: profile?.dealerName,
+          clientDealerId: profile?.clientDealerId,
+          state: profile?.statePrefix || undefined,
+          groupName: (profile as any)?.groupName || undefined,
+        }}
+      />
     </div>
   );
 };

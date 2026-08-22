@@ -8,13 +8,19 @@ const ROLE_HIERARCHY = { employee: 0, admin: 1, super_admin: 2 };
  * Verify JWT and attach req.user
  */
 async function requireAuth(req, res, next) {
+    let token = null;
     const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
+    if (header && header.startsWith('Bearer ')) {
+        token = header.split(' ')[1];
+    } else if (req.query && req.query.token) {
+        token = req.query.token;
+    }
+
+    if (!token) {
         return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
     try {
-        const token = header.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findById(decoded.userId).select('-passwordHash -inviteToken').lean();
         if (!user || user.status !== 'active') {

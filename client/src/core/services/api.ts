@@ -292,7 +292,8 @@ export async function getRepScorecard(
 import type {
   DealerApplicationHistoryResponse,
   ExecutiveSummaryResponse,
-  HistoricalMoMResponse
+  HistoricalMoMResponse,
+  ApplicationHistoryItem
 } from '../../features/dashboard/types';
 
 export async function getDealerApplicationsHistory(
@@ -302,10 +303,12 @@ export async function getDealerApplicationsHistory(
   state?: string,
   rep?: string,
   group?: string,
-  underwriter?: string
+  underwriter?: string,
+  startDate?: string,
+  endDate?: string
 ): Promise<DealerApplicationHistoryResponse> {
   const { data } = await api.get(`/analytics/dealers/${dealerId}/applications`, {
-    params: { page, limit, state, rep, group, underwriter }
+    params: { page, limit, state, rep, group, underwriter, startDate, endDate }
   });
   return data;
 }
@@ -718,16 +721,7 @@ export interface RelationshipDemandDrawerResponse {
     result: string;
     feedback: string;
   }>;
-  recentApplications: Array<{
-    applicationId: string;
-    applicationDate: string;
-    bookedDate?: string | null;
-    status: string;
-    amountFinanced: number;
-    lender?: string | null;
-    collateralType?: string | null;
-    collateralYear?: string | null;
-  }>;
+  recentApplications: ApplicationHistoryItem[];
 }
 
 export type RelationshipDemandTimelineResponse = RelationshipDemandDrawerResponse;
@@ -793,4 +787,121 @@ export async function triggerRecalculateDemandProfiles(): Promise<{ success: boo
   return data;
 }
 
+// ══════════════════════════════════════════════════
+// PDF SCORECARD REPORTING & VIEWER APIS
+// ══════════════════════════════════════════════════
+
+export interface ScorecardReportFile {
+  _id: string;
+  label: string;
+  filename: string;
+  repName: string | null;
+  type: 'company' | 'rep';
+  fileSizeBytes: number;
+  pageCount: number;
+}
+
+export interface ScorecardReportItem {
+  _id: string;
+  name: string;
+  config: {
+    scorecard: {
+      windowSize: number;
+      statusFilter: string[] | null;
+      activityMode: string;
+      finPeriod: string;
+    };
+    visitImpact: {
+      reactivationWindow: number;
+      touchpointMode: string;
+      timeframe: string;
+    };
+    drd: {
+      includeTlcList: boolean;
+    };
+  };
+  repCount: number;
+  status: 'generating' | 'ready' | 'failed';
+  error: string | null;
+  files: ScorecardReportFile[];
+  summaryStats: {
+    totalDealers: number;
+    totalBookedVolume: number;
+    totalBookedCount: number;
+    totalVisits: number;
+    totalReactivated: number;
+    avgHeatIndex: number;
+  };
+  generatedAt: string;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScorecardReportsListResponse {
+  success: boolean;
+  reports: ScorecardReportItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface GenerateScorecardReportPayload {
+  name?: string;
+  scorecard: {
+    windowSize: number;
+    statusFilter?: string[] | null;
+    activityMode: 'application' | 'approval' | 'booking';
+    finPeriod: 'mtd' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
+    customStartDate?: string;
+    customEndDate?: string;
+  };
+  visitImpact: {
+    reactivationWindow: number;
+    touchpointMode: 'visits' | 'all';
+    timeframe: 'ytd' | '30d' | '60d' | 'custom';
+    customStartDate?: string;
+    customEndDate?: string;
+  };
+  drd: {
+    includeTlcList: boolean;
+  };
+}
+
+export async function generateScorecardReport(payload: GenerateScorecardReportPayload): Promise<{ success: boolean; reportId: string; status: string; message: string }> {
+  const { data } = await api.post('/analytics/pdf-scorecard/generate', payload);
+  return data;
+}
+
+export async function getScorecardReports(page: number = 1, limit: number = 10): Promise<ScorecardReportsListResponse> {
+  const { data } = await api.get('/analytics/pdf-scorecard/reports', { params: { page, limit } });
+  return data;
+}
+
+export async function getScorecardReport(id: string): Promise<{ success: boolean; report: ScorecardReportItem }> {
+  const { data } = await api.get(`/analytics/pdf-scorecard/reports/${id}`);
+  return data;
+}
+
+export async function deleteScorecardReport(id: string): Promise<{ success: boolean; message: string }> {
+  const { data } = await api.delete(`/analytics/pdf-scorecard/reports/${id}`);
+  return data;
+}
+
+export function getScorecardPdfUrl(reportId: string, filename: string): string {
+  const baseUrl = import.meta.env.VITE_API_URL || '';
+  const token = localStorage.getItem('sourceone_token');
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${baseUrl}/analytics/pdf-scorecard/reports/${reportId}/files/${encodeURIComponent(filename)}${tokenParam}`;
+}
+
+export function getScorecardZipUrl(reportId: string): string {
+  const baseUrl = import.meta.env.VITE_API_URL || '';
+  const token = localStorage.getItem('sourceone_token');
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${baseUrl}/analytics/pdf-scorecard/reports/${reportId}/download${tokenParam}`;
+}
+
 export default api;
+

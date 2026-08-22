@@ -25,11 +25,13 @@ const { getUnderwriterScorecard } = require('../../services/underwriterService')
 const budgetRoutes = require('./budget');
 const communicationRoutes = require('./communication');
 const relationshipDemandRoutes = require('./relationshipDemand');
+const pdfScorecardRoutes = require('./pdfScorecard');
 
 // Mount sub-routes
 router.use('/budget', budgetRoutes);
 router.use('/communication', communicationRoutes);
 router.use('/relationship-demand', relationshipDemandRoutes);
+router.use('/pdf-scorecard', pdfScorecardRoutes);
 
 // ==========================================
 // GET /analytics/underwriters
@@ -2317,6 +2319,22 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
                     clientDealerId: location.clientDealerId,
                     statePrefix: location.statePrefix
                 };
+            }
+        }
+
+        // Apply Underwriter filter
+        if (req.query.underwriter) {
+            matchQuery.underwriter = new RegExp('^' + req.query.underwriter.trim() + '$', 'i');
+        }
+
+        // Apply Date Range filter (startDate & endDate)
+        if (req.query.startDate || req.query.endDate) {
+            matchQuery.applicationDate = {};
+            if (req.query.startDate) {
+                matchQuery.applicationDate.$gte = new Date(req.query.startDate + (req.query.startDate.includes('T') ? '' : 'T00:00:00.000Z'));
+            }
+            if (req.query.endDate) {
+                matchQuery.applicationDate.$lte = new Date(req.query.endDate + (req.query.endDate.includes('T') ? '' : 'T23:59:59.999Z'));
             }
         }
 

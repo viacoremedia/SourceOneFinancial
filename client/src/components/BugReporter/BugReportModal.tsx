@@ -15,81 +15,160 @@ interface BugReportModalProps {
   user?: BugReporterUser | null;
 }
 
-// ── Self-contained styles — works on ANY host app ──
+// ── Self-contained styles — Enterprise Dark Slide-out Drawer ──
 const S = {
   backdrop: {
-    position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.75)',
-    zIndex: 999998, transition: 'opacity 200ms', backdropFilter: 'blur(6px)',
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(10, 15, 29, 0.75)',
+    zIndex: 999998,
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    animation: 'bugDrawerFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  wrapper: {
-    position: 'fixed' as const, inset: 0, zIndex: 999999,
-    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-    padding: '32px 16px', boxSizing: 'border-box' as const, pointerEvents: 'auto' as const,
-    overflowY: 'auto' as const,
+  drawer: {
+    position: 'fixed' as const,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '490px',
+    maxWidth: '95vw',
+    height: '100vh',
+    background: 'linear-gradient(180deg, #0d1527 0%, #090e1a 100%)',
+    borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
+    boxShadow: '-12px 0 36px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.2) inset',
+    zIndex: 999999,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    color: '#f8fafc',
+    pointerEvents: 'auto' as const,
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  },
-  card: {
-    background: '#0f172a', borderRadius: '12px',
-    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.75)',
-    width: '100%', maxWidth: '480px', margin: 'auto',
-    maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' as const,
-    border: '1px solid #334155', color: '#f8fafc', pointerEvents: 'auto' as const,
+    animation: 'bugDrawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+    overflow: 'hidden',
   },
   header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '16px 20px', borderBottom: '1px solid #1e293b',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '18px 20px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+    background: 'rgba(15, 23, 42, 0.85)',
+    flexShrink: 0,
   },
   headerTitle: {
-    fontSize: '16px', fontWeight: 600, color: '#f8fafc', margin: 0,
+    fontSize: '16px',
+    fontWeight: 700,
+    color: '#f8fafc',
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   },
   closeBtn: {
-    background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
-    color: '#94a3b8', fontSize: '20px', lineHeight: 1,
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    color: '#94a3b8',
+    fontSize: '16px',
+    lineHeight: 1,
+    transition: 'all 150ms',
   },
-  body: { padding: '20px', display: 'flex', flexDirection: 'column' as const, gap: '16px' },
+  body: {
+    padding: '20px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '16px',
+    overflowY: 'auto' as const,
+    flex: 1,
+  },
   label: {
-    fontSize: '13px', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '6px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#94a3b8',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    display: 'block',
+    marginBottom: '6px',
   },
   required: { color: '#ef4444' },
   input: {
-    width: '100%', padding: '10px 12px', borderRadius: '8px',
-    border: '1px solid #334155', fontSize: '14px', color: '#f8fafc',
-    background: '#1e293b', outline: 'none', boxSizing: 'border-box' as const,
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: '1px solid #334155',
+    fontSize: '14px',
+    color: '#f8fafc',
+    background: '#1e293b',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
     transition: 'border-color 150ms',
   },
   textarea: {
-    width: '100%', padding: '10px 12px', borderRadius: '8px',
-    border: '1px solid #334155', fontSize: '14px', color: '#f8fafc',
-    background: '#1e293b', outline: 'none', resize: 'none' as const,
-    minHeight: '90px', boxSizing: 'border-box' as const,
-    fontFamily: 'inherit', transition: 'border-color 150ms',
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: '1px solid #334155',
+    fontSize: '14px',
+    color: '#f8fafc',
+    background: '#1e293b',
+    outline: 'none',
+    resize: 'none' as const,
+    minHeight: '90px',
+    boxSizing: 'border-box' as const,
+    fontFamily: 'inherit',
+    transition: 'border-color 150ms',
   },
   toggleRow: { display: 'flex', gap: '8px' },
   toggleBtn: (active: boolean, color: string) => ({
-    flex: 1, padding: '10px 12px', borderRadius: '8px',
+    flex: 1,
+    padding: '10px 12px',
+    borderRadius: '8px',
     border: `2px solid ${active ? color : '#334155'}`,
     background: active ? `${color}25` : '#1e293b',
     color: active ? color : '#94a3b8',
-    fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
     transition: 'all 150ms',
   }),
   screenshotRow: { display: 'flex', gap: '8px' },
   screenshotBtn: {
-    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-    padding: '8px 12px', borderRadius: '8px',
-    border: '1px solid #334155', background: '#1e293b',
-    fontSize: '13px', fontWeight: 500, color: '#f8fafc', cursor: 'pointer',
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    border: '1px solid #334155',
+    background: '#1e293b',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#f8fafc',
+    cursor: 'pointer',
     transition: 'background 150ms',
   },
   dropZone: {
-    border: '2px dashed #334155', borderRadius: '8px', padding: '16px',
-    textAlign: 'center' as const, cursor: 'pointer', color: '#94a3b8',
-    fontSize: '13px', transition: 'border-color 150ms', background: '#1e293b',
+    border: '2px dashed #334155',
+    borderRadius: '8px',
+    padding: '16px',
+    textAlign: 'center' as const,
+    cursor: 'pointer',
+    color: '#94a3b8',
+    fontSize: '13px',
+    transition: 'border-color 150ms',
+    background: '#1e293b',
   },
   severityGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' },
   severityCard: (active: boolean, borderColor: string) => ({
-    display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
-    padding: '10px 8px', borderRadius: '8px', cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    padding: '10px 8px',
+    borderRadius: '8px',
+    cursor: 'pointer',
     border: `2px solid ${active ? borderColor : '#334155'}`,
     background: active ? `${borderColor}25` : '#1e293b',
     transition: 'all 150ms',
@@ -97,49 +176,105 @@ const S = {
   severityLabel: { fontSize: '12px', fontWeight: 600, color: '#f8fafc' },
   severityDesc: { fontSize: '10px', color: '#94a3b8', marginTop: '2px' },
   contextBar: {
-    borderRadius: '8px', border: '1px solid #334155', overflow: 'hidden',
+    borderRadius: '8px',
+    border: '1px solid #334155',
+    overflow: 'hidden',
   },
   contextToggle: {
-    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 12px', background: '#0b0f19', border: 'none', cursor: 'pointer',
-    fontSize: '12px', fontWeight: 500, color: '#94a3b8',
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 12px',
+    background: '#0b0f19',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#94a3b8',
   },
   contextBody: {
-    padding: '8px 12px', fontSize: '11px', color: '#94a3b8',
-    borderTop: '1px solid #334155', background: '#0b0f19',
+    padding: '8px 12px',
+    fontSize: '11px',
+    color: '#94a3b8',
+    borderTop: '1px solid #334155',
+    background: '#0b0f19',
+  },
+  footer: {
+    padding: '16px 20px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+    background: 'rgba(15, 23, 42, 0.95)',
+    flexShrink: 0,
   },
   submitBtn: (color: string) => ({
-    width: '100%', padding: '12px', borderRadius: '8px',
-    border: 'none', background: color, color: '#ffffff',
-    fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+    width: '100%',
+    padding: '12px',
+    borderRadius: '8px',
+    border: 'none',
+    background: color,
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
     transition: 'opacity 150ms',
   }),
   error: {
-    display: 'flex', alignItems: 'center', gap: '6px',
-    fontSize: '13px', color: '#ef4444',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '13px',
+    color: '#ef4444',
   },
   successWrap: {
-    padding: '40px 20px', textAlign: 'center' as const,
+    padding: '40px 20px',
+    textAlign: 'center' as const,
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   successIcon: {
-    width: '56px', height: '56px', borderRadius: '50%', background: '#dcfce7',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    margin: '0 auto 16px', fontSize: '28px',
+    width: '56px',
+    height: '56px',
+    borderRadius: '50%',
+    background: 'rgba(34, 197, 94, 0.2)',
+    border: '1px solid rgba(34, 197, 94, 0.4)',
+    color: '#4ade80',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 16px',
+    fontSize: '28px',
   },
-  successTitle: { fontSize: '16px', fontWeight: 600, color: '#111827' },
-  successSub: { fontSize: '13px', color: '#6b7280', marginTop: '4px' },
+  successTitle: { fontSize: '18px', fontWeight: 700, color: '#f8fafc' },
+  successSub: { fontSize: '13px', color: '#94a3b8', marginTop: '6px' },
   imgPreview: {
-    position: 'relative' as const, borderRadius: '8px', overflow: 'hidden',
-    border: '1px solid #e5e7eb', marginTop: '6px',
+    position: 'relative' as const,
+    borderRadius: '8px',
+    overflow: 'hidden',
+    border: '1px solid #334155',
+    marginTop: '6px',
   },
   imgOverlay: {
-    position: 'absolute' as const, top: '8px', right: '8px',
-    display: 'flex', gap: '4px',
+    position: 'absolute' as const,
+    top: '8px',
+    right: '8px',
+    display: 'flex',
+    gap: '4px',
   },
   imgBtn: (bg: string) => ({
-    padding: '4px 10px', borderRadius: '6px', border: 'none',
-    background: bg, color: '#fff', fontSize: '11px', fontWeight: 600,
-    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+    padding: '4px 10px',
+    borderRadius: '6px',
+    border: 'none',
+    background: bg,
+    color: '#fff',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
   }),
 };
 
@@ -283,6 +418,17 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
 
   if (!isOpen) return null;
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !showAnnotationEditor) {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, showAnnotationEditor]);
+
   // ── Annotation Editor ──
   if (showAnnotationEditor && screenshot) {
     return (
@@ -305,45 +451,54 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
 
   return createPortal(
     <>
+      <style>{`
+        @keyframes bugDrawerSlideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        @keyframes bugDrawerFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
       {/* Backdrop */}
-      <div style={{ ...S.backdrop, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }} onClick={handleClose} />
+      <div
+        style={{ ...S.backdrop, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }}
+        onClick={handleClose}
+      />
 
-      {/* Modal */}
-      <div style={{
-        ...S.wrapper,
-        opacity: isHiding ? 0 : 1,
-        pointerEvents: isHiding ? 'none' : 'auto',
-      }}>
-        <div style={{
-          ...S.card,
-          ...(typeof window !== 'undefined' && window.innerWidth <= 768 ? {
-            borderRadius: '20px 20px 0 0',
-            maxHeight: '85dvh',
-            paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-          } : {})
-        }}>
-          <div className="mobileDragHandleRow">
-            <div className="mobileDragHandle" />
+      {/* Slide-out Drawer */}
+      <div
+        style={{
+          ...S.drawer,
+          opacity: isHiding ? 0 : 1,
+          pointerEvents: isHiding ? 'none' : 'auto',
+        }}
+      >
+        {/* Header */}
+        <div style={S.header}>
+          <h2 style={S.headerTitle}>
+            {reportType === 'bug' ? '🐛 Report a Bug' : '💡 Feature Request'}
+          </h2>
+          <button style={S.closeBtn} onClick={handleClose} title="Close (Esc)">✕</button>
+        </div>
+
+        {/* Success State */}
+        {submitStatus === 'success' ? (
+          <div style={S.successWrap}>
+            <div style={S.successIcon}>✓</div>
+            <h3 style={S.successTitle}>{reportType === 'bug' ? 'Bug reported!' : 'Feature requested!'}</h3>
+            <p style={S.successSub}>Thank you for your feedback. We are on it!</p>
+            <button
+              style={{ ...S.submitBtn('#3b82f6'), maxWidth: '200px', marginTop: '16px' }}
+              onClick={handleClose}
+            >
+              Done
+            </button>
           </div>
-
-          {/* Header */}
-          <div style={S.header}>
-            <h2 style={S.headerTitle}>
-              {reportType === 'bug' ? '🐛 Report a Bug' : '💡 Feature Request'}
-            </h2>
-            <button style={S.closeBtn} onClick={handleClose}>✕</button>
-          </div>
-
-          {/* Success */}
-          {submitStatus === 'success' ? (
-            <div style={S.successWrap}>
-              <div style={S.successIcon}>✓</div>
-              <h3 style={S.successTitle}>{reportType === 'bug' ? 'Bug reported!' : 'Feature requested!'}</h3>
-              <p style={S.successSub}>Thank you for your feedback</p>
-            </div>
-          ) : (
+        ) : (
+          <>
             <div style={S.body}>
-
               {/* Type Toggle */}
               <div style={S.toggleRow}>
                 <button style={S.toggleBtn(reportType === 'bug', '#dc2626')} onClick={() => setReportType('bug')}>🐛 Bug</button>
@@ -359,7 +514,7 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onFocus={(e) => (e.target.style.borderColor = '#3b82f6')}
-                  onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
+                  onBlur={(e) => (e.target.style.borderColor = '#334155')}
                 />
               </div>
 
@@ -372,7 +527,7 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   onFocus={(e) => (e.target.style.borderColor = '#3b82f6')}
-                  onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
+                  onBlur={(e) => (e.target.style.borderColor = '#334155')}
                 />
               </div>
 
@@ -452,8 +607,10 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
 
               {/* Error */}
               {errorMessage && <div style={S.error}>⚠️ {errorMessage}</div>}
+            </div>
 
-              {/* Submit */}
+            {/* Footer with sticky submit */}
+            <div style={S.footer}>
               <button
                 style={{
                   ...S.submitBtn(reportType === 'feature' ? '#2563eb' : '#16a34a'),
@@ -465,8 +622,8 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
                 {isSubmitting ? 'Submitting...' : reportType === 'bug' ? 'Submit Bug Report' : 'Submit Feature Request'}
               </button>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </>,
     document.body

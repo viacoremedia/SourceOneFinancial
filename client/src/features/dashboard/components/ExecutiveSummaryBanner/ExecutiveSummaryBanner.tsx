@@ -141,7 +141,7 @@ export function ExecutiveSummaryBanner({
             {renderTrendTag(trends?.bookedDollars, 'dollar')}
           </div>
           <div className={styles.kpiValue}>{formatCurrency(totals?.closeBookedDollars || totals?.bookedDollars || 0)}</div>
-          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {totals?.closeBooked || totals?.booked || 0} funded deals in period
           </div>
         </div>
@@ -153,7 +153,7 @@ export function ExecutiveSummaryBanner({
             {renderTrendTag(trends?.leadBookedDollars || trends?.bookedDollars, 'dollar')}
           </div>
           <div className={styles.kpiValue}>{formatCurrency(totals?.leadBookedDollars || 0)}</div>
-          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {totals?.leadBooked || 0} apps booked in period
           </div>
         </div>
@@ -184,7 +184,7 @@ export function ExecutiveSummaryBanner({
           <div className={styles.kpiValue} style={{ color: '#38bdf8' }}>
             {totals?.avgFico ? totals.avgFico : '—'}
           </div>
-          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500 }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Credit score avg
           </div>
         </div>

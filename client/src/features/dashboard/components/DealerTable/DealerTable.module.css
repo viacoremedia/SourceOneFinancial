@@ -168,6 +168,12 @@
 .table th:first-child {
   text-align: left;
   padding-left: var(--space-4);
+  position: sticky;
+  left: 0;
+  z-index: 25;
+  background: var(--bg-surface-raised, #161f30);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid var(--border-default);
 }
 
 .table th:hover {
@@ -313,6 +319,12 @@
 .table td:first-child {
   text-align: left;
   padding-left: var(--space-4);
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--bg-surface, #0f172a);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid var(--border-subtle);
 }
 
 /* ── Group Row (parent) ── */
@@ -321,12 +333,24 @@
   transition: background var(--transition-fast);
 }
 
+.groupRow td:first-child {
+  background: var(--bg-surface, #0f172a);
+}
+
 .groupRow:hover {
   background: var(--bg-surface-hover);
 }
 
+.groupRow:hover td:first-child {
+  background: var(--bg-surface-hover, #1e293b);
+}
+
 .groupRowExpanded {
   background: var(--bg-surface-raised);
+}
+
+.groupRowExpanded td:first-child {
+  background: var(--bg-surface-raised, #161f30);
 }
 
 .groupName {
@@ -369,14 +393,23 @@
 
 .childRow td:first-child {
   padding-left: calc(var(--space-4) + var(--table-child-indent));
+  background: var(--table-child-row-bg, #0d1527);
 }
 
 .childRow:hover {
   background: rgba(26, 41, 66, 0.6);
 }
 
+.childRow:hover td:first-child {
+  background: #1a2942;
+}
+
 [data-theme="light"] .childRow:hover {
   background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .childRow:hover td:first-child {
+  background: #f1f5f9;
 }
 
 .childRow:last-of-type td {
@@ -388,8 +421,26 @@
   transition: background var(--transition-fast);
 }
 
+.dealerRow td:first-child {
+  background: var(--bg-surface, #0f172a);
+}
+
 .dealerRow:hover {
   background: var(--bg-surface-hover);
+}
+
+.dealerRow:hover td:first-child {
+  background: var(--bg-surface-hover, #1e293b);
+}
+
+[data-theme="light"] .table td:first-child {
+  background: #ffffff;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .dealerRow:hover td:first-child,
+[data-theme="light"] .groupRow:hover td:first-child {
+  background: #f8fafc;
 }
 
 /* ── Rep Cell ── */
