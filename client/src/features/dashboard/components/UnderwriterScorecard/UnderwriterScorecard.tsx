@@ -47,23 +47,54 @@ const LENDER_COLORS = [
 function renderLenderBar(breakdown?: Array<{ lender: string; count: number; pct: number }>) {
   if (!breakdown || !breakdown.length) return '—';
 
+  let s1Count = 0;
+  let otherCount = 0;
+  let totalCount = 0;
+
+  for (const b of breakdown) {
+    const isS1 = /source\s*one|s1|in-house|viacore/i.test(b.lender || '');
+    totalCount += b.count || 0;
+    if (isS1) {
+      s1Count += b.count || 0;
+    } else {
+      otherCount += b.count || 0;
+    }
+  }
+
+  const s1Pct = totalCount > 0 ? (s1Count / totalCount) * 100 : 0;
+  const otherPct = totalCount > 0 ? (otherCount / totalCount) * 100 : 0;
+
+  const s1Formatted = s1Pct % 1 === 0 ? s1Pct.toFixed(0) : s1Pct.toFixed(1);
+  const otherFormatted = otherPct % 1 === 0 ? otherPct.toFixed(0) : otherPct.toFixed(1);
+
   return (
-    <div
-      className={styles.lenderBarTrack}
-      title={breakdown.map((b) => `${b.lender}: ${b.count} (${(b.pct * 100).toFixed(1)}%)`).join('\n')}
-    >
-      {breakdown.map((b, idx) => {
-        const color = LENDER_COLORS[idx % LENDER_COLORS.length];
-        const widthPct = Math.max(1, b.pct * 100);
-        return (
-          <div
-            key={b.lender}
-            className={styles.lenderSegment}
-            style={{ width: `${widthPct}%`, background: color }}
-            title={`${b.lender}: ${b.count} deals (${(b.pct * 100).toFixed(1)}%)`}
-          />
-        );
-      })}
+    <div className={styles.lenderCellWrapper}>
+      <div className={styles.lenderStatsRow}>
+        <span className={styles.lenderS1Label} title={`Source One: ${s1Count} deals (${s1Formatted}%)`}>
+          Source One <span className={styles.lenderPctVal}>{s1Formatted}%</span>
+        </span>
+        <span className={styles.lenderOtherLabel} title={`Other Lenders: ${otherCount} deals (${otherFormatted}%)`}>
+          Other <span className={styles.lenderPctVal}>{otherFormatted}%</span>
+        </span>
+      </div>
+      <div
+        className={styles.lenderBarTrack}
+        title={breakdown.map((b) => `${b.lender}: ${b.count} (${(b.pct * 100).toFixed(1)}%)`).join('\n')}
+      >
+        {breakdown.map((b, idx) => {
+          const isS1 = /source\s*one|s1|in-house|viacore/i.test(b.lender || '');
+          const color = isS1 ? '#38bdf8' : (LENDER_COLORS[(idx + 1) % LENDER_COLORS.length] || '#a855f7');
+          const widthPct = Math.max(1, b.pct * 100);
+          return (
+            <div
+              key={b.lender}
+              className={styles.lenderSegment}
+              style={{ width: `${widthPct}%`, background: color }}
+              title={`${b.lender}: ${b.count} deals (${(b.pct * 100).toFixed(1)}%)`}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
