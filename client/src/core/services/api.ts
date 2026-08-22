@@ -870,7 +870,7 @@ export interface GenerateScorecardReportPayload {
 }
 
 export async function generateScorecardReport(payload: GenerateScorecardReportPayload): Promise<{ success: boolean; reportId: string; status: string; message: string }> {
-  const { data } = await api.post('/analytics/pdf-scorecard/generate', payload);
+  const { data } = await api.post('/analytics/pdf-scorecard/generate', payload, { timeout: 120000 });
   return data;
 }
 

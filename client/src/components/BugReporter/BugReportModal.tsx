@@ -314,6 +314,17 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
     }
   }, [isOpen]);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !showAnnotationEditor) {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, showAnnotationEditor]);
+
   const handleNativeCapture = async () => {
     setCapturing(true); setIsHiding(true);
     await new Promise(r => setTimeout(r, 300));
@@ -415,19 +426,6 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
   };
 
   const handleClose = () => { resetForm(); onClose(); };
-
-  if (!isOpen) return null;
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !showAnnotationEditor) {
-        handleClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showAnnotationEditor]);
 
   // ── Annotation Editor ──
   if (showAnnotationEditor && screenshot) {
