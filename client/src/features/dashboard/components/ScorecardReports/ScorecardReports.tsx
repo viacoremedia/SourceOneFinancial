@@ -533,7 +533,7 @@ export function ScorecardReports({
                   {generateMutation.isPending ? (
                     <>
                       <div className={styles.spinner} />
-                      <span>Initiating Generation...</span>
+                      <span>Generating 13 Scorecards (63 Pages)...</span>
                     </>
                   ) : (
                     <>
