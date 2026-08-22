@@ -48,7 +48,6 @@ function renderLenderBar(breakdown?: Array<{ lender: string; count: number; pct:
   if (!breakdown || !breakdown.length) return '—';
 
   let s1Count = 0;
-  let otherCount = 0;
   let totalCount = 0;
 
   for (const b of breakdown) {
@@ -56,25 +55,17 @@ function renderLenderBar(breakdown?: Array<{ lender: string; count: number; pct:
     totalCount += b.count || 0;
     if (isS1) {
       s1Count += b.count || 0;
-    } else {
-      otherCount += b.count || 0;
     }
   }
 
   const s1Pct = totalCount > 0 ? (s1Count / totalCount) * 100 : 0;
-  const otherPct = totalCount > 0 ? (otherCount / totalCount) * 100 : 0;
-
   const s1Formatted = s1Pct % 1 === 0 ? s1Pct.toFixed(0) : s1Pct.toFixed(1);
-  const otherFormatted = otherPct % 1 === 0 ? otherPct.toFixed(0) : otherPct.toFixed(1);
 
   return (
     <div className={styles.lenderCellWrapper}>
       <div className={styles.lenderStatsRow}>
-        <span className={styles.lenderS1Label} title={`Source One: ${s1Count} deals (${s1Formatted}%)`}>
+        <span className={styles.lenderS1Label} title={`Source One: ${s1Count} / ${totalCount} deals (${s1Formatted}%)`}>
           Source One <span className={styles.lenderPctVal}>{s1Formatted}%</span>
-        </span>
-        <span className={styles.lenderOtherLabel} title={`Other Lenders: ${otherCount} deals (${otherFormatted}%)`}>
-          Other <span className={styles.lenderPctVal}>{otherFormatted}%</span>
         </span>
       </div>
       <div

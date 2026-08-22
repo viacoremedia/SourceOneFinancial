@@ -191,10 +191,10 @@
 
 .lenderStatsRow {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   width: 140px;
-  font-size: 0.67rem;
+  font-size: 0.72rem;
   line-height: 1.1;
   padding: 0 1px;
 }
@@ -205,16 +205,10 @@
   white-space: nowrap;
 }
 
-.lenderOtherLabel {
-  color: #94a3b8;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .lenderPctVal {
   color: #f8fafc;
   font-weight: 700;
-  margin-left: 2px;
+  margin-left: 3px;
 }
 
 .lenderBarTrack {
