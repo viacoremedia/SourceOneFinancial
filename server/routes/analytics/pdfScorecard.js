@@ -1,8 +1,8 @@
 /**
  * PDF Scorecard API Routes
  * 
- * Manages report generation jobs, paginated report history, individual PDF streaming,
- * ZIP bundle downloading, and report deletion.
+ * Manages report generation jobs, paginated report history, individual PDF streaming from MongoDB,
+ * ZIP bundle downloading, automated 30-day retention/storage quota enforcement, and report deletion.
  * 
  * @module routes/analytics/pdfScorecard
  */
@@ -10,18 +10,34 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
-const fs = require('fs');
 const archiver = require('archiver');
 const ScorecardReport = require('../../models/ScorecardReport');
+const ScorecardReportFile = require('../../models/ScorecardReportFile');
 const { generateScorecardPDFs } = require('../../services/pdfGenerator');
-
-const BASE_REPORTS_DIR = path.join(__dirname, '../../data/scorecard-reports');
+const { cleanupScorecardStorage, getStorageUsage } = require('../../services/scorecardStorageService');
 
 // Helper to format date label
 function formatDateLabel(d) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
+
+// ==========================================
+// GET /analytics/pdf-scorecard/storage
+// Get Current Scorecard Storage Stats & Quota
+// ==========================================
+router.get('/storage', async (req, res) => {
+    try {
+        const usage = await getStorageUsage();
+        res.status(200).json({
+            success: true,
+            storage: usage
+        });
+    } catch (error) {
+        console.error('Error fetching scorecard storage metrics:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 // ==========================================
 // POST /analytics/pdf-scorecard/generate
@@ -35,6 +51,9 @@ router.post('/generate', async (req, res) => {
             visitImpact = {},
             drd = {}
         } = req.body || {};
+
+        // Run automated cleanup of expired reports (>30 days) and enforce 200MB soft cap
+        await cleanupScorecardStorage();
 
         const finPeriod = (scorecard.finPeriod || 'mtd').toUpperCase();
         const timeframe = (visitImpact.timeframe || 'ytd').toUpperCase();
@@ -79,21 +98,26 @@ router.post('/generate', async (req, res) => {
 
         await report.save();
 
-        // Run generation asynchronously in background
-        setImmediate(async () => {
-            try {
-                await generateScorecardPDFs(report._id, report.config);
-            } catch (err) {
-                console.error(`[PDF Scorecard] Generation failed for report ${report._id}:`, err);
-            }
-        });
-
-        res.status(202).json({
-            success: true,
-            reportId: report._id,
-            status: 'generating',
-            message: 'Scorecard report generation initiated'
-        });
+        // On Vercel / serverless runtimes, execute generation directly within the request lifecycle
+        // so the function is not frozen/terminated prematurely by serverless background suspension.
+        try {
+            await generateScorecardPDFs(report._id, report.config);
+            
+            res.status(201).json({
+                success: true,
+                reportId: report._id,
+                status: 'ready',
+                message: 'Scorecard report generated successfully'
+            });
+        } catch (genErr) {
+            console.error(`[PDF Scorecard] Generation failed for report ${report._id}:`, genErr);
+            res.status(500).json({
+                success: false,
+                reportId: report._id,
+                status: 'failed',
+                message: genErr.message
+            });
+        }
     } catch (error) {
         console.error('Error initiating PDF scorecard generation:', error);
         res.status(500).json({ success: false, message: error.message });
@@ -156,38 +180,43 @@ router.get('/reports/:id', async (req, res) => {
 
 // ==========================================
 // GET /analytics/pdf-scorecard/reports/:id/files/:filename
-// Stream Individual PDF to Browser / In-App Viewer
+// Stream Individual PDF from MongoDB to Browser / In-App Viewer
 // ==========================================
 router.get('/reports/:id/files/:filename', async (req, res) => {
     try {
         const { id, filename } = req.params;
         const sanitizedFilename = path.basename(filename); // Prevent path traversal
-        const filePath = path.join(BASE_REPORTS_DIR, id, sanitizedFilename);
 
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ success: false, message: 'File not found on disk' });
+        const fileDoc = await ScorecardReportFile.findOne({
+            reportId: id,
+            filename: sanitizedFilename
+        });
+
+        if (!fileDoc || !fileDoc.pdfData) {
+            return res.status(404).json({ success: false, message: 'File not found in database' });
         }
 
-        const stat = fs.statSync(filePath);
+        const pdfBuffer = Buffer.isBuffer(fileDoc.pdfData)
+            ? fileDoc.pdfData
+            : Buffer.from(fileDoc.pdfData.buffer || fileDoc.pdfData);
 
         res.writeHead(200, {
             'Content-Type': 'application/pdf',
-            'Content-Length': stat.size,
+            'Content-Length': pdfBuffer.length,
             'Content-Disposition': `inline; filename="${sanitizedFilename}"`,
-            'Cache-Control': 'public, max-age=3600'
+            'Cache-Control': 'public, max-age=86400'
         });
 
-        const readStream = fs.createReadStream(filePath);
-        readStream.pipe(res);
+        res.end(pdfBuffer);
     } catch (error) {
-        console.error('Error streaming scorecard PDF:', error);
+        console.error('Error streaming scorecard PDF from MongoDB:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
 // ==========================================
 // GET /analytics/pdf-scorecard/reports/:id/download
-// Stream Full ZIP Archive of All Report PDFs
+// Stream Full ZIP Archive of All Report PDFs from MongoDB
 // ==========================================
 router.get('/reports/:id/download', async (req, res) => {
     try {
@@ -197,9 +226,9 @@ router.get('/reports/:id/download', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Report not found' });
         }
 
-        const reportDir = path.join(BASE_REPORTS_DIR, id);
-        if (!fs.existsSync(reportDir)) {
-            return res.status(404).json({ success: false, message: 'Report files directory not found on disk' });
+        const files = await ScorecardReportFile.find({ reportId: id });
+        if (!files || files.length === 0) {
+            return res.status(404).json({ success: false, message: 'No report files found in database' });
         }
 
         const zipFilename = `Scorecard_Reports_${id.toString().slice(-6)}.zip`;
@@ -218,12 +247,17 @@ router.get('/reports/:id/download', async (req, res) => {
 
         archive.pipe(res);
 
-        // Append all PDF files from directory
-        archive.directory(reportDir, false);
+        // Append all PDF binary buffers from MongoDB
+        for (const file of files) {
+            const pdfBuffer = Buffer.isBuffer(file.pdfData)
+                ? file.pdfData
+                : Buffer.from(file.pdfData.buffer || file.pdfData);
+            archive.append(pdfBuffer, { name: file.filename });
+        }
 
         await archive.finalize();
     } catch (error) {
-        console.error('Error creating scorecard ZIP download:', error);
+        console.error('Error creating scorecard ZIP download from MongoDB:', error);
         if (!res.headersSent) {
             res.status(500).json({ success: false, message: error.message });
         }
@@ -232,7 +266,7 @@ router.get('/reports/:id/download', async (req, res) => {
 
 // ==========================================
 // DELETE /analytics/pdf-scorecard/reports/:id
-// Delete Report Record & Purge Disk Files
+// Delete Report Record & Purge PDF Documents from MongoDB
 // ==========================================
 router.delete('/reports/:id', async (req, res) => {
     try {
@@ -242,17 +276,14 @@ router.delete('/reports/:id', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Report not found' });
         }
 
-        const reportDir = path.join(BASE_REPORTS_DIR, id);
-        if (fs.existsSync(reportDir)) {
-            fs.rmSync(reportDir, { recursive: true, force: true });
-        }
+        const deleteFilesResult = await ScorecardReportFile.deleteMany({ reportId: id });
 
         res.status(200).json({
             success: true,
-            message: 'Report and associated PDF files deleted successfully'
+            message: `Report and ${deleteFilesResult.deletedCount} associated PDF documents deleted from database`
         });
     } catch (error) {
-        console.error('Error deleting scorecard report:', error);
+        console.error('Error deleting scorecard report from MongoDB:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

@@ -11,13 +11,12 @@
  *   - Individual Rep Scorecards (Exact 5 Pages per rep, strictly zero blank pages)
  *   - Explicit calendar date ranges displayed for all standard and custom data queries
  * 
- * Files are streamed directly to disk under server/data/scorecard-reports/<reportId>/
+ * Files are stored directly in MongoDB as binary Buffer documents (ScorecardReportFile)
+ * for instant, resilient retrieval across ephemeral serverless invocations.
  * 
  * @module services/pdfGenerator
  */
 
-const fs = require('fs');
-const path = require('path');
 const PDFDocument = require('pdfkit');
 
 // Require all referenced models so Mongoose population never throws missing schema errors
@@ -28,6 +27,7 @@ const DealerGroup = require('../models/DealerGroup');
 const DealerLocation = require('../models/DealerLocation');
 const DealerProfile = require('../models/DealerProfile');
 const ScorecardReport = require('../models/ScorecardReport');
+const ScorecardReportFile = require('../models/ScorecardReportFile');
 
 const { computeRepScorecard } = require('./rollingAverages');
 const { computeVisitImpactV2 } = require('./communicationImpactService');
@@ -299,11 +299,6 @@ function drawTable(doc, startY, headers, rows, columnWidths, options = {}) {
  * Main PDF Generation Engine
  */
 async function generateScorecardPDFs(reportId, config = {}) {
-    const reportDir = path.join(__dirname, '../data/scorecard-reports', String(reportId));
-    if (!fs.existsSync(reportDir)) {
-        fs.mkdirSync(reportDir, { recursive: true });
-    }
-
     try {
         const windowSize = Number(config.scorecard?.windowSize) || 7;
         const statusFilter = config.scorecard?.statusFilter || null;
@@ -488,36 +483,61 @@ async function generateScorecardPDFs(reportId, config = {}) {
         };
 
         const fileManifest = [];
+        const filesToInsert = [];
 
         // 1. Company Overview (Exact 3 Pages)
         const companyFilename = `Scorecard_Company_Overview.pdf`;
-        const companyFilePath = path.join(reportDir, companyFilename);
-        await generateCompanyPDF(companyFilePath, unifiedReps, peerAvg, dateRanges, visitImpactData);
-        const compStats = fs.statSync(companyFilePath);
+        const companyBuffer = await generateCompanyPDFBuffer(unifiedReps, peerAvg, dateRanges, visitImpactData);
+        
         fileManifest.push({
             label: 'Company Overview & Comparison',
             filename: companyFilename,
             repName: null,
             type: 'company',
-            fileSizeBytes: compStats.size,
+            fileSizeBytes: companyBuffer.length,
             pageCount: 3
+        });
+
+        filesToInsert.push({
+            reportId,
+            filename: companyFilename,
+            label: 'Company Overview & Comparison',
+            repName: null,
+            type: 'company',
+            fileSizeBytes: companyBuffer.length,
+            pageCount: 3,
+            pdfData: companyBuffer
         });
 
         // 2. Individual Rep Scorecards (Exact 5 Pages per rep)
         for (const rep of unifiedReps) {
             const repFilename = `Scorecard_${sanitizeRepFilename(rep.rep)}.pdf`;
-            const repFilePath = path.join(reportDir, repFilename);
-            await generateRepScorecardPDF(repFilePath, rep, peerAvg, getRank, dateRanges);
-            const rStats = fs.statSync(repFilePath);
+            const repBuffer = await generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges);
+            
             fileManifest.push({
                 label: rep.rep,
                 filename: repFilename,
                 repName: rep.rep,
                 type: 'rep',
-                fileSizeBytes: rStats.size,
+                fileSizeBytes: repBuffer.length,
                 pageCount: 5
             });
+
+            filesToInsert.push({
+                reportId,
+                filename: repFilename,
+                label: rep.rep,
+                repName: rep.rep,
+                type: 'rep',
+                fileSizeBytes: repBuffer.length,
+                pageCount: 5,
+                pdfData: repBuffer
+            });
         }
+
+        // Persist all generated PDF files directly in MongoDB
+        await ScorecardReportFile.deleteMany({ reportId });
+        await ScorecardReportFile.insertMany(filesToInsert);
 
         const totalBookedVol = unifiedReps.reduce((s, r) => s + (r.financials?.bookedVolume || 0), 0);
         const totalBookedCnt = unifiedReps.reduce((s, r) => s + (r.financials?.bookedCount || 0), 0);
@@ -552,17 +572,19 @@ async function generateScorecardPDFs(reportId, config = {}) {
 }
 
 /**
- * Generate Exact 3-Page Company-Wide PDF (Strictly 0 margin to prevent phantom page breaks)
+ * Generate Exact 3-Page Company-Wide PDF in-memory buffer
  */
-function generateCompanyPDF(outputPath, reps, peerAvg, dateRanges, visitImpactData) {
+function generateCompanyPDFBuffer(reps, peerAvg, dateRanges, visitImpactData) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({
             size: 'LETTER',
             margin: 0,
             autoFirstPage: true
         });
-        const stream = fs.createWriteStream(outputPath);
-        doc.pipe(stream);
+        const chunks = [];
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
 
         const totalPages = 3;
         const margin = 36;
@@ -791,23 +813,23 @@ function generateCompanyPDF(outputPath, reps, peerAvg, dateRanges, visitImpactDa
         drawFooter(doc);
 
         doc.end();
-        stream.on('finish', resolve);
-        stream.on('error', reject);
     });
 }
 
 /**
- * Generate Exact 5-Page Individual Rep PDF (Strictly 0 margin to prevent phantom page breaks)
+ * Generate Exact 5-Page Individual Rep PDF in-memory buffer
  */
-function generateRepScorecardPDF(outputPath, rep, peerAvg, getRank, dateRanges) {
+function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({
             size: 'LETTER',
             margin: 0,
             autoFirstPage: true
         });
-        const stream = fs.createWriteStream(outputPath);
-        doc.pipe(stream);
+        const chunks = [];
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
 
         const totalPages = 5;
         const margin = 36;
@@ -1143,8 +1165,6 @@ function generateRepScorecardPDF(outputPath, rep, peerAvg, getRank, dateRanges) 
         drawFooter(doc);
 
         doc.end();
-        stream.on('finish', resolve);
-        stream.on('error', reject);
     });
 }
 
