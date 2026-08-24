@@ -8,9 +8,16 @@ import {
   TrendingUp,
   Calendar,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Lock,
+  Unlock,
+  History
 } from 'lucide-react';
-import { getDealerRelationshipDrawer } from '../../../../core/services/api';
+import { 
+  getDealerRelationshipDrawer,
+  overrideDealerRelationshipSegment,
+  resetDealerRelationshipOverride
+} from '../../../../core/services/api';
 import type { RelationshipDemandDrawerResponse } from '../../../../core/services/api';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
@@ -40,6 +47,58 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   const [hoveredMonth, setHoveredMonth] = useState<any | null>(null);
   const [selectedAppDetail, setSelectedAppDetail] = useState<any | null>(null);
   const [selectedCommDetail, setSelectedCommDetail] = useState<CommunicationDetailItem | null>(null);
+
+  // Human Reconciliation & DRD Override state
+  const [overrideModalOpen, setOverrideModalOpen] = useState<boolean>(false);
+  const [overrideSegment, setOverrideSegment] = useState<'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data'>('high_tlc');
+  const [overrideReason, setOverrideReason] = useState<string>('');
+  const [overrideSubmitting, setOverrideSubmitting] = useState<boolean>(false);
+  const [overrideActionError, setOverrideActionError] = useState<string | null>(null);
+  const [auditLogExpanded, setAuditLogExpanded] = useState<boolean>(false);
+
+  const reloadDrawerData = async () => {
+    if (!clientDealerId) return;
+    try {
+      const res = await getDealerRelationshipDrawer(clientDealerId);
+      setData(res);
+    } catch (err) {
+      console.error('Failed to reload DRD drawer:', err);
+    }
+  };
+
+  const handleSaveOverride = async () => {
+    if (!clientDealerId || !data?.profile) return;
+    if (!overrideReason.trim()) {
+      setOverrideActionError('Please enter a reason note for the manual reconciliation audit log.');
+      return;
+    }
+    setOverrideSubmitting(true);
+    setOverrideActionError(null);
+    try {
+      await overrideDealerRelationshipSegment(clientDealerId, overrideSegment, overrideReason.trim());
+      setOverrideModalOpen(false);
+      setOverrideReason('');
+      await reloadDrawerData();
+    } catch (err: any) {
+      setOverrideActionError(err.message || 'Failed to save DRD override.');
+    } finally {
+      setOverrideSubmitting(false);
+    }
+  };
+
+  const handleResetOverride = async () => {
+    if (!clientDealerId || !data?.profile) return;
+    if (!window.confirm('Reset this dealer back to automated algorithmic calculation?')) return;
+    setOverrideSubmitting(true);
+    try {
+      await resetDealerRelationshipOverride(clientDealerId);
+      await reloadDrawerData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to reset override.');
+    } finally {
+      setOverrideSubmitting(false);
+    }
+  };
 
   // Close on ESC key
   useEffect(() => {
@@ -315,6 +374,315 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   </li>
                 )}
               </ul>
+            </div>
+
+            {/* Manual DRD Reconciliation & Human Override Card */}
+            <div
+              style={{
+                background: profile.manualOverride?.isOverridden
+                  ? 'rgba(234, 179, 8, 0.08)'
+                  : 'rgba(30, 41, 59, 0.5)',
+                border: `1px solid ${
+                  profile.manualOverride?.isOverridden
+                    ? 'rgba(234, 179, 8, 0.35)'
+                    : 'rgba(255, 255, 255, 0.08)'
+                }`,
+                borderRadius: '8px',
+                padding: '14px 16px',
+                marginBottom: '16px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '10px',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {profile.manualOverride?.isOverridden ? (
+                    <Lock size={16} color="#eab308" />
+                  ) : (
+                    <Unlock size={16} color="#94a3b8" />
+                  )}
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>
+                    DRD Human Reconciliation Status
+                  </span>
+                  {profile.manualOverride?.isOverridden ? (
+                    <span
+                      style={{
+                        background: 'rgba(234, 179, 8, 0.18)',
+                        color: '#facc15',
+                        border: '1px solid rgba(234, 179, 8, 0.4)',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      🔒 Manually Locked
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: '#34d399',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ⚡ Automated Classification
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {profile.manualOverride?.isOverridden && (
+                    <button
+                      type="button"
+                      onClick={handleResetOverride}
+                      disabled={overrideSubmitting}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        color: '#f87171',
+                        padding: '4px 10px',
+                        borderRadius: '5px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Reset to System Calculation
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOverrideModalOpen(!overrideModalOpen);
+                      setOverrideSegment((profile.relationshipDemand as any) || 'high_tlc');
+                      setOverrideReason(profile.manualOverride?.reason || '');
+                    }}
+                    style={{
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      color: '#38bdf8',
+                      padding: '4px 10px',
+                      borderRadius: '5px',
+                      fontSize: '0.76rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {profile.manualOverride?.isOverridden ? 'Edit Override' : 'Override DRD Segment'}
+                  </button>
+                </div>
+              </div>
+
+              {profile.manualOverride?.isOverridden && (
+                <div
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    padding: '10px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    color: '#cbd5e1',
+                    marginBottom: '8px',
+                  }}
+                >
+                  <div style={{ marginBottom: '4px' }}>
+                    <strong style={{ color: '#facc15' }}>Active Override: </strong>
+                    <span>Classified as <strong>{profile.relationshipDemand?.replace(/_/g, ' ').toUpperCase()}</strong> (system calculated {profile.manualOverride.originalSegment || 'unclassified'})</span>
+                  </div>
+                  <div style={{ marginBottom: '4px' }}>
+                    <strong>Reason: </strong>
+                    <span style={{ fontStyle: 'italic', color: '#e2e8f0' }}>"{profile.manualOverride.reason}"</span>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                    By {profile.manualOverride.overriddenBy?.name || profile.manualOverride.overriddenBy?.email || 'Authorized Manager'} • {profile.manualOverride.overriddenAt ? new Date(profile.manualOverride.overriddenAt).toLocaleString() : 'Recently'}
+                  </div>
+                </div>
+              )}
+
+              {/* Inline Override Form when expanded */}
+              {overrideModalOpen && (
+                <div
+                  style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    borderRadius: '6px',
+                  }}
+                >
+                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: '#38bdf8', marginBottom: '8px' }}>
+                    Select Target Classification & Document Required Reason:
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '10px' }}>
+                    {[
+                      { key: 'high_tlc', label: '🔴 High TLC', desc: 'Touch-sensitive, high yield lift from visits' },
+                      { key: 'self_sufficient', label: '🟢 Autonomous', desc: 'Self-sufficient digital portal usage' },
+                      { key: 'comfort_stop', label: '🟠 Comfort Stop', desc: 'Frequent visits with flat/low yield' },
+                      { key: 'insufficient_data', label: '⚪ Discovery Queue', desc: 'Awaiting visit cycle benchmarks' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setOverrideSegment(opt.key as any)}
+                        style={{
+                          padding: '8px',
+                          borderRadius: '6px',
+                          border: overrideSegment === opt.key ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                          background: overrideSegment === opt.key ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                          color: overrideSegment === opt.key ? '#38bdf8' : '#cbd5e1',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>{opt.label}</div>
+                        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
+                      Reason for Manual Override <span style={{ color: '#f87171' }}>* (Required for audit logging)</span>:
+                    </label>
+                    <textarea
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                      placeholder="e.g. Account owner requested monthly rep lunch; proven $500K seasonal spring lift despite portal inactivity..."
+                      rows={2}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        background: 'rgba(0, 0, 0, 0.4)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '5px',
+                        color: '#f8fafc',
+                        fontSize: '0.8rem',
+                        outline: 'none',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </div>
+
+                  {overrideActionError && (
+                    <div style={{ color: '#f87171', fontSize: '0.78rem', marginBottom: '8px' }}>
+                      ⚠️ {overrideActionError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setOverrideModalOpen(false)}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#94a3b8',
+                        padding: '5px 12px',
+                        borderRadius: '4px',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveOverride}
+                      disabled={overrideSubmitting}
+                      style={{
+                        background: '#0284c7',
+                        border: 'none',
+                        color: '#fff',
+                        padding: '5px 14px',
+                        borderRadius: '4px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: overrideSubmitting ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {overrideSubmitting ? 'Saving...' : 'Confirm & Save Override'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Collapsible Override Audit History */}
+              {profile.manualOverride?.history && profile.manualOverride.history.length > 0 && (
+                <div style={{ marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAuditLogExpanded(!auditLogExpanded)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      fontSize: '0.74rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 0',
+                    }}
+                  >
+                    <History size={13} />
+                    <span>
+                      {auditLogExpanded ? 'Hide' : 'Show'} Audit History Log ({profile.manualOverride.history.length})
+                    </span>
+                  </button>
+
+                  {auditLogExpanded && (
+                    <div
+                      style={{
+                        marginTop: '6px',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '4px',
+                        padding: '6px 10px',
+                        fontSize: '0.72rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      {profile.manualOverride.history.map((h: any, idx: number) => (
+                        <div
+                          key={idx}
+                          style={{
+                            borderBottom: idx < profile.manualOverride!.history!.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                            paddingBottom: '4px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
+                            <span>
+                              <strong>{h.fromSegment || 'auto'} ➔ {h.toSegment}</strong> by {h.by?.name || h.by?.email || 'Manager'}
+                            </span>
+                            <span style={{ color: '#64748b' }}>
+                              {new Date(h.at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {h.reason && (
+                            <div style={{ color: '#94a3b8', fontStyle: 'italic', marginTop: '2px' }}>
+                              "{h.reason}"
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Visual Cause & Effect Timeline Chart */}

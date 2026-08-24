@@ -158,6 +158,19 @@ export interface DealerApplicationHistoryResponse {
   };
 }
 
+export interface DealerDRDMeta {
+  segment: 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data';
+  urgencyStatus?: string;
+  isOverridden?: boolean;
+  overriddenSegment?: string | null;
+  reason?: string | null;
+  overriddenBy?: {
+    userId?: string | null;
+    name?: string | null;
+    email?: string | null;
+  };
+}
+
 // ── Dealer Location ──
 export interface DealerLocation {
   _id: string;
@@ -171,6 +184,7 @@ export interface DealerLocation {
   createdAt: string;
   latestSnapshot: DailySnapshot | null;
   stats?: DealerStats;
+  drd?: DealerDRDMeta | null;
 }
 
 // ── Daily Snapshot ──
@@ -266,6 +280,7 @@ export interface TableColumn {
   key: string;
   label: string;
   shortLabel?: string;
+  description?: string;
   align?: 'left' | 'center' | 'right';
   width?: string;
   minWidth?: string;

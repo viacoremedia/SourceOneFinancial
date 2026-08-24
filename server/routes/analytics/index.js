@@ -16,6 +16,7 @@ const MonthlyDealerRollup = require('../../models/MonthlyDealerRollup');
 const DealerGroup = require('../../models/DealerGroup');
 const DealerLocation = require('../../models/DealerLocation');
 const DealerCommunication = require('../../models/DealerCommunication');
+const DealerProfile = require('../../models/DealerProfile');
 const SalesBudget = require('../../models/SalesBudget');
 const LargeDealerBudget = require('../../models/LargeDealerBudget');
 const { getDealerStatsMap, getNetworkAggregateStats } = require('../../services/dealerStatsService');
@@ -244,12 +245,13 @@ router.get('/executive-summary', async (req, res) => {
         const { compStart, compEnd, comparisonLabel } = await getComparisonDateRange(startDateStr, endDateStr, trendPeriod);
 
         const statusFilter = req.query.status || req.query.statusFilter || null;
+        const drdFilter = req.query.drd || req.query.drdSegment || null;
 
         const REP_ALIAS_MAP = getRepAliasMap();
 
         let filterDealerIds = null;
 
-        if (statusFilter || stateFilter || repFilter || groupSlugFilter) {
+        if (statusFilter || stateFilter || repFilter || groupSlugFilter || (drdFilter && drdFilter !== 'all')) {
             const locMatch = {};
             if (groupSlugFilter) {
                 const grp = await DealerGroup.findOne({ slug: groupSlugFilter }).lean();
@@ -287,7 +289,20 @@ router.get('/executive-summary', async (req, res) => {
                 }
             }
 
+            if (drdFilter && drdFilter !== 'all') {
+                const drdQuery = drdFilter === 'overridden'
+                    ? { 'manualOverride.isOverridden': true }
+                    : { relationshipDemand: drdFilter };
+                const matchingProfiles = await DealerProfile.find(drdQuery).select('dealerLocation clientDealerId').lean();
+                const drdLocIdSet = new Set(matchingProfiles.map(p => p.dealerLocation?.toString()).filter(Boolean));
+                const drdClientSet = new Set(matchingProfiles.map(p => (p.clientDealerId || '').trim().toUpperCase()).filter(Boolean));
+                matchingLocs = matchingLocs.filter(l => drdLocIdSet.has(l._id.toString()) || drdClientSet.has((l.clientDealerId || l.dealerId || '').trim().toUpperCase()));
+            }
+
             filterDealerIds = matchingLocs.map(l => (l.clientDealerId || l.dealerId || '').trim().toUpperCase()).filter(Boolean);
+            if (filterDealerIds.length === 0) {
+                filterDealerIds = ['__NO_MATCH__'];
+            }
         }
 
         // Fetch current range network totals & comparison period totals
@@ -990,11 +1005,42 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
             })
         );
 
+        // Fetch DRD profiles for group locations
+        const locIds = locationsWithSnapshot.map(l => l._id);
+        const clientIds = locationsWithSnapshot.map(l => l.clientDealerId).filter(Boolean);
+        const groupProfiles = await DealerProfile.find({
+            $or: [
+                { dealerLocation: { $in: locIds } },
+                { clientDealerId: { $in: clientIds } }
+            ]
+        }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride').lean();
+
+        const drdMap = new Map();
+        for (const p of groupProfiles) {
+            if (p.dealerLocation) drdMap.set(p.dealerLocation.toString(), p);
+            if (p.clientDealerId) drdMap.set(p.clientDealerId.trim().toUpperCase(), p);
+        }
+
+        const locationsWithDrd = locationsWithSnapshot.map(loc => {
+            const p = drdMap.get(loc._id.toString()) || (loc.clientDealerId ? drdMap.get(loc.clientDealerId.trim().toUpperCase()) : null);
+            return {
+                ...loc,
+                drd: p ? {
+                    segment: p.relationshipDemand,
+                    urgencyStatus: p.urgencyStatus,
+                    isOverridden: Boolean(p.manualOverride?.isOverridden),
+                    overriddenSegment: p.manualOverride?.overriddenSegment,
+                    reason: p.manualOverride?.reason,
+                    overriddenBy: p.manualOverride?.overriddenBy
+                } : null
+            };
+        });
+
         res.status(200).json({
             success: true,
             group: { name: group.name, slug: group.slug, dealerCount: group.dealerCount },
-            count: locationsWithSnapshot.length,
-            locations: locationsWithSnapshot
+            count: locationsWithDrd.length,
+            locations: locationsWithDrd
         });
     } catch (error) {
         console.error('Error fetching group locations:', error);
@@ -1033,6 +1079,30 @@ router.get('/groups', async (req, res) => {
 
             const matchingLocations = await DealerLocation.find(locMatch).select('_id').lean();
             filteredLocationIds = matchingLocations.map(l => l._id);
+        }
+
+        // Optional DRD segment filter for groups
+        const drdParam = req.query.drd || req.query.drdSegment || null;
+        if (drdParam && drdParam !== 'all') {
+            const drdQuery = drdParam === 'overridden'
+                ? { 'manualOverride.isOverridden': true }
+                : { relationshipDemand: drdParam };
+            const matchingProfiles = await DealerProfile.find(drdQuery).select('dealerLocation clientDealerId').lean();
+            const matchingLocIds = matchingProfiles.map(p => p.dealerLocation).filter(Boolean);
+            const matchingClientIds = matchingProfiles.map(p => p.clientDealerId).filter(Boolean);
+            const drdLocations = await DealerLocation.find({
+                $or: [
+                    { _id: { $in: matchingLocIds } },
+                    { clientDealerId: { $in: matchingClientIds } }
+                ],
+                dealerGroup: { $ne: null }
+            }).select('_id').lean();
+            const drdLocationIds = drdLocations.map(l => l._id.toString());
+            if (filteredLocationIds) {
+                filteredLocationIds = filteredLocationIds.filter(id => drdLocationIds.includes(id.toString()));
+            } else {
+                filteredLocationIds = drdLocations.map(l => l._id);
+            }
         }
 
         const groups = await DealerGroup.find({})
@@ -1402,7 +1472,11 @@ router.get('/dealers/small', async (req, res) => {
         const endDate = req.query.end || req.query.endDate || null;
 
         // Map frontend sort keys to snapshot & stat fields
-        const STAT_FIELDS = ['apps', 'approvals', 'inHouse', 'booked', 'bookedDollars', 'lookToBook', 'approvalToBook'];
+        const STAT_FIELDS = [
+            'apps', 'approvals', 'inHouse', 'booked', 'bookedDollars', 
+            'lookToBook', 'approvalToBook', 'leadBooked', 'leadBookedDollars', 
+            'appBkd', 'appBooked', 'appBookedDollars', 'avgFico'
+        ];
         const isSortingByStat = sortFields.some(f => STAT_FIELDS.includes(f));
 
         const SORT_FIELD_MAP = {
@@ -1417,10 +1491,16 @@ router.get('/dealers/small', async (req, res) => {
             'apps': 'stats.apps',
             'approvals': 'stats.approvals',
             'inHouse': 'stats.inHouse',
+            'leadBooked': 'stats.leadBooked',
+            'appBkd': 'stats.leadBooked',
+            'appBooked': 'stats.leadBooked',
+            'leadBookedDollars': 'stats.leadBookedDollars',
+            'appBookedDollars': 'stats.leadBookedDollars',
             'booked': 'stats.booked',
             'bookedDollars': 'stats.bookedDollars',
             'lookToBook': 'stats.lookToBook',
             'approvalToBook': 'stats.approvalToBook',
+            'avgFico': 'stats.avgFico',
         };
 
         // Build resolved sort columns
@@ -1450,6 +1530,21 @@ router.get('/dealers/small', async (req, res) => {
         }
         if (searchQuery) {
             baseMatch.dealerName = { $regex: searchQuery, $options: 'i' };
+        }
+
+        // Optional DRD segment filter
+        const drdParam = req.query.drd || req.query.drdSegment || null;
+        if (drdParam && drdParam !== 'all') {
+            const drdQuery = drdParam === 'overridden'
+                ? { 'manualOverride.isOverridden': true }
+                : { relationshipDemand: drdParam };
+            const matchingProfiles = await DealerProfile.find(drdQuery).select('dealerLocation clientDealerId').lean();
+            const matchingLocIds = matchingProfiles.map(p => p.dealerLocation).filter(Boolean);
+            const matchingClientIds = matchingProfiles.map(p => p.clientDealerId).filter(Boolean);
+            baseMatch.$or = [
+                { _id: { $in: matchingLocIds } },
+                { clientDealerId: { $in: matchingClientIds } }
+            ];
         }
 
         // Map activityMode to the daysSince field for derived status
@@ -1934,6 +2029,33 @@ router.get('/dealers/small', async (req, res) => {
                     approvalToBook: computeMetricTrend(curr.approvalToBook, base.approvalToBook),
                 } : undefined
             };
+        }
+
+        // Attach DRD relationship demand profile to each dealer
+        const pageLocIds = dealers.map(d => d._id);
+        const drdProfiles = await DealerProfile.find({
+            $or: [
+                { dealerLocation: { $in: pageLocIds } },
+                { clientDealerId: { $in: pageDealerKeys } }
+            ]
+        }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride').lean();
+
+        const drdMap = new Map();
+        for (const p of drdProfiles) {
+            if (p.dealerLocation) drdMap.set(p.dealerLocation.toString(), p);
+            if (p.clientDealerId) drdMap.set(p.clientDealerId.trim().toUpperCase(), p);
+        }
+
+        for (const dealer of dealers) {
+            const p = drdMap.get(dealer._id.toString()) || (dealer.clientDealerId ? drdMap.get(dealer.clientDealerId.trim().toUpperCase()) : null);
+            dealer.drd = p ? {
+                segment: p.relationshipDemand,
+                urgencyStatus: p.urgencyStatus,
+                isOverridden: Boolean(p.manualOverride?.isOverridden),
+                overriddenSegment: p.manualOverride?.overriddenSegment,
+                reason: p.manualOverride?.reason,
+                overriddenBy: p.manualOverride?.overriddenBy
+            } : null;
         }
 
         res.status(200).json({

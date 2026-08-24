@@ -20,10 +20,12 @@ interface FilterBarProps {
   selectedRep: string;
   selectedState: string;
   statusFilter: string | null;
+  drdFilter?: string | null;
   activityMode?: 'application' | 'approval' | 'booking';
   onRepChange: (rep: string) => void;
   onStateChange: (state: string) => void;
   onStatusFilterChange: (status: string | null) => void;
+  onDrdFilterChange?: (drd: string | null) => void;
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
   repHeatMap?: Record<string, HeatClass>;
   statusTransitions?: { from: string; to: string; count: number }[];
@@ -79,10 +81,12 @@ export function FilterBar({
   selectedRep,
   selectedState,
   statusFilter,
+  drdFilter = null,
   activityMode = 'application',
   onRepChange,
   onStateChange,
   onStatusFilterChange,
+  onDrdFilterChange,
   onActivityModeChange,
   repHeatMap,
   statusTransitions = [],
@@ -97,6 +101,7 @@ export function FilterBar({
     if (selectedRep) count++;
     if (selectedState) count++;
     if (statusFilter) count++;
+    if (drdFilter) count++;
     if (activityMode && activityMode !== 'application') count++;
     if (transitionFilter) count++;
     return count;
@@ -311,10 +316,27 @@ export function FilterBar({
           </select>
         </div>
 
+        <div className={styles.filterGroup}>
+          <label className={styles.filterLabel}>Relationship (DRD)</label>
+          <select
+            className={`${styles.filterSelect} ${drdFilter ? styles.filterActive : ''}`}
+            value={drdFilter || ''}
+            onChange={(e) => onDrdFilterChange?.(e.target.value || null)}
+            id="filter-drd"
+          >
+            <option value="">All DRD Segments</option>
+            <option value="high_tlc">🔴 High TLC</option>
+            <option value="self_sufficient">🟢 Autonomous</option>
+            <option value="comfort_stop">🟠 Comfort Stop</option>
+            <option value="insufficient_data">⚪ Discovery Queue</option>
+            <option value="overridden">🔒 Manually Reconciled</option>
+          </select>
+        </div>
+
         {hasActiveFilters && (
           <button
             className={styles.clearBtn}
-            onClick={() => { onRepChange(''); onStateChange(''); onStatusFilterChange(null); }}
+            onClick={() => { onRepChange(''); onStateChange(''); onStatusFilterChange(null); onDrdFilterChange?.(null); }}
             title="Clear all filters"
           >
             ✕

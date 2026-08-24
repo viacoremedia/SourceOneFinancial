@@ -29,6 +29,7 @@ import type {
 
 import { resolveRepDisplayName } from '../../../../core/utils/repNames';
 import { CustomDatePicker } from '../CustomDatePicker/CustomDatePicker';
+import { useDashboardStore } from '../../stores/useDashboardStore';
 
 const INACTIVE_OR_EXCLUDED_REPS = new Set([
   'bruce sweere', 'bsweere',
@@ -220,6 +221,104 @@ interface SortColumn {
   dir: SortDir;
 }
 
+// ── DRD Segment Badge Helper ──
+
+function renderDrdBadge(drd?: DealerLocation['drd']) {
+  if (!drd || !drd.segment) return null;
+  const isOverridden = drd.isOverridden;
+  switch (drd.segment) {
+    case 'high_tlc':
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            color: '#f87171',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap'
+          }}
+          title={isOverridden ? `Overridden to High TLC: ${drd.reason || ''}` : 'High TLC (Touch-Sensitive Account)'}
+        >
+          {isOverridden && <span>🔒</span>}🔴 TLC
+        </span>
+      );
+    case 'self_sufficient':
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'rgba(16, 185, 129, 0.15)',
+            color: '#34d399',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap'
+          }}
+          title={isOverridden ? `Overridden to Autonomous: ${drd.reason || ''}` : 'Autonomous (Self-Sufficient Flow)'}
+        >
+          {isOverridden && <span>🔒</span>}🟢 Auto
+        </span>
+      );
+    case 'comfort_stop':
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'rgba(249, 115, 22, 0.15)',
+            color: '#fb923c',
+            border: '1px solid rgba(249, 115, 22, 0.35)',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap'
+          }}
+          title={isOverridden ? `Overridden to Comfort Stop: ${drd.reason || ''}` : 'Comfort Stop (Low Touch-Sensitivity)'}
+        >
+          {isOverridden && <span>🔒</span>}🟠 Comfort
+        </span>
+      );
+    case 'insufficient_data':
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'rgba(148, 163, 184, 0.15)',
+            color: '#cbd5e1',
+            border: '1px solid rgba(148, 163, 184, 0.25)',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            fontSize: '0.68rem',
+            fontWeight: 600,
+            whiteSpace: 'nowrap'
+          }}
+          title={isOverridden ? `Overridden to Discovery: ${drd.reason || ''}` : 'Discovery Queue (<2 Visits)'}
+        >
+          {isOverridden && <span>🔒</span>}⚪ Discovery
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
 // ── Sort Helpers ──
 
 /** Compute days since a date string, relative to now */
@@ -259,6 +358,26 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
       return daysSinceDate(s?.latestComm) ?? 99999;  // best = most recent
     case 'visitToApp':
       return s?.visitToApp?.best ?? 99999;
+    case 'apps':
+      return group.stats?.apps ?? -1;
+    case 'approvals':
+      return group.stats?.approvals ?? -1;
+    case 'inHouse':
+      return group.stats?.inHouse ?? -1;
+    case 'leadBooked':
+      return group.stats?.leadBooked ?? -1;
+    case 'leadBookedDollars':
+      return group.stats?.leadBookedDollars ?? -1;
+    case 'booked':
+      return group.stats?.booked ?? -1;
+    case 'bookedDollars':
+      return group.stats?.bookedDollars ?? -1;
+    case 'lookToBook':
+      return group.stats?.lookToBook ?? -1;
+    case 'approvalToBook':
+      return group.stats?.approvalToBook ?? -1;
+    case 'avgFico':
+      return group.stats?.avgFico ?? -1;
     default:
       return 0;
   }
@@ -281,6 +400,26 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
       return daysSinceDate(snap?.latestCommunicationDatetime as string | null) ?? 99999;
     case 'visitToApp':
       return snap?.daysFromVisitToNextApp ?? 99999;
+    case 'apps':
+      return loc.stats?.apps ?? -1;
+    case 'approvals':
+      return loc.stats?.approvals ?? -1;
+    case 'inHouse':
+      return loc.stats?.inHouse ?? -1;
+    case 'leadBooked':
+      return loc.stats?.leadBooked ?? -1;
+    case 'leadBookedDollars':
+      return loc.stats?.leadBookedDollars ?? -1;
+    case 'booked':
+      return loc.stats?.booked ?? -1;
+    case 'bookedDollars':
+      return loc.stats?.bookedDollars ?? -1;
+    case 'lookToBook':
+      return loc.stats?.lookToBook ?? -1;
+    case 'approvalToBook':
+      return loc.stats?.approvalToBook ?? -1;
+    case 'avgFico':
+      return loc.stats?.avgFico ?? -1;
     default:
       return 0;
   }
@@ -411,7 +550,10 @@ export function DealerTable({
   // - If column exists in stack, toggle direction
   // - shouldAppend=false (single click): REPLACE stack with this column
   // - shouldAppend=true  (double click): APPEND column to stack
-  const STAT_KEYS = new Set(['apps', 'approvals', 'inHouse', 'booked', 'bookedDollars', 'lookToBook', 'approvalToBook']);
+  const STAT_KEYS = new Set([
+    'apps', 'approvals', 'inHouse', 'leadBooked', 'leadBookedDollars', 
+    'booked', 'bookedDollars', 'lookToBook', 'approvalToBook', 'avgFico'
+  ]);
 
   const updateStack = (stack: SortColumn[], key: string, shouldAppend: boolean): SortColumn[] => {
     const defaultDir: SortDir = STAT_KEYS.has(key) ? 'desc' : 'asc';
@@ -519,18 +661,23 @@ export function DealerTable({
   // In dealer mode, server handles search — no client-side filtering needed
   const sortedDealers = smallDealers;
 
+  const { showAppBookedColumns, setShowAppBookedColumns } = useDashboardStore();
+
   // Which sort to display in the headers
   const displayStack: SortColumn[] = mode !== 'groups'
     ? dealerSort
     : sortTarget === 'locations' ? childSortStack : groupSortStack;
 
-  // Filter columns based on mode (hide groupOnly columns in dealer mode)
-  const visibleColumns = useMemo(() =>
-    mode === 'groups'
+  // Filter columns based on mode (hide groupOnly columns in dealer mode) and showAppBookedColumns toggle
+  const visibleColumns = useMemo(() => {
+    let cols = mode === 'groups'
       ? TABLE_COLUMNS.filter((c) => !c.dealerOnly && c.hasData !== false)
-      : TABLE_COLUMNS.filter((c) => !c.groupOnly && c.hasData !== false),
-    [mode]
-  );
+      : TABLE_COLUMNS.filter((c) => !c.groupOnly && c.hasData !== false);
+    if (!showAppBookedColumns) {
+      cols = cols.filter((c) => c.key !== 'leadBooked' && c.key !== 'leadBookedDollars');
+    }
+    return cols;
+  }, [mode, showAppBookedColumns]);
 
   // ── Render Helpers ──
 
@@ -584,8 +731,6 @@ export function DealerTable({
     return 'long_inactive';
   };
 
-
-
   const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true, stats?: DealerStats) => {
     const trends = stats?.trends;
     const isAllTime = datePreset === 'all_time';
@@ -609,8 +754,12 @@ export function DealerTable({
         {visibleColumns.some(c => c.key === 'inHouse') && (
           <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.inHouse, trends?.inHouse, 'count', isAllTime)}</td>
         )}
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.leadBooked, trends?.leadBooked, 'count', isAllTime)}</td>
-        <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.leadBookedDollars, trends?.leadBookedDollars, 'dollar', isAllTime)}</td>
+        {visibleColumns.some(c => c.key === 'leadBooked') && (
+          <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.leadBooked, trends?.leadBooked, 'count', isAllTime)}</td>
+        )}
+        {visibleColumns.some(c => c.key === 'leadBookedDollars') && (
+          <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.leadBookedDollars, trends?.leadBookedDollars, 'dollar', isAllTime)}</td>
+        )}
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.booked, trends?.booked, 'count', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.bookedDollars, trends?.bookedDollars, 'dollar', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.lookToBook, trends?.lookToBook, 'percent', isAllTime)}</td>
@@ -622,23 +771,68 @@ export function DealerTable({
     );
   };
 
-  // Infinite scroll for dealer mode (must be before any early returns)
+  // Infinite scroll for dealer mode (supports IntersectionObserver + container scroll + window scroll)
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null);
+  const loadingMoreRef = useRef(false);
+  loadingMoreRef.current = Boolean(isLoadingMore);
 
+  const triggerLoadMore = useCallback(() => {
+    if (!hasMore || loadingMoreRef.current || !onLoadMore) return;
+    onLoadMore();
+  }, [hasMore, onLoadMore]);
+
+  // 1. IntersectionObserver on bottom sentinel
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || mode === 'groups' || !hasMore || isLoadingMore) return;
+    if (mode === 'groups' || !hasMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
 
-    const handleScroll = () => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          triggerLoadMore();
+        }
+      },
+      {
+        root: null, // Viewport or scroll parent
+        rootMargin: '500px',
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [mode, hasMore, triggerLoadMore, sortedDealers.length]);
+
+  // 2. Container & Window scroll listeners
+  useEffect(() => {
+    if (mode === 'groups' || !hasMore) return;
+    const el = scrollRef.current;
+
+    const handleContainerScroll = () => {
+      if (!el) return;
       const { scrollTop, scrollHeight, clientHeight } = el;
-      if (scrollHeight - scrollTop - clientHeight < 300 && onLoadMore) {
-        onLoadMore();
+      if (scrollHeight - scrollTop - clientHeight < 500) {
+        triggerLoadMore();
       }
     };
 
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [mode, hasMore, isLoadingMore, onLoadMore]);
+    const handleWindowScroll = () => {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom - window.innerHeight < 600) {
+        triggerLoadMore();
+      }
+    };
+
+    el?.addEventListener('scroll', handleContainerScroll, { passive: true });
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    return () => {
+      el?.removeEventListener('scroll', handleContainerScroll);
+      window.removeEventListener('scroll', handleWindowScroll);
+    };
+  }, [mode, hasMore, triggerLoadMore]);
 
   // ── Loading ──
   if (isLoading) {
@@ -715,6 +909,29 @@ export function DealerTable({
               </button>
             </div>
           )}
+
+          {/* App Booked (Cohort) vs Funded Production Toggle */}
+          <div className={styles.sortToggle} style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <span className={styles.sortToggleLabel} title="Toggle between Full Cohort View (showing App BKD & App $) and Streamlined Funded Production View">
+              Booking View:
+            </span>
+            <button
+              type="button"
+              className={`${styles.sortToggleBtn} ${showAppBookedColumns ? styles.sortToggleActive : ''}`}
+              onClick={() => setShowAppBookedColumns(true)}
+              title="Cohort Model: Shows App BKD & App $ originated from applications in period alongside Total Funded production"
+            >
+              All Columns
+            </button>
+            <button
+              type="button"
+              className={`${styles.sortToggleBtn} ${!showAppBookedColumns ? styles.sortToggleActive : ''}`}
+              onClick={() => setShowAppBookedColumns(false)}
+              title="Streamlined View: Hides App BKD/App $ columns, showing Total Funded deals & volume with conversion ratios"
+            >
+              Funded Only
+            </button>
+          </div>
           {displayStack.length > 1 && (
             <button
               className={styles.sortClearBtn}
@@ -977,7 +1194,7 @@ export function DealerTable({
                       className={isSorted ? styles.thSorted : ''}
                       onClick={() => col.sortable && handleSort(col.key)}
                       onDoubleClick={() => col.sortable && handleDoubleClickSort(col.key)}
-                      title={col.sortable ? 'Click to sort · Double-click to add multi-sort' : undefined}
+                      title={col.description ? `${col.description}${col.sortable ? ' · Click to sort' : ''}` : (col.sortable ? 'Click to sort · Double-click to add multi-sort' : undefined)}
                     >
                       {col.label}
                       {isSorted && (
@@ -1034,7 +1251,10 @@ export function DealerTable({
                         onClick={() => onSelectDealer?.(dealer._id)}
                         title="Click to view application history"
                       >
-                        <span style={{ color: '#38bdf8', fontWeight: 600 }}>{dealer.dealerName}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ color: '#38bdf8', fontWeight: 600 }}>{dealer.dealerName}</span>
+                          {renderDrdBadge(dealer.drd)}
+                        </span>
                       </td>
                       <td style={{ textAlign: 'left' }}>
                         <span className={styles.repCell}>
@@ -1044,6 +1264,13 @@ export function DealerTable({
                       {renderChildCells(dealer.latestSnapshot, false, dealer.stats)}
                     </tr>
                   ))}
+              {/* Intersection observer sentinel */}
+              {mode !== 'groups' && hasMore && (
+                <tr ref={sentinelRef} style={{ height: '1px', opacity: 0 }}>
+                  <td colSpan={visibleColumns.length} style={{ padding: 0, border: 'none', height: '1px' }} />
+                </tr>
+              )}
+
               {/* Loading more indicator */}
               {isLoadingMore && (
                 <tr className={styles.loadingMoreRow}>
@@ -1052,6 +1279,31 @@ export function DealerTable({
                       <span className={styles.loadingSpinner} />
                       Loading more dealers...
                     </div>
+                  </td>
+                </tr>
+              )}
+
+              {/* Manual load more button fallback if user reaches bottom */}
+              {mode !== 'groups' && hasMore && !isLoadingMore && (
+                <tr className={styles.loadingMoreRow}>
+                  <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => triggerLoadMore()}
+                      style={{
+                        background: 'rgba(56, 189, 248, 0.12)',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        color: '#38bdf8',
+                        padding: '6px 18px',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      ↓ Scroll or Click to Load More Dealers
+                    </button>
                   </td>
                 </tr>
               )}
@@ -1298,8 +1550,12 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         {visibleColumns.some(c => c.key === 'inHouse') && (
           <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.inHouse, group.stats?.trends?.inHouse, 'count')}</td>
         )}
-        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.leadBooked, group.stats?.trends?.leadBooked, 'count')}</td>
-        <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.leadBookedDollars, group.stats?.trends?.leadBookedDollars, 'dollar')}</td>
+        {visibleColumns.some(c => c.key === 'leadBooked') && (
+          <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.leadBooked, group.stats?.trends?.leadBooked, 'count')}</td>
+        )}
+        {visibleColumns.some(c => c.key === 'leadBookedDollars') && (
+          <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.leadBookedDollars, group.stats?.trends?.leadBookedDollars, 'dollar')}</td>
+        )}
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.booked, group.stats?.trends?.booked, 'count')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.bookedDollars, group.stats?.trends?.bookedDollars, 'dollar')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.lookToBook, group.stats?.trends?.lookToBook, 'percent')}</td>
@@ -1318,7 +1574,10 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             }}
             title="Click to view Historical MoM & application history"
           >
-            <span style={{ color: '#38bdf8', fontWeight: 500 }}>{loc.dealerName}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ color: '#38bdf8', fontWeight: 500 }}>{loc.dealerName}</span>
+              {renderDrdBadge(loc.drd)}
+            </span>
           </td>
           {renderChildCells(loc.latestSnapshot, true, loc.stats)}
         </tr>

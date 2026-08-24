@@ -60,7 +60,8 @@ export async function getGroups(
   endDate?: string,
   trend?: string,
   status?: string | null,
-  rep?: string
+  rep?: string,
+  drd?: string | null
 ): Promise<DealerGroup[]> {
   const params: Record<string, string> = {};
   if (states && states.length > 0) params.states = states.join(',');
@@ -70,6 +71,7 @@ export async function getGroups(
   if (trend) params.trend = trend;
   if (status) params.status = status;
   if (rep) params.rep = rep;
+  if (drd) params.drd = drd;
   const { data } = await api.get('/analytics/groups', { params });
   return data.groups;
 }
@@ -127,6 +129,7 @@ export interface SmallDealerParams {
   startDate?: string;
   endDate?: string;
   trend?: string;
+  drd?: string | null;
 }
 
 export interface DealerStatusBreakdown {
@@ -172,6 +175,7 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.startDate) queryParams.startDate = params.startDate;
   if (params.endDate) queryParams.endDate = params.endDate;
   if (params.trend) queryParams.trend = params.trend;
+  if (params.drd) queryParams.drd = params.drd;
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
   return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, statusTransitions: data.statusTransitions || [], pagination: data.pagination };
 }
@@ -320,7 +324,8 @@ export async function getExecutiveSummary(
   state?: string,
   rep?: string,
   groupSlug?: string,
-  status?: string | null
+  status?: string | null,
+  drd?: string | null
 ): Promise<ExecutiveSummaryResponse> {
   const params: Record<string, string> = {};
   if (startDate) params.startDate = startDate;
@@ -330,6 +335,7 @@ export async function getExecutiveSummary(
   if (rep) params.rep = rep;
   if (groupSlug) params.groupSlug = groupSlug;
   if (status) params.status = status;
+  if (drd) params.drd = drd;
   const { data } = await api.get('/analytics/executive-summary', { params });
   return data;
 }
@@ -670,6 +676,30 @@ export interface DealerProfileItem {
   };
   decisionRationale?: string[];
   interactionCycles?: InteractionCycleItem[];
+  manualOverride?: {
+    isOverridden: boolean;
+    originalSegment?: string | null;
+    overriddenSegment?: string | null;
+    reason?: string | null;
+    overriddenBy?: {
+      userId?: string | null;
+      name?: string | null;
+      email?: string | null;
+    };
+    overriddenAt?: string | null;
+    history?: Array<{
+      action: 'override' | 'reset';
+      previousSegment?: string | null;
+      newSegment?: string | null;
+      reason?: string | null;
+      changedBy?: {
+        userId?: string | null;
+        name?: string | null;
+        email?: string | null;
+      };
+      changedAt: string;
+    }>;
+  };
   timelineMonthly?: Array<{
     monthKey: string;
     bookedVolume: number;
@@ -779,6 +809,28 @@ export const getDealerRelationshipTimeline = getDealerRelationshipDrawer;
 
 export async function getRepAllocationDiagnostics(): Promise<RepAllocationDiagnosticResponse> {
   const { data } = await api.get('/analytics/relationship-demand/rep-allocation');
+  return data;
+}
+
+export async function overrideDealerRelationshipSegment(
+  clientDealerId: string,
+  overriddenSegment: 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data',
+  reason: string
+): Promise<{ success: boolean; profile: any; message?: string }> {
+  const { data } = await api.post(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/override`, {
+    overriddenSegment,
+    reason,
+  });
+  return data;
+}
+
+export async function resetDealerRelationshipOverride(
+  clientDealerId: string,
+  reason?: string
+): Promise<{ success: boolean; profile: any; message?: string }> {
+  const { data } = await api.post(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/reset-override`, {
+    reason,
+  });
   return data;
 }
 

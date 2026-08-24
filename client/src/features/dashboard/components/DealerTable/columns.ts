@@ -113,6 +113,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'leadBooked',
     label: 'App BKD',
+    description: 'App Booked: Number of deals booked originating specifically from applications submitted in this period (Cohort Model).',
     align: 'right',
     width: '65px',
     sortable: true,
@@ -121,6 +122,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'leadBookedDollars',
     label: 'App $',
+    description: 'App Booked Volume: Dollar volume booked originating specifically from applications submitted in this period (Cohort Model).',
     align: 'right',
     width: '85px',
     sortable: true,
@@ -129,6 +131,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'booked',
     label: 'Funded BKD',
+    description: 'Funded Deals: Total deals funded/closed in this period regardless of application date (Cash Production Model).',
     align: 'right',
     width: '65px',
     sortable: true,
@@ -137,6 +140,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'bookedDollars',
     label: 'Funded $',
+    description: 'Funded Volume: Total dollar volume funded/closed in this period regardless of application date (Cash Production Model).',
     align: 'right',
     width: '90px',
     sortable: true,
@@ -145,6 +149,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'lookToBook',
     label: 'L-B%',
+    description: 'Look-to-Book %: Total booked from applications in period / Total applications in period. (Note: Requires ~30d seasoning for full cohort maturity).',
     align: 'right',
     width: '65px',
     sortable: true,
@@ -153,6 +158,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'approvalToBook',
     label: 'A-B%',
+    description: 'Approval-to-Book %: Total booked from applications in period / Total approved in period. Measures dealer closing pull-through without underwriting bias (allows ~30d lag for seasoning).',
     align: 'right',
     width: '65px',
     sortable: true,
@@ -161,6 +167,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     key: 'avgFico',
     label: 'AVG FICO',
+    description: 'Average FICO score across applications received in this period.',
     align: 'right',
     width: '70px',
     sortable: true,

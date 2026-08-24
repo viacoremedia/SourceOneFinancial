@@ -15,6 +15,8 @@ export interface DashboardFilterState {
   endDate?: string;
   trend: TrendPeriod;
   transitionFilter: string | null;
+  drdFilter: string | null;
+  showAppBookedColumns: boolean;
   searchQuery: string;
   latestReportDate?: string;
   filterVersion: number; // Monotonically increasing counter to trigger hard cache invalidation
@@ -24,6 +26,8 @@ export interface DashboardFilterState {
   setRep: (rep: string) => void;
   setState: (state: string) => void;
   setStatusFilter: (status: string | null) => void;
+  setDrdFilter: (drd: string | null) => void;
+  setShowAppBookedColumns: (show: boolean) => void;
   setActivityMode: (mode: 'application' | 'approval' | 'booking') => void;
   setDatePreset: (preset: DatePreset) => void;
   setCustomDates: (start?: string, end?: string) => void;
@@ -110,6 +114,8 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
   endDate: initialDates.endDate,
   trend: 'mom',
   transitionFilter: null,
+  drdFilter: null,
+  showAppBookedColumns: true,
   searchQuery: '',
   latestReportDate: undefined,
   filterVersion: 1,
@@ -133,6 +139,15 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
       statusFilter: status,
       filterVersion: state.filterVersion + 1,
     })),
+
+  setDrdFilter: (drd: string | null) =>
+    set((state) => ({
+      drdFilter: drd,
+      filterVersion: state.filterVersion + 1,
+    })),
+
+  setShowAppBookedColumns: (show: boolean) =>
+    set({ showAppBookedColumns: show }),
 
   setActivityMode: (mode: 'application' | 'approval' | 'booking') =>
     set((state) => ({
@@ -215,6 +230,7 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
         selectedRep: '',
         selectedState: '',
         statusFilter: null,
+        drdFilter: null,
         activityMode: 'application',
         datePreset: 'this_month',
         customStartDate: '',

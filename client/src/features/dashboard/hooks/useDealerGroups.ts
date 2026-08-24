@@ -9,7 +9,8 @@ export function useDealerGroups(
   endDate?: string,
   trend?: string,
   status?: string | null,
-  rep?: string
+  rep?: string,
+  drd?: string | null
 ) {
   const [groups, setGroups] = useState<DealerGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +33,8 @@ export function useDealerGroups(
         endDate,
         trend,
         status,
-        rep
+        rep,
+        drd
       );
       // Discard stale out-of-order responses
       if (currentRequestId === requestIdRef.current) {
@@ -46,7 +48,7 @@ export function useDealerGroups(
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statesKey, modeKey, startDate, endDate, trend, status, rep]);
+  }, [statesKey, modeKey, startDate, endDate, trend, status, rep, drd]);
 
   useEffect(() => {
     fetch();

@@ -223,7 +223,7 @@ function drawStatCard(doc, x, y, width, height, title, value, subtext, color = C
 function drawTable(doc, startY, headers, rows, columnWidths, options = {}) {
     const margin = 36;
     let curY = startY;
-    const rowHeight = options.rowHeight || 16;
+    const baseRowHeight = options.rowHeight || 16;
     const headerHeight = options.headerHeight || 17;
     const tableWidth = columnWidths.reduce((a, b) => a + b, 0);
 
@@ -236,8 +236,8 @@ function drawTable(doc, startY, headers, rows, columnWidths, options = {}) {
         doc.fillColor(C_WHITE)
            .font('Helvetica-Bold')
            .fontSize(7)
-           .text(h.title, curX + 3, curY + 5, {
-               width: columnWidths[i] - 6,
+           .text(h.title, curX + 4, curY + 5, {
+               width: columnWidths[i] - 8,
                align: h.align || 'left',
                lineBreak: false
            });
@@ -248,15 +248,27 @@ function drawTable(doc, startY, headers, rows, columnWidths, options = {}) {
 
     // Draw rows
     rows.forEach((row, rIdx) => {
+        // Measure the max height needed for all cells in this row
+        doc.font('Helvetica').fontSize(7);
+        let maxCellHeight = baseRowHeight;
+        row.forEach((cell, cIdx) => {
+            const cellVal = cell != null ? String(cell) : '—';
+            const cellW = columnWidths[cIdx] - 8;
+            const textH = doc.heightOfString(cellVal, { width: cellW, lineBreak: true });
+            if (textH + 8 > maxCellHeight) {
+                maxCellHeight = Math.ceil(textH + 8);
+            }
+        });
+
         const isAlt = rIdx % 2 === 1;
         if (isAlt) {
             doc.save();
-            doc.rect(margin, curY, tableWidth, rowHeight).fill(C_ROW_ALT);
+            doc.rect(margin, curY, tableWidth, maxCellHeight).fill(C_ROW_ALT);
             doc.restore();
         }
 
-        doc.moveTo(margin, curY + rowHeight)
-           .lineTo(margin + tableWidth, curY + rowHeight)
+        doc.moveTo(margin, curY + maxCellHeight)
+           .lineTo(margin + tableWidth, curY + maxCellHeight)
            .strokeColor(C_BORDER_LIGHT)
            .lineWidth(0.5)
            .stroke();
@@ -281,15 +293,15 @@ function drawTable(doc, startY, headers, rows, columnWidths, options = {}) {
             doc.fillColor(textColor)
                .font(font)
                .fontSize(7)
-               .text(cellVal, cellX + 3, curY + 4, {
-                   width: columnWidths[cIdx] - 6,
+               .text(cellVal, cellX + 4, curY + 4, {
+                   width: columnWidths[cIdx] - 8,
                    align: h.align || 'left',
-                   lineBreak: false
+                   lineBreak: true
                });
             cellX += columnWidths[cIdx];
         });
 
-        curY += rowHeight;
+        curY += maxCellHeight;
     });
 
     return curY;
@@ -449,7 +461,12 @@ async function generateScorecardPDFs(reportId, config = {}) {
             heatIndex: Math.round(unifiedReps.reduce((s, r) => s + (r.heatIndex || 50), 0) / repCount),
             totalDealers: Math.round(unifiedReps.reduce((s, r) => s + (r.totalDealers || 0), 0) / repCount),
             activePct: Math.round((unifiedReps.reduce((s, r) => s + r.activePct, 0) / repCount) * 10) / 10,
+            inactive30Pct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? (r.inactive30Count / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
+            inactive60Pct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? (r.inactive60Count / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
+            longInactivePct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? (r.longInactiveCount / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
             avgDaysSinceApp: Math.round(unifiedReps.reduce((s, r) => s + (r.rollingAvg?.avgDaysSinceApp || 0), 0) / repCount),
+            avgDaysSinceApproval: Math.round(unifiedReps.reduce((s, r) => s + (r.rollingAvg?.avgDaysSinceApproval || 0), 0) / repCount),
+            avgDaysSinceBooking: Math.round(unifiedReps.reduce((s, r) => s + (r.rollingAvg?.avgDaysSinceBooking || 0), 0) / repCount),
             avgContactDays: Math.round(unifiedReps.reduce((s, r) => s + (r.rollingAvg?.avgContactDays || 0), 0) / repCount),
             totalApps: Math.round(unifiedReps.reduce((s, r) => s + (r.financials?.totalApps || 0), 0) / repCount),
             approvedCount: Math.round(unifiedReps.reduce((s, r) => s + (r.financials?.approvedCount || 0), 0) / repCount),
@@ -458,28 +475,62 @@ async function generateScorecardPDFs(reportId, config = {}) {
             avgDealSize: Math.round(unifiedReps.reduce((s, r) => s + (r.financials?.avgDealSize || 0), 0) / repCount),
             lookToBookPct: Math.round((unifiedReps.reduce((s, r) => s + (r.financials?.lookToBookPct || 0), 0) / repCount) * 10) / 10,
             approvalToBookPct: Math.round((unifiedReps.reduce((s, r) => s + (r.financials?.approvalToBookPct || 0), 0) / repCount) * 10) / 10,
+            avgReserveAmt: Math.round(unifiedReps.reduce((s, r) => s + (r.financials?.avgReserveAmt || 0), 0) / repCount) || 850,
+            avgAPR: Math.round((unifiedReps.reduce((s, r) => s + (r.financials?.avgAPR || 0), 0) / repCount) * 100) / 100 || 18.4,
+            avgTimeToBookDays: Math.round((unifiedReps.reduce((s, r) => s + (r.financials?.avgTimeToBookDays || 0), 0) / repCount) * 10) / 10 || 3.2,
             visits: Math.round(unifiedReps.reduce((s, r) => s + (r.visitImpact?.visits || 0), 0) / repCount),
-            calls: Math.round(unifiedReps.reduce((s, r) => s + (r.visitImpact?.calls || 0), 0) / repCount),
+            inactiveDealersVisited: Math.round(unifiedReps.reduce((s, r) => s + (r.visitImpact?.inactiveDealersVisited || 0), 0) / repCount),
             reactivatedCount: Math.round((unifiedReps.reduce((s, r) => s + (r.visitImpact?.reactivatedCount || 0), 0) / repCount) * 10) / 10,
             reactivationRate: Math.round((unifiedReps.reduce((s, r) => s + (r.visitImpact?.reactivationRate ? r.visitImpact.reactivationRate * 100 : 0), 0) / repCount) * 10) / 10,
             growthVisitPct: Math.round((unifiedReps.reduce((s, r) => s + (r.visitImpact?.growthVisitPct ? r.visitImpact.growthVisitPct * 100 : 0), 0) / repCount) * 10) / 10,
+            avgDaysToReactivation: Math.round((unifiedReps.reduce((s, r) => s + (r.visitImpact?.avgDaysToReactivation || 0), 0) / repCount) * 10) / 10 || 11,
             overdueTlc: Math.round(unifiedReps.reduce((s, r) => s + (r.drd?.overdueCount || 0), 0) / repCount)
         };
 
         const getRank = (key, val, lowerIsBetter = false) => {
+            if (val == null || val === '—') return '—';
+            const numVal = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+            if (isNaN(numVal)) return '—';
+
             const vals = unifiedReps.map(r => {
-                if (key === 'activePct') return r.activePct;
-                if (key === 'heatIndex') return r.heatIndex || 0;
-                if (key === 'visits') return r.visitImpact?.visits || 0;
-                if (key === 'reactivations') return r.visitImpact?.reactivatedCount || 0;
-                if (key === 'bookedVolume') return r.financials?.bookedVolume || 0;
-                if (key === 'lookToBookPct') return r.financials?.lookToBookPct || 0;
-                if (key === 'avgContactDays') return r.rollingAvg?.avgContactDays || 999;
-                return 0;
+                let v = 0;
+                switch (key) {
+                    case 'heatIndex': v = r.heatIndex || 0; break;
+                    case 'totalDealers': v = r.totalDealers || 0; break;
+                    case 'activeCount': v = r.activeCount || 0; break;
+                    case 'activePct': v = r.activePct || 0; break;
+                    case 'inactive30Pct': v = r.totalDealers > 0 ? (r.inactive30Count / r.totalDealers) * 100 : 0; break;
+                    case 'inactive60Pct': v = r.totalDealers > 0 ? (r.inactive60Count / r.totalDealers) * 100 : 0; break;
+                    case 'longInactivePct': v = r.totalDealers > 0 ? (r.longInactiveCount / r.totalDealers) * 100 : 0; break;
+                    case 'avgDaysSinceApp': v = r.rollingAvg?.avgDaysSinceApp ?? 999; break;
+                    case 'avgDaysSinceApproval': v = r.rollingAvg?.avgDaysSinceApproval ?? 999; break;
+                    case 'avgDaysSinceBooking': v = r.rollingAvg?.avgDaysSinceBooking ?? 999; break;
+                    case 'avgContactDays': v = r.rollingAvg?.avgContactDays ?? 999; break;
+                    case 'totalApps': v = r.financials?.totalApps || 0; break;
+                    case 'approvedCount': v = r.financials?.approvedCount || 0; break;
+                    case 'bookedCount': v = r.financials?.bookedCount || 0; break;
+                    case 'bookedVolume': v = r.financials?.bookedVolume || 0; break;
+                    case 'avgDealSize': v = r.financials?.avgDealSize || 0; break;
+                    case 'approvalToBookPct': v = r.financials?.approvalToBookPct || 0; break;
+                    case 'lookToBookPct': v = r.financials?.lookToBookPct || 0; break;
+                    case 'avgReserveAmt': v = r.financials?.avgReserveAmt || 0; break;
+                    case 'avgAPR': v = r.financials?.avgAPR || 0; break;
+                    case 'avgTimeToBookDays': v = r.financials?.avgTimeToBookDays ?? 999; break;
+                    case 'visits': v = r.visitImpact?.visits || 0; break;
+                    case 'inactiveDealersVisited': v = r.visitImpact?.inactiveDealersVisited || 0; break;
+                    case 'reactivatedCount':
+                    case 'reactivations': v = r.visitImpact?.reactivatedCount || 0; break;
+                    case 'reactivatedVolume': v = r.visitImpact?.reactivatedVolume || 0; break;
+                    case 'reactivationRate': v = (r.visitImpact?.reactivationRate ? r.visitImpact.reactivationRate * 100 : 0); break;
+                    case 'growthVisitPct': v = (r.visitImpact?.growthVisitPct ? r.visitImpact.growthVisitPct * 100 : 0); break;
+                    case 'avgDaysToReactivation': v = r.visitImpact?.avgDaysToReactivation ?? 999; break;
+                    default: v = 0;
+                }
+                return v;
             });
             vals.sort((a, b) => lowerIsBetter ? a - b : b - a);
-            const rank = vals.indexOf(val) + 1;
-            return `#${rank || 1} of ${repCount}`;
+            const rank = vals.indexOf(numVal) + 1;
+            return `#${rank > 0 ? rank : 1} of ${repCount}`;
         };
 
         const fileManifest = [];
@@ -958,11 +1009,11 @@ function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
 
         const recencyRows = [
             ['Active (0–30 Days)', formatNumber(rep.activeCount), formatPercent(rep.activePct), formatPercent(peerAvg.activePct), getRank('activePct', rep.activePct), 'Sustain weekly contact & speed to fund'],
-            ['30d Inactive (31–60 Days)', formatNumber(rep.inactive30Count), formatPercent(rep.totalDealers > 0 ? (rep.inactive30Count / rep.totalDealers) * 100 : 0), '5.6%', '—', 'Priority phone outreach before 60-day cliff'],
-            ['60d Inactive (61–90 Days)', formatNumber(rep.inactive60Count), formatPercent(rep.totalDealers > 0 ? (rep.inactive60Count / rep.totalDealers) * 100 : 0), '2.0%', '—', 'In-person field visit required immediately'],
-            ['Long Inactive (90+ Days)', formatNumber(rep.longInactiveCount), formatPercent(rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0), '25.1%', '—', 'Review DRD profile for High TLC candidate']
+            ['30d Inactive (31–60 Days)', formatNumber(rep.inactive30Count), formatPercent(rep.totalDealers > 0 ? (rep.inactive30Count / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.inactive30Pct), getRank('inactive30Pct', rep.totalDealers > 0 ? (rep.inactive30Count / rep.totalDealers) * 100 : 0, true), 'Priority phone outreach before 60-day cliff'],
+            ['60d Inactive (61–90 Days)', formatNumber(rep.inactive60Count), formatPercent(rep.totalDealers > 0 ? (rep.inactive60Count / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.inactive60Pct), getRank('inactive60Pct', rep.totalDealers > 0 ? (rep.inactive60Count / rep.totalDealers) * 100 : 0, true), 'In-person field visit required immediately'],
+            ['Long Inactive (90+ Days)', formatNumber(rep.longInactiveCount), formatPercent(rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.longInactivePct), getRank('longInactivePct', rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0, true), 'Review DRD profile for High TLC candidate']
         ];
-        const endRecY = drawTable(doc, 188, recencyHeaders, recencyRows, [130, 65, 65, 75, 65, 140]);
+        const endRecY = drawTable(doc, 188, recencyHeaders, recencyRows, [125, 60, 60, 75, 65, 155]);
 
         const stateBreakdown = rep.stateBreakdown || [];
         if (stateBreakdown.length > 0) {
@@ -1015,16 +1066,16 @@ function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
         ];
 
         const finRows = [
-            ['Total Applications', formatNumber(fin.totalApps), formatNumber(peerAvg.totalApps), '—', 'Raw lead submission volume in selected period'],
-            ['Total Approved Loans', formatNumber(fin.approvedCount), formatNumber(peerAvg.approvedCount), '—', 'Underwritten loans approved for funding'],
-            ['Approval-to-Book % (Close Rate)', formatPercent(fin.approvalToBookPct), formatPercent(peerAvg.approvalToBookPct), '—', 'Percentage of approved deals successfully booked'],
+            ['Total Applications', formatNumber(fin.totalApps), formatNumber(peerAvg.totalApps), getRank('totalApps', fin.totalApps), 'Raw lead submission volume in selected period'],
+            ['Total Approved Loans', formatNumber(fin.approvedCount), formatNumber(peerAvg.approvedCount), getRank('approvedCount', fin.approvedCount), 'Underwritten loans approved for funding'],
+            ['Approval-to-Book % (Close Rate)', formatPercent(fin.approvalToBookPct), formatPercent(peerAvg.approvalToBookPct), getRank('approvalToBookPct', fin.approvalToBookPct), 'Percentage of approved deals successfully booked'],
             ['Look-to-Book % (Overall Efficiency)', formatPercent(fin.lookToBookPct), formatPercent(peerAvg.lookToBookPct), getRank('lookToBookPct', fin.lookToBookPct), 'Total funded deals divided by total applications'],
-            ['Average Loan Amount Financed', formatCurrency(fin.avgDealSize), formatCurrency(peerAvg.avgDealSize), '—', 'Average contract balance per funded deal'],
-            ['Average Dealer Reserve Amount', formatCurrency(fin.avgReserveAmt), '$850', '—', 'Dealer margin/commission per funded contract'],
-            ['Average Contract APR', formatPercent(fin.avgAPR, 2), '18.40%', '—', 'Weighted average interest rate across portfolio'],
-            ['Time-to-Book Cycle Time', `${fin.avgTimeToBookDays || '—'} Days`, '3.2 Days', '—', 'Average business days from app submission to funding']
+            ['Average Loan Amount Financed', formatCurrency(fin.avgDealSize), formatCurrency(peerAvg.avgDealSize), getRank('avgDealSize', fin.avgDealSize), 'Average contract balance per funded deal'],
+            ['Average Dealer Reserve Amount', formatCurrency(fin.avgReserveAmt), formatCurrency(peerAvg.avgReserveAmt), getRank('avgReserveAmt', fin.avgReserveAmt), 'Dealer margin/commission per funded contract'],
+            ['Average Contract APR', formatPercent(fin.avgAPR, 2), formatPercent(peerAvg.avgAPR, 2), getRank('avgAPR', fin.avgAPR, true), 'Weighted average interest rate across portfolio'],
+            ['Time-to-Book Cycle Time', `${fin.avgTimeToBookDays || '—'} Days`, `${peerAvg.avgTimeToBookDays || '—'} Days`, getRank('avgTimeToBookDays', fin.avgTimeToBookDays, true), 'Average business days from app submission to funding']
         ];
-        drawTable(doc, 188, finHeaders, finRows, [160, 75, 80, 65, 160]);
+        drawTable(doc, 188, finHeaders, finRows, [140, 70, 70, 65, 195]);
 
         drawFooter(doc);
 
@@ -1035,7 +1086,8 @@ function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
         drawHeader(doc, `Visit Impact & Reactivations — ${rep.rep}`, 'Field Travel Efficiency, Reactivation Success & 2x2 Visit Matrix', dateRanges, 4, totalPages);
 
         const vi = rep.visitImpact || {};
-        drawStatCard(doc, margin, 114, (contentWidth - 24) / 4, 48, 'In-Person Visits', formatNumber(vi.visits), `${vi.calls || 0} Phone Calls`, C_PRIMARY);
+        const locationsVisitedCount = vi.dealersVisited || vi.uniqueDealersVisited || vi.inactiveDealersVisited + (vi.matrix?.maintained || 0) || vi.visits;
+        drawStatCard(doc, margin, 114, (contentWidth - 24) / 4, 48, 'In-Person Visits', formatNumber(vi.visits), `${formatNumber(locationsVisitedCount)} Locations Visited`, C_PRIMARY);
         drawStatCard(doc, margin + ((contentWidth - 24) / 4 + 8), 114, (contentWidth - 24) / 4, 48, 'Reactivations', formatNumber(vi.reactivatedCount), `${formatPercent(vi.reactivationRate ? vi.reactivationRate * 100 : 0)} Rate`, C_EMERALD);
         drawStatCard(doc, margin + ((contentWidth - 24) / 4 + 8) * 2, 114, (contentWidth - 24) / 4, 48, 'Reactivated $ Vol', formatCurrency(vi.reactivatedVolume), 'Post-visit funded volume', C_AMBER);
         drawStatCard(doc, margin + ((contentWidth - 24) / 4 + 8) * 3, 114, (contentWidth - 24) / 4, 48, 'Growth Effort %', formatPercent(vi.growthVisitPct ? vi.growthVisitPct * 100 : 0), 'Visits to inactive dealers', C_ORANGE);
@@ -1052,12 +1104,12 @@ function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
 
         const visitRows = [
             ['Total In-Person Visits', formatNumber(vi.visits), formatNumber(peerAvg.visits), getRank('visits', vi.visits), 'Physical dealership lot visits logged in CRM'],
-            ['Inactive Dealerships Visited', formatNumber(vi.inactiveDealersVisited), formatNumber(peerAvg.visits ? Math.round(peerAvg.visits * 0.4) : 0), '—', 'Dormant accounts targeted for reactivation'],
+            ['Inactive Dealerships Visited', formatNumber(vi.inactiveDealersVisited), formatNumber(peerAvg.inactiveDealersVisited), getRank('inactiveDealersVisited', vi.inactiveDealersVisited), 'Dormant accounts targeted for reactivation'],
             ['Verified Account Reactivations', formatNumber(vi.reactivatedCount), formatNumber(peerAvg.reactivatedCount), getRank('reactivations', vi.reactivatedCount), 'Inactive dealers submitting deals post-visit'],
-            ['Reactivation Hit Rate', formatPercent(vi.reactivationRate ? vi.reactivationRate * 100 : 0), formatPercent(peerAvg.reactivationRate), '—', 'Percentage of visited inactive accounts revived'],
-            ['Average Days to Reactivate', `${vi.avgDaysToReactivation || '—'} Days`, '11 Days', '—', 'Speed of submission turnaround following visit']
+            ['Reactivation Hit Rate', formatPercent(vi.reactivationRate ? vi.reactivationRate * 100 : 0), formatPercent(peerAvg.reactivationRate), getRank('reactivationRate', vi.reactivationRate ? vi.reactivationRate * 100 : 0), 'Percentage of visited inactive accounts revived'],
+            ['Average Days to Reactivate', `${vi.avgDaysToReactivation || '—'} Days`, `${peerAvg.avgDaysToReactivation || '—'} Days`, getRank('avgDaysToReactivation', vi.avgDaysToReactivation, true), 'Speed of submission turnaround following visit']
         ];
-        drawTable(doc, 188, visitHeaders, visitRows, [160, 65, 65, 65, 185]);
+        drawTable(doc, 188, visitHeaders, visitRows, [140, 65, 65, 65, 205]);
 
         doc.fillColor(C_NAVY).font('Helvetica-Bold').fontSize(9.5).text('Territory 2×2 Account Visit Allocation Matrix', margin, 310, { lineBreak: false });
 

@@ -32,10 +32,13 @@ const SORT_KEY_MAP: Record<string, string> = {
   apps: 'apps',
   approvals: 'approvals',
   inHouse: 'inHouse',
+  leadBooked: 'leadBooked',
+  leadBookedDollars: 'leadBookedDollars',
   booked: 'booked',
   bookedDollars: 'bookedDollars',
   lookToBook: 'lookToBook',
   approvalToBook: 'approvalToBook',
+  avgFico: 'avgFico',
 };
 
 function DashboardContent() {
@@ -55,6 +58,8 @@ function DashboardContent() {
     endDate,
     trend,
     transitionFilter,
+    drdFilter,
+    setDrdFilter,
     searchQuery,
     filterVersion,
     setTab,
@@ -84,13 +89,13 @@ function DashboardContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
   const [drawerGroupSlug, setDrawerGroupSlug] = useState<string | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'mom' | 'applications'>('mom');
+  const [drawerTab, setDrawerTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>('mom');
   const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
     setDrawerDealerId(dealerId);
     setDrawerGroupSlug(null);
-    setDrawerTab('mom');
+    setDrawerTab('drd');
     setDrawerOpen(true);
   }, []);
 
@@ -163,7 +168,8 @@ function DashboardContent() {
     endDate,
     trend,
     statusFilter,
-    selectedRep
+    selectedRep,
+    drdFilter
   );
 
   // Groups filtered by state only — used for stats computation (stable numbers)
@@ -228,6 +234,7 @@ function DashboardContent() {
           startDate,
           endDate,
           trend,
+          drd: drdFilter || undefined,
         });
 
         // Guard against out-of-order race responses
@@ -259,7 +266,7 @@ function DashboardContent() {
         }
       }
     },
-    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend]
+    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter]
   );
 
   // Invalidate loadedTabs cache on any filter version change
@@ -359,9 +366,9 @@ function DashboardContent() {
     if (scope) {
       pageRef.current = 1;
       sortStateRef.current = { sorts: ['apps'], dirs: ['desc'] };
-      fetchDealers(1, ['apps'], ['desc'], false, statusFilter, scope, targetStates);
+      fetchDealers(1, ['apps'], ['desc'], false, statusFilter, scope, explicitStates);
     }
-  }, [setTab, fetchDealers, statusFilter, targetStates]);
+  }, [setTab, fetchDealers, statusFilter, explicitStates]);
 
   // Load more (infinite scroll)
   const handleLoadMore = useCallback(() => {
@@ -369,8 +376,8 @@ function DashboardContent() {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
     const nextPage = pageRef.current + 1;
-    fetchDealers(nextPage, sortStateRef.current.sorts, sortStateRef.current.dirs, true, statusFilter, scope, targetStates);
-  }, [smallDealersLoadingMore, hasMore, fetchDealers, activeTab, statusFilter, targetStates]);
+    fetchDealers(nextPage, sortStateRef.current.sorts, sortStateRef.current.dirs, true, statusFilter, scope, explicitStates);
+  }, [smallDealersLoadingMore, hasMore, fetchDealers, activeTab, statusFilter, explicitStates]);
 
   // Sort change from DealerTable
   const handleDealerSortChange = useCallback(
@@ -380,9 +387,9 @@ function DashboardContent() {
       const serverKeys = sortKeys.map(k => SORT_KEY_MAP[k] || 'dealerName');
       sortStateRef.current = { sorts: serverKeys, dirs: sortDirs };
       pageRef.current = 1;
-      fetchDealers(1, serverKeys, sortDirs, false, statusFilter, scope, targetStates);
+      fetchDealers(1, serverKeys, sortDirs, false, statusFilter, scope, explicitStates);
     },
-    [fetchDealers, activeTab, statusFilter, targetStates]
+    [fetchDealers, activeTab, statusFilter, explicitStates]
   );
 
   // Group locations fetching on expand
@@ -451,6 +458,28 @@ function DashboardContent() {
     setDrawerOpen(true);
   }, []);
 
+  // Selected dealer row from table (for sticky live stats & trends)
+  const selectedDealerTableRow = useMemo(() => {
+    if (!drawerDealerId || drawerDealerId === 'all') return null;
+    let found = smallDealers.find(
+      (d) => d._id === drawerDealerId || d.dealerId === drawerDealerId || d.clientDealerId === drawerDealerId
+    );
+    if (!found) {
+      found = allDealers.find(
+        (d) => d._id === drawerDealerId || d.dealerId === drawerDealerId || d.clientDealerId === drawerDealerId
+      );
+    }
+    if (!found) {
+      for (const locs of Object.values(groupLocations)) {
+        found = locs.find(
+          (d) => d._id === drawerDealerId || d.dealerId === drawerDealerId || d.clientDealerId === drawerDealerId
+        );
+        if (found) break;
+      }
+    }
+    return found || null;
+  }, [drawerDealerId, smallDealers, allDealers, groupLocations]);
+
   return (
     <AppShell
       rollingWindow={rollingWindow}
@@ -482,10 +511,12 @@ function DashboardContent() {
             selectedRep={selectedRep}
             selectedState={selectedState}
             statusFilter={statusFilter}
+            drdFilter={drdFilter}
             activityMode={activityMode}
             onRepChange={handleRepChange}
             onStateChange={handleStateChange}
             onStatusFilterChange={handleStatusFilterChange}
+            onDrdFilterChange={setDrdFilter}
             onActivityModeChange={handleActivityModeChange}
             repHeatMap={repHeatMap}
             statusTransitions={statusTransitions}
@@ -504,6 +535,7 @@ function DashboardContent() {
         state={selectedState}
         rep={selectedRep}
         status={statusFilter}
+        drd={drdFilter}
       />
 
       <DealerTable
@@ -548,6 +580,11 @@ function DashboardContent() {
         initialEndDate={drawerEndDate}
         initialDatePreset={drawerDatePreset}
         initialTab={drawerTab}
+        tableRowData={selectedDealerTableRow}
+        comparisonLabel={comparisonLabel}
+        datePresetLabel={datePreset}
+        dateRangeStr={startDate && endDate ? `${startDate} to ${endDate}` : undefined}
+        allTableDealers={activeTab === 'all' ? allDealers : smallDealers}
         onSelectDealerId={setDrawerDealerId}
         onSelectGroupSlug={setDrawerGroupSlug}
       />

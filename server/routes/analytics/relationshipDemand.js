@@ -9,6 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const DealerProfile = require('../../models/DealerProfile');
 const DealerLocation = require('../../models/DealerLocation');
 const Application = require('../../models/Application');
@@ -206,12 +207,53 @@ router.get('/dealers', async (req, res) => {
 // ==========================================
 router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
     try {
-        const clientDealerId = req.params.clientDealerId.trim().toUpperCase();
+        const rawId = req.params.clientDealerId.trim();
+        let profile = null;
 
-        const profile = await DealerProfile.findOne({ clientDealerId }).lean();
-        if (!profile) {
-            return res.status(404).json({ success: false, message: `Profile not found for dealer ${clientDealerId}` });
+        if (mongoose.Types.ObjectId.isValid(rawId)) {
+            profile = await DealerProfile.findOne({
+                $or: [
+                    { dealerLocation: rawId },
+                    { clientDealerId: rawId.toUpperCase() }
+                ]
+            }).lean();
+
+            if (!profile) {
+                const loc = await DealerLocation.findById(rawId).lean();
+                if (loc) {
+                    const resolvedId = (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase();
+                    if (resolvedId) {
+                        profile = await DealerProfile.findOne({ clientDealerId: resolvedId }).lean();
+                    }
+                }
+            }
         }
+
+        if (!profile) {
+            profile = await DealerProfile.findOne({ clientDealerId: rawId.toUpperCase() }).lean();
+        }
+
+        if (!profile) {
+            const loc = await DealerLocation.findOne({
+                $or: [
+                    { clientDealerId: rawId.toUpperCase() },
+                    { dealerId: rawId },
+                    { omniDealerId: rawId }
+                ]
+            }).lean();
+            if (loc) {
+                const resolvedId = (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase();
+                if (resolvedId) {
+                    profile = await DealerProfile.findOne({ clientDealerId: resolvedId }).lean();
+                }
+            }
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: `Profile not found for dealer ${rawId}` });
+        }
+
+        const clientDealerId = profile.clientDealerId;
 
         // Fetch recent communications (normalized)
         const rawComms = await DealerCommunication.find({
@@ -248,6 +290,225 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching dealer DRD drawer payload:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// POST /analytics/relationship-demand/dealers/:clientDealerId/override
+// Reconcile/Manually Override Dealer DRD Segment with mandatory reason & audit logging
+// ==========================================
+router.post('/dealers/:clientDealerId/override', async (req, res) => {
+    try {
+        const rawId = (req.params.clientDealerId || '').trim();
+        const { segment, reason } = req.body;
+
+        const VALID_SEGMENTS = ['high_tlc', 'self_sufficient', 'comfort_stop', 'insufficient_data'];
+        if (!VALID_SEGMENTS.includes(segment)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid segment: "${segment}". Must be one of: ${VALID_SEGMENTS.join(', ')}`
+            });
+        }
+
+        if (!reason || typeof reason !== 'string' || reason.trim().length < 3) {
+            return res.status(400).json({
+                success: false,
+                message: 'A detailed reason explaining the manual override is required (min 3 characters).'
+            });
+        }
+
+        let profile = null;
+        if (mongoose.Types.ObjectId.isValid(rawId)) {
+            profile = await DealerProfile.findOne({
+                $or: [{ _id: rawId }, { dealerLocation: rawId }]
+            });
+        }
+
+        if (!profile) {
+            profile = await DealerProfile.findOne({ clientDealerId: rawId.toUpperCase() });
+        }
+
+        if (!profile) {
+            const loc = await DealerLocation.findOne({
+                $or: [
+                    { clientDealerId: rawId.toUpperCase() },
+                    { dealerId: rawId },
+                    { omniDealerId: rawId }
+                ]
+            }).lean();
+            if (loc) {
+                const resolvedId = (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase();
+                if (resolvedId) {
+                    profile = await DealerProfile.findOne({ clientDealerId: resolvedId });
+                }
+            }
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: `Profile not found for dealer ${rawId}` });
+        }
+
+        const previousSegment = profile.relationshipDemand;
+        const originalSegment = profile.manualOverride?.originalSegment || profile.relationshipDemand;
+        const userName = req.user?.name || req.user?.email || req.body.userName || 'Authorized User';
+        const userEmail = req.user?.email || req.body.userEmail || '';
+        const userId = req.user?._id || null;
+
+        const historyEntry = {
+            previousSegment,
+            newSegment: segment,
+            reason: reason.trim(),
+            action: 'override',
+            changedBy: {
+                userId,
+                name: userName,
+                email: userEmail
+            },
+            changedAt: new Date()
+        };
+
+        profile.manualOverride = {
+            isOverridden: true,
+            originalSegment,
+            overriddenSegment: segment,
+            reason: reason.trim(),
+            overriddenBy: {
+                userId,
+                name: userName,
+                email: userEmail
+            },
+            overriddenAt: new Date(),
+            history: [...(profile.manualOverride?.history || []), historyEntry]
+        };
+
+        profile.relationshipDemand = segment;
+        profile.decisionRationale = profile.decisionRationale || [];
+        profile.decisionRationale.unshift(
+            `🔒 MANUALLY RECONCILED: Classification overridden to "${segment.replace(/_/g, ' ').toUpperCase()}" by ${userName} on ${new Date().toLocaleDateString()} — "${reason.trim()}"`
+        );
+
+        await profile.save();
+
+        res.status(200).json({
+            success: true,
+            message: `Dealer DRD segment successfully overridden to "${segment}".`,
+            profile
+        });
+    } catch (error) {
+        console.error('Error saving manual DRD override:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// POST /analytics/relationship-demand/dealers/:clientDealerId/reset-override
+// Reset manual override back to system calculation
+// ==========================================
+router.post('/dealers/:clientDealerId/reset-override', async (req, res) => {
+    try {
+        const rawId = (req.params.clientDealerId || '').trim();
+
+        let profile = null;
+        if (mongoose.Types.ObjectId.isValid(rawId)) {
+            profile = await DealerProfile.findOne({
+                $or: [{ _id: rawId }, { dealerLocation: rawId }]
+            });
+        }
+
+        if (!profile) {
+            profile = await DealerProfile.findOne({ clientDealerId: rawId.toUpperCase() });
+        }
+
+        if (!profile) {
+            const loc = await DealerLocation.findOne({
+                $or: [
+                    { clientDealerId: rawId.toUpperCase() },
+                    { dealerId: rawId },
+                    { omniDealerId: rawId }
+                ]
+            }).lean();
+            if (loc) {
+                const resolvedId = (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase();
+                if (resolvedId) {
+                    profile = await DealerProfile.findOne({ clientDealerId: resolvedId });
+                }
+            }
+        }
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: `Profile not found for dealer ${rawId}` });
+        }
+
+        const previousSegment = profile.relationshipDemand;
+        const systemSegment = profile.manualOverride?.originalSegment || 'insufficient_data';
+        const userName = req.user?.name || req.user?.email || req.body.userName || 'Authorized User';
+        const userEmail = req.user?.email || req.body.userEmail || '';
+        const userId = req.user?._id || null;
+
+        const historyEntry = {
+            previousSegment,
+            newSegment: systemSegment,
+            reason: req.body.reason || 'Reset to system calculation',
+            action: 'reset_to_system',
+            changedBy: {
+                userId,
+                name: userName,
+                email: userEmail
+            },
+            changedAt: new Date()
+        };
+
+        profile.manualOverride = {
+            isOverridden: false,
+            originalSegment: systemSegment,
+            overriddenSegment: null,
+            reason: null,
+            overriddenBy: { userId: null, name: null, email: null },
+            overriddenAt: null,
+            history: [...(profile.manualOverride?.history || []), historyEntry]
+        };
+
+        profile.relationshipDemand = systemSegment;
+        profile.decisionRationale = (profile.decisionRationale || []).filter(r => !r.startsWith('🔒 MANUALLY RECONCILED:'));
+
+        await profile.save();
+
+        res.status(200).json({
+            success: true,
+            message: `Dealer DRD segment reset to system calculation ("${systemSegment}").`,
+            profile
+        });
+    } catch (error) {
+        console.error('Error resetting manual DRD override:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// GET /analytics/relationship-demand/reconciliation-audit
+// Audit trail of all manually reconciled dealers
+// ==========================================
+router.get('/reconciliation-audit', async (req, res) => {
+    try {
+        const overriddenProfiles = await DealerProfile.find({
+            $or: [
+                { 'manualOverride.isOverridden': true },
+                { 'manualOverride.history.0': { $exists: true } }
+            ]
+        })
+            .select('clientDealerId dealerName statePrefix assignedRep relationshipDemand manualOverride')
+            .sort({ 'manualOverride.overriddenAt': -1 })
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            totalOverridden: overriddenProfiles.filter(p => p.manualOverride?.isOverridden).length,
+            totalWithAuditHistory: overriddenProfiles.length,
+            dealers: overriddenProfiles
+        });
+    } catch (error) {
+        console.error('Error fetching reconciliation audit log:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

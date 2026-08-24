@@ -882,6 +882,25 @@ async function recomputeAllProfiles({ referenceDate = new Date(), startDate = ne
     console.log(`Loaded ${apps.length.toLocaleString()} applications and ${comms.length.toLocaleString()} communications.`);
     console.log(`Processing profiles in memory...`);
 
+    // 3b. Pre-load any existing manual overrides to preserve human reconciliation decisions
+    const existingProfiles = await DealerProfile.find(
+        { 'manualOverride.isOverridden': true },
+        { dealerLocation: 1, clientDealerId: 1, manualOverride: 1 }
+    ).lean();
+
+    const overrideMap = new Map();
+    for (const ep of existingProfiles) {
+        if (ep.dealerLocation) {
+            overrideMap.set(ep.dealerLocation.toString(), ep.manualOverride);
+        }
+        if (ep.clientDealerId) {
+            overrideMap.set(ep.clientDealerId.trim().toUpperCase(), ep.manualOverride);
+        }
+    }
+    if (existingProfiles.length > 0) {
+        console.log(`Preserving ${existingProfiles.length} human-reconciled manual override(s)...`);
+    }
+
     // 4. Evaluate each dealer profile in-memory
     const bulkOps = [];
     const segmentCounts = {
@@ -904,6 +923,19 @@ async function recomputeAllProfiles({ referenceDate = new Date(), startDate = ne
         const dealerComms = commsByDealer.get(key) || [];
 
         const profileData = evaluateDealerProfile(dealer, dealerApps, dealerComms, referenceDate);
+
+        // Check if there is an active manual override for this dealer
+        const override = overrideMap.get(dealer._id.toString()) || overrideMap.get(key);
+        if (override && override.isOverridden && override.overriddenSegment) {
+            profileData.manualOverride = override;
+            const originalSystemSegment = profileData.relationshipDemand;
+            profileData.manualOverride.originalSegment = originalSystemSegment;
+            profileData.relationshipDemand = override.overriddenSegment;
+            profileData.decisionRationale = profileData.decisionRationale || [];
+            profileData.decisionRationale.unshift(
+                `🔒 MANUALLY RECONCILED: Classification overridden to "${override.overriddenSegment.replace(/_/g, ' ').toUpperCase()}" by ${override.overriddenBy?.name || override.overriddenBy?.email || 'User'}${override.reason ? ` — "${override.reason}"` : ''}`
+            );
+        }
 
         segmentCounts[profileData.relationshipDemand]++;
         urgencyCounts[profileData.urgencyStatus]++;

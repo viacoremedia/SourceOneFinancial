@@ -206,6 +206,74 @@ const dealerProfileSchema = new mongoose.Schema({
         callCount: { type: Number, default: 0 }
     }],
 
+    // ── Manual Reconciliation & Human Override ──
+    manualOverride: {
+        isOverridden: {
+            type: Boolean,
+            default: false,
+            index: true
+        },
+        originalSegment: {
+            type: String,
+            default: null
+        },
+        overriddenSegment: {
+            type: String,
+            enum: {
+                values: [...RELATIONSHIP_DEMAND_SEGMENTS, null],
+                message: '{VALUE} is not a valid overridden segment'
+            },
+            default: null
+        },
+        reason: {
+            type: String,
+            default: null,
+            trim: true
+        },
+        overriddenBy: {
+            userId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User',
+                default: null
+            },
+            name: {
+                type: String,
+                default: null
+            },
+            email: {
+                type: String,
+                default: null
+            }
+        },
+        overriddenAt: {
+            type: Date,
+            default: null
+        },
+        history: [{
+            previousSegment: String,
+            newSegment: String,
+            reason: String,
+            action: {
+                type: String,
+                enum: ['override', 'reset_to_system'],
+                default: 'override'
+            },
+            changedBy: {
+                userId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'User',
+                    default: null
+                },
+                name: String,
+                email: String
+            },
+            changedAt: {
+                type: Date,
+                default: Date.now
+            }
+        }]
+    },
+
     lastCalculatedAt: {
         type: Date,
         default: Date.now
@@ -218,5 +286,6 @@ const dealerProfileSchema = new mongoose.Schema({
 dealerProfileSchema.index({ assignedRep: 1, relationshipDemand: 1, urgencyStatus: 1 });
 dealerProfileSchema.index({ relationshipDemand: 1, urgencyStatus: 1 });
 dealerProfileSchema.index({ statePrefix: 1, relationshipDemand: 1 });
+dealerProfileSchema.index({ 'manualOverride.isOverridden': 1 });
 
 module.exports = mongoose.model('DealerProfile', dealerProfileSchema);
