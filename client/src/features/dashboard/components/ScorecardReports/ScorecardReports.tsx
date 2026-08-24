@@ -104,6 +104,16 @@ export function ScorecardReports({
         ? { active: ['active'], '30d': ['30d_inactive'], '60d': ['60d_inactive'], long: ['long_inactive'] }[statusFilter] || null
         : null;
 
+      let customWeights: Record<string, number> | undefined = undefined;
+      try {
+        const stored = localStorage.getItem('source_one_custom_weights');
+        if (stored) {
+          customWeights = JSON.parse(stored);
+        }
+      } catch {
+        // ignore
+      }
+
       const res = await generateMutation.mutateAsync({
         name: reportName.trim() || undefined,
         scorecard: {
@@ -112,7 +122,8 @@ export function ScorecardReports({
           activityMode,
           finPeriod,
           customStartDate: finPeriod === 'custom' && customStartDate ? customStartDate : undefined,
-          customEndDate: finPeriod === 'custom' && customEndDate ? customEndDate : undefined
+          customEndDate: finPeriod === 'custom' && customEndDate ? customEndDate : undefined,
+          weights: customWeights,
         },
         visitImpact: {
           reactivationWindow,

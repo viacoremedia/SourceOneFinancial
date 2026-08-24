@@ -80,7 +80,9 @@ router.post('/generate', async (req, res) => {
                     activityMode: scorecard.activityMode || 'application',
                     finPeriod: scorecard.finPeriod || 'mtd',
                     customStartDate: scorecard.customStartDate || null,
-                    customEndDate: scorecard.customEndDate || null
+                    customEndDate: scorecard.customEndDate || null,
+                    weights: scorecard.weights || null,
+                    thresholds: scorecard.thresholds || null
                 },
                 visitImpact: {
                     reactivationWindow: Number(visitImpact.reactivationWindow) || 30,

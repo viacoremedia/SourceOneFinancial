@@ -436,7 +436,7 @@ async function computeStatusFlows(dates, locationFilter = null, targetStatus = '
  * @param {string|null} customEndDate - Optional end date string
  * @returns {Promise<Object>} RepScorecardResponse shape
  */
-async function computeRepScorecard(windowSize, statusFilter = null, activityMode = 'application', finPeriod = 'mtd', customStartDate = null, customEndDate = null) {
+async function computeRepScorecard(windowSize, statusFilter = null, activityMode = 'application', finPeriod = 'mtd', customStartDate = null, customEndDate = null, customWeights = null, customThresholds = null) {
     const clampedWindow = Math.min(Math.max(windowSize, 1), 60);
     const { currentDates, previousDates } = await getWindowDates(clampedWindow);
 
@@ -899,7 +899,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
     );
 
     // Compute Heat Index scores across all reps
-    computeHeatScores(repResults, networkAvgDealersPerRep);
+    computeHeatScores(repResults, networkAvgDealersPerRep, customWeights, customThresholds);
 
     return {
         reps: repResults.sort((a, b) => a.rep.localeCompare(b.rep)),

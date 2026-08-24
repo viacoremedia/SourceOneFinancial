@@ -318,11 +318,13 @@ async function generateScorecardPDFs(reportId, config = {}) {
         const finPeriod = config.scorecard?.finPeriod || 'mtd';
         const customFinStart = config.scorecard?.customStartDate || null;
         const customFinEnd = config.scorecard?.customEndDate || null;
+        const customWeights = config.scorecard?.weights || null;
+        const customThresholds = config.scorecard?.thresholds || null;
 
         const customVisitStart = config.visitImpact?.customStartDate || null;
         const customVisitEnd = config.visitImpact?.customEndDate || null;
 
-        const repScorecardData = await computeRepScorecard(windowSize, statusFilter, activityMode, finPeriod, customFinStart, customFinEnd);
+        const repScorecardData = await computeRepScorecard(windowSize, statusFilter, activityMode, finPeriod, customFinStart, customFinEnd, customWeights, customThresholds);
         const reps = repScorecardData.reps || [];
 
         // Latest data date
