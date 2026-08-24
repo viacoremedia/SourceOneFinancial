@@ -167,6 +167,9 @@ export function ExecutiveSummaryBanner({
             {renderTrendTag(trends?.lookToBook, 'percent')}
           </div>
           <div className={styles.kpiValue}>{formatPercent(totals?.lookToBook || 0)}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Booked / Total apps
+          </div>
         </div>
 
         {/* Approval-to-Book */}
@@ -176,6 +179,9 @@ export function ExecutiveSummaryBanner({
             {renderTrendTag(trends?.approvalToBook, 'percent')}
           </div>
           <div className={styles.kpiValue}>{formatPercent(totals?.approvalToBook || 0)}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Booked / Approved apps
+          </div>
         </div>
 
         {/* Avg FICO */}

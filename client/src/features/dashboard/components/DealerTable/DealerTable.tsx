@@ -29,7 +29,6 @@ import type {
 
 import { resolveRepDisplayName } from '../../../../core/utils/repNames';
 import { CustomDatePicker } from '../CustomDatePicker/CustomDatePicker';
-import { useDashboardStore } from '../../stores/useDashboardStore';
 
 const INACTIVE_OR_EXCLUDED_REPS = new Set([
   'bruce sweere', 'bsweere',
@@ -661,23 +660,17 @@ export function DealerTable({
   // In dealer mode, server handles search — no client-side filtering needed
   const sortedDealers = smallDealers;
 
-  const { showAppBookedColumns, setShowAppBookedColumns } = useDashboardStore();
-
   // Which sort to display in the headers
   const displayStack: SortColumn[] = mode !== 'groups'
     ? dealerSort
     : sortTarget === 'locations' ? childSortStack : groupSortStack;
 
-  // Filter columns based on mode (hide groupOnly columns in dealer mode) and showAppBookedColumns toggle
+  // Filter columns based on mode (hide groupOnly columns in dealer mode, hide dealerOnly in groups mode)
   const visibleColumns = useMemo(() => {
-    let cols = mode === 'groups'
+    return mode === 'groups'
       ? TABLE_COLUMNS.filter((c) => !c.dealerOnly && c.hasData !== false)
       : TABLE_COLUMNS.filter((c) => !c.groupOnly && c.hasData !== false);
-    if (!showAppBookedColumns) {
-      cols = cols.filter((c) => c.key !== 'leadBooked' && c.key !== 'leadBookedDollars');
-    }
-    return cols;
-  }, [mode, showAppBookedColumns]);
+  }, [mode]);
 
   // ── Render Helpers ──
 
@@ -910,28 +903,6 @@ export function DealerTable({
             </div>
           )}
 
-          {/* App Booked (Cohort) vs Funded Production Toggle */}
-          <div className={styles.sortToggle} style={{ display: 'inline-flex', alignItems: 'center' }}>
-            <span className={styles.sortToggleLabel} title="Toggle between Full Cohort View (showing App BKD & App $) and Streamlined Funded Production View">
-              Booking View:
-            </span>
-            <button
-              type="button"
-              className={`${styles.sortToggleBtn} ${showAppBookedColumns ? styles.sortToggleActive : ''}`}
-              onClick={() => setShowAppBookedColumns(true)}
-              title="Cohort Model: Shows App BKD & App $ originated from applications in period alongside Total Funded production"
-            >
-              All Columns
-            </button>
-            <button
-              type="button"
-              className={`${styles.sortToggleBtn} ${!showAppBookedColumns ? styles.sortToggleActive : ''}`}
-              onClick={() => setShowAppBookedColumns(false)}
-              title="Streamlined View: Hides App BKD/App $ columns, showing Total Funded deals & volume with conversion ratios"
-            >
-              Funded Only
-            </button>
-          </div>
           {displayStack.length > 1 && (
             <button
               className={styles.sortClearBtn}
@@ -1440,16 +1411,19 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         acc.apps += loc.stats.apps || 0;
         acc.approvals += loc.stats.approvals || 0;
         acc.inHouse += loc.stats.inHouse || 0;
+        acc.leadBooked = (acc.leadBooked || 0) + (loc.stats.leadBooked || 0);
+        acc.leadBookedDollars = (acc.leadBookedDollars || 0) + (loc.stats.leadBookedDollars || 0);
         acc.booked += loc.stats.booked || 0;
         acc.bookedDollars += loc.stats.bookedDollars || 0;
       }
       return acc;
     },
-    { apps: 0, approvals: 0, inHouse: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 }
+    { apps: 0, approvals: 0, inHouse: 0, leadBooked: 0, leadBookedDollars: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 }
   );
 
-  if (groupStats.apps > 0) groupStats.lookToBook = groupStats.booked / groupStats.apps;
-  if (groupStats.approvals > 0) groupStats.approvalToBook = (groupStats.approvals + groupStats.booked) > 0 ? groupStats.booked / (groupStats.approvals + groupStats.booked) : 0;
+  const effLeadBooked = groupStats.leadBooked ?? 0;
+  if (groupStats.apps > 0) groupStats.lookToBook = effLeadBooked / groupStats.apps;
+  if (groupStats.approvals > 0) groupStats.approvalToBook = effLeadBooked / groupStats.approvals;
 
   // Compute the displayed location count
   let displayCount = s?.locationCount ?? group.dealerCount;

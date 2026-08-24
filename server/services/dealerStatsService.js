@@ -335,9 +335,7 @@ async function getDealerStatsMap({ dealerIds = null, startDate = null, endDate =
         const leadBooked = entry.leadBooked || 0;
 
         entry.lookToBook = apps > 0 ? Number((leadBooked / apps).toFixed(4)) : 0;
-        entry.approvalToBook = (approvals + leadBooked) > 0 
-            ? Number((leadBooked / (approvals + leadBooked)).toFixed(4)) 
-            : (approvals > 0 ? Number((leadBooked / approvals).toFixed(4)) : 0);
+        entry.approvalToBook = approvals > 0 ? Number((leadBooked / approvals).toFixed(4)) : 0;
 
         // Ensure aliases are synchronized
         entry.booked = entry.closeBooked;

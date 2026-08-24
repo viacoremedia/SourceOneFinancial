@@ -21,6 +21,7 @@ import type {
   DealerApplicationHistoryResponse,
   ApplicationHistoryItem
 } from '../../types';
+import { useAuth } from '../../../auth/hooks/useAuth';
 import {
   X,
   TrendingUp,
@@ -127,6 +128,13 @@ export function AnalyticsDrawer({
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
+  const { user } = useAuth();
+  const isSuperAdminOrJoshua = Boolean(
+    user?.role === 'super_admin' ||
+    (user?.role as string) === 'superadmin' ||
+    user?.email?.trim().toLowerCase() === 'joshua@viacoremedia.com'
+  );
+
   // Active Tab: 'drd' | 'mom' | 'applications' | 'communications'
   const [activeTab, setActiveTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>(initialTab);
 
@@ -468,7 +476,9 @@ export function AnalyticsDrawer({
       setSelectedDealerId(dealer.dealerId || dealer._id || dealer.clientDealerId);
       setSelectedDealerObj(dealer);
       onSelectDealerId?.(dealer.dealerId || dealer._id || dealer.clientDealerId);
-      setActiveTab('drd');
+      if (isSuperAdminOrJoshua) {
+        setActiveTab('drd');
+      }
     }
     setDealerSearchOpen(false);
     setAppHistoryPage(1);
@@ -668,10 +678,10 @@ export function AnalyticsDrawer({
     booked: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBooked || m.stats?.booked || 0), 0),
     bookedDollars: displayedMonths.reduce((acc, m) => acc + (m.stats?.closeBookedDollars || m.stats?.bookedDollars || 0), 0),
     lookToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0) > 0
-      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked ?? 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.apps || 0), 0)
       : 0,
     approvalToBook: displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0) > 0
-      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked || m.stats?.booked || 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
+      ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked ?? 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
       : 0,
     latestCohort: displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null,
   };

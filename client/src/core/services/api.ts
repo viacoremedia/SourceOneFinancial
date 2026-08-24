@@ -908,6 +908,8 @@ export interface GenerateScorecardReportPayload {
     finPeriod: 'mtd' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
     customStartDate?: string;
     customEndDate?: string;
+    weights?: Record<string, number>;
+    thresholds?: Record<string, number>;
   };
   visitImpact: {
     reactivationWindow: number;

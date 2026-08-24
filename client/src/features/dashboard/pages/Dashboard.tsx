@@ -15,6 +15,7 @@ import type { UnderwriterDateRange } from '../components/UnderwriterScorecard/Un
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
@@ -85,6 +86,13 @@ function DashboardContent() {
   const [repMappings, setRepMappings] = useState<RepMappings | null>(null);
 
   // ── Unified Drawer State ──
+  const { user } = useAuth();
+  const isSuperAdminOrJoshua = Boolean(
+    user?.role === 'super_admin' ||
+    (user?.role as string) === 'superadmin' ||
+    user?.email?.trim().toLowerCase() === 'joshua@viacoremedia.com'
+  );
+
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
@@ -95,9 +103,9 @@ function DashboardContent() {
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
     setDrawerDealerId(dealerId);
     setDrawerGroupSlug(null);
-    setDrawerTab('drd');
+    setDrawerTab(isSuperAdminOrJoshua ? 'drd' : 'mom');
     setDrawerOpen(true);
-  }, []);
+  }, [isSuperAdminOrJoshua]);
 
   const handleOpenGroupDrawer = useCallback((groupSlug: string) => {
     setDrawerGroupSlug(groupSlug);

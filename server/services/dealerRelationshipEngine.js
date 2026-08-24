@@ -430,7 +430,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     const lenderCounts = {};
 
     for (const app of apps) {
-        if (app.status === 'Approved' || app.status === 'Booked') totalApproved++;
+        if (app.wasApproved || ['Approved', 'Conditional Approval', 'Auto Approval', 'Booked'].includes(app.status)) totalApproved++;
         if (app.status === 'Declined' || app.status === 'Withdrawn') totalDeclined++;
         if (app.underwriter) underwriterCounts[app.underwriter] = (underwriterCounts[app.underwriter] || 0) + 1;
         if (app.lender) lenderCounts[app.lender] = (lenderCounts[app.lender] || 0) + 1;

@@ -708,7 +708,7 @@ function generateCompanyPDFBuffer(reps, peerAvg, dateRanges, visitImpactData) {
         const benchmarkRows = [
             ['Heat Index Score', `${peerAvg.heatIndex} / 100`, topRep, 'Composite balance of contact recency, pipeline yield, and retention'],
             ['Active Portfolio Ratio', `${peerAvg.activePct}%`, sortedByHeat[0]?.rep || '—', 'Percentage of territory maintaining sub-30 day application flow'],
-            ['Look-to-Book Ratio', `${peerAvg.lookToBookPct}%`, topVolRep, 'Total funded contracts divided by credit applications submitted'],
+            ['Look-to-Book Ratio', `${peerAvg.lookToBookPct}%`, topVolRep, 'Total booked from applications in period divided by total applications'],
             ['Visit Reactivations', `${peerAvg.reactivatedCount} accounts`, topReactRep, 'Dormant dealerships revived following in-person rep visits'],
             ['Contact Discipline', `${peerAvg.avgContactDays} days`, topRep, 'Average days elapsed across network between dealer communications']
         ];
@@ -1070,8 +1070,8 @@ function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
         const finRows = [
             ['Total Applications', formatNumber(fin.totalApps), formatNumber(peerAvg.totalApps), getRank('totalApps', fin.totalApps), 'Raw lead submission volume in selected period'],
             ['Total Approved Loans', formatNumber(fin.approvedCount), formatNumber(peerAvg.approvedCount), getRank('approvedCount', fin.approvedCount), 'Underwritten loans approved for funding'],
-            ['Approval-to-Book % (Close Rate)', formatPercent(fin.approvalToBookPct), formatPercent(peerAvg.approvalToBookPct), getRank('approvalToBookPct', fin.approvalToBookPct), 'Percentage of approved deals successfully booked'],
-            ['Look-to-Book % (Overall Efficiency)', formatPercent(fin.lookToBookPct), formatPercent(peerAvg.lookToBookPct), getRank('lookToBookPct', fin.lookToBookPct), 'Total funded deals divided by total applications'],
+            ['Approval-to-Book % (Close Rate)', formatPercent(fin.approvalToBookPct), formatPercent(peerAvg.approvalToBookPct), getRank('approvalToBookPct', fin.approvalToBookPct), 'Total booked from applications in period divided by approved applications'],
+            ['Look-to-Book % (Overall Efficiency)', formatPercent(fin.lookToBookPct), formatPercent(peerAvg.lookToBookPct), getRank('lookToBookPct', fin.lookToBookPct), 'Total booked from applications in period divided by total applications'],
             ['Average Loan Amount Financed', formatCurrency(fin.avgDealSize), formatCurrency(peerAvg.avgDealSize), getRank('avgDealSize', fin.avgDealSize), 'Average contract balance per funded deal'],
             ['Average Dealer Reserve Amount', formatCurrency(fin.avgReserveAmt), formatCurrency(peerAvg.avgReserveAmt), getRank('avgReserveAmt', fin.avgReserveAmt), 'Dealer margin/commission per funded contract'],
             ['Average Contract APR', formatPercent(fin.avgAPR, 2), formatPercent(peerAvg.avgAPR, 2), getRank('avgAPR', fin.avgAPR, true), 'Weighted average interest rate across portfolio'],
