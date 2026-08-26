@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './VisitImpactDrawer.module.css';
 import { RelationshipDemandView } from './RelationshipDemandView';
 import { ReactivationDealerDrawer, type ReactivationDealerItem } from './ReactivationDealerDrawer';
@@ -49,21 +48,8 @@ type SubSortField =
   | 'visitCount';
 
 export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
-  const { user } = useAuth();
   const [selectedReactivationDealer, setSelectedReactivationDealer] = useState<ReactivationDealerItem | null>(null);
-
-  // Whitelist check: only joshua@viacoremedia.com can see the DRD feature
-  const isJoshua = (user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com') || (typeof window !== 'undefined' && localStorage.getItem('ENABLE_TLC') === 'true');
-
-  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('reactivation');
-
-  useEffect(() => {
-    if (isJoshua) {
-      setMainTab('demand');
-    } else {
-      setMainTab('reactivation');
-    }
-  }, [isJoshua]);
+  const [mainTab, setMainTab] = useState<'demand' | 'reactivation'>('demand');
 
   const [windowDays, setWindowDays] = useState<number>(30);
   const [touchpointMode, setTouchpointMode] = useState<'visits' | 'all'>('visits');
@@ -285,24 +271,20 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
               </div>
             ) : (
               <>
-                {isJoshua ? (
-                  <div className={styles.topNavTabs}>
-                    <button
-                      className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
-                      onClick={() => setMainTab('demand')}
-                    >
-                      🎯 Relationship Demand & Allocation (TLC)
-                    </button>
-                    <button
-                      className={`${styles.topNavBtn} ${mainTab === 'reactivation' ? styles.topNavBtnActive : ''}`}
-                      onClick={() => setMainTab('reactivation')}
-                    >
-                      ⚡ Visit Reactivation Diagnostic
-                    </button>
-                  </div>
-                ) : (
-                  <h2 className={styles.title}>⚡ Visit Reactivation Diagnostic</h2>
-                )}
+                <div className={styles.topNavTabs}>
+                  <button
+                    className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
+                    onClick={() => setMainTab('demand')}
+                  >
+                    🎯 Relationship Demand & Allocation (TLC)
+                  </button>
+                  <button
+                    className={`${styles.topNavBtn} ${mainTab === 'reactivation' ? styles.topNavBtnActive : ''}`}
+                    onClick={() => setMainTab('reactivation')}
+                  >
+                    ⚡ Visit Reactivation Diagnostic
+                  </button>
+                </div>
 
                 {mainTab === 'reactivation' && impactData?.dateRangeLabel && (
                   <span

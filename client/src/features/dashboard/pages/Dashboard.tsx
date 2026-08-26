@@ -15,7 +15,6 @@ import type { UnderwriterDateRange } from '../components/UnderwriterScorecard/Un
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
-import { useAuth } from '../../auth/hooks/useAuth';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
@@ -40,6 +39,9 @@ const SORT_KEY_MAP: Record<string, string> = {
   lookToBook: 'lookToBook',
   approvalToBook: 'approvalToBook',
   avgFico: 'avgFico',
+  lastVisit: 'lastVisit',
+  postVisitLift: 'postVisitLift',
+  yieldPerVisit: 'yieldPerVisit',
 };
 
 function DashboardContent() {
@@ -85,27 +87,19 @@ function DashboardContent() {
   const [budgets, setBudgets] = useState<StateBudget[]>([]);
   const [repMappings, setRepMappings] = useState<RepMappings | null>(null);
 
-  // ── Unified Drawer State ──
-  const { user } = useAuth();
-  const isSuperAdminOrJoshua = Boolean(
-    user?.role === 'super_admin' ||
-    (user?.role as string) === 'superadmin' ||
-    user?.email?.trim().toLowerCase() === 'joshua@viacoremedia.com'
-  );
-
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
   const [drawerGroupSlug, setDrawerGroupSlug] = useState<string | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>('mom');
+  const [drawerTab, setDrawerTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>('drd');
   const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
     setDrawerDealerId(dealerId);
     setDrawerGroupSlug(null);
-    setDrawerTab(isSuperAdminOrJoshua ? 'drd' : 'mom');
+    setDrawerTab('drd');
     setDrawerOpen(true);
-  }, [isSuperAdminOrJoshua]);
+  }, []);
 
   const handleOpenGroupDrawer = useCallback((groupSlug: string) => {
     setDrawerGroupSlug(groupSlug);

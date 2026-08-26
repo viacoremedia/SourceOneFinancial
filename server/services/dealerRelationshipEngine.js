@@ -1,5 +1,5 @@
 /**
- * Dealer Relationship Demand (DRD) & Field Allocation Engine (v6.2 Final)
+ * Dealer Relationship Demand (DRD) & Field Allocation Engine (v7.0 Rationalized)
  * 
  * Computes deterministic, auditable relationship demand profiles and sales routing recommendations
  * by analyzing event-level temporal causality between in-person rep visits and funded loan production.
@@ -7,7 +7,7 @@
  * Segments:
  *   - high_tlc: Funded loan production strictly surges after visits and decays without contact (Spike & Decay)
  *   - self_sufficient: Consistent organic flow via portal; visits produce negligible lift (Autonomous)
- *   - comfort_stop: 3+ visits with $0 in lifetime booked loans (waste of travel budget)
+ *   - comfort_stop: Accounts consuming field sales travel with non-converting or uneconomic return
  *   - insufficient_data: < 2 visits and < 5 applications (Discovery Queue)
  * 
  * @module services/dealerRelationshipEngine
@@ -119,7 +119,7 @@ function mergeIntervals(intervals) {
 }
 
 /**
- * Cluster visits occurring within <45 days of each other into discrete episodes.
+ * Cluster visits occurring within <=14 days of each other into discrete multi-day trip episodes (Spec Section 2.1).
  * 
  * @param {Array<{date: Date, repName: string, notes?: string}>} visits - Chronological visits
  * @returns {Array<Object>} Discrete visit clusters
@@ -127,7 +127,7 @@ function mergeIntervals(intervals) {
 function clusterVisits(visits) {
     if (!visits || visits.length === 0) return [];
     const DAY_MS = 24 * 60 * 60 * 1000;
-    const CLUSTER_WINDOW_DAYS = 45;
+    const CLUSTER_WINDOW_DAYS = 14; // Spec Section 2.1 (14 calendar days)
 
     const sorted = [...visits].sort((a, b) => a.date.getTime() - b.date.getTime());
     const clusters = [];
@@ -143,15 +143,15 @@ function clusterVisits(visits) {
         const v = sorted[i];
         const gapDays = Math.floor((v.date.getTime() - currentCluster.endDate.getTime()) / DAY_MS);
 
-        if (gapDays < CLUSTER_WINDOW_DAYS) {
-            // Merge into current cluster
+        if (gapDays <= CLUSTER_WINDOW_DAYS) {
+            // Merge into current multi-day trip episode
             currentCluster.visits.push(v);
             currentCluster.endDate = v.date;
             if (v.repName && currentCluster.repName === 'Sales Rep') {
                 currentCluster.repName = v.repName;
             }
         } else {
-            // Finalize current cluster and start new one
+            // Finalize current episode and start new one
             clusters.push(currentCluster);
             currentCluster = {
                 clusterNumber: clusters.length + 1,
@@ -207,8 +207,6 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     const assignedRep = resolveRepName(dealerLoc.dealerRepresentative || '') || null;
     const nowMs = referenceDate.getTime();
     const DAY_MS = 24 * 60 * 60 * 1000;
-    const POST_WINDOW_DAYS = 45;
-    const POST_WINDOW_MS = POST_WINDOW_DAYS * DAY_MS;
 
     // ── 1. Normalize and Classify Communications ──
     const rawVisits = [];
@@ -296,6 +294,16 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     });
     const mergedEnvelopes = mergeIntervals(rawEnvelopes);
 
+    // Calculate Timeline Envelope Coverage
+    const firstEventMs = validApps.length > 0 
+        ? Math.min(validApps[0].appDate.getTime(), mergedEnvelopes[0]?.start || nowMs)
+        : (mergedEnvelopes[0]?.start || nowMs);
+    const totalTimelineDays = Math.max(1, (nowMs - firstEventMs) / DAY_MS);
+    const totalEnvelopeDays = mergedEnvelopes.reduce(
+        (sum, e) => sum + (Math.min(e.end, nowMs) - Math.max(e.start, firstEventMs)) / DAY_MS, 0
+    );
+    const envelopeCoverage = Math.min(1, Math.max(0, totalEnvelopeDays / totalTimelineDays));
+
     // Measure Touched vs Untouched Bookings & Applications across entire history
     let touchedBookedCount = 0;
     let touchedBookedVolume = 0;
@@ -306,24 +314,42 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
 
     for (const app of validApps) {
         const appMs = app.appDate.getTime();
-        const isInsideTouched = mergedEnvelopes.some(env => appMs >= env.start && appMs <= env.end);
+        const conversionDate = (app.isBooked && app.bookedDate) ? app.bookedDate : app.appDate;
+        const convMs = conversionDate.getTime();
 
-        if (isInsideTouched) {
+        const isAppInsideTouched = mergedEnvelopes.some(env => appMs >= env.start && appMs <= env.end);
+        const isConvInsideTouched = mergedEnvelopes.some(env => convMs >= env.start && convMs <= env.end);
+
+        if (isAppInsideTouched) {
             touchedAppCount++;
-            if (app.isBooked) {
-                touchedBookedCount++;
-                touchedBookedVolume += app.amount;
-            }
         } else {
             untouchedAppCount++;
-            if (app.isBooked) {
+        }
+
+        if (app.isBooked) {
+            if (isConvInsideTouched) {
+                touchedBookedCount++;
+                touchedBookedVolume += app.amount;
+            } else {
                 untouchedBookedCount++;
                 untouchedBookedVolume += app.amount;
             }
         }
     }
 
-    // ── 4. Evaluate Each Interaction Cycle (Relative Booked Lift & Decay) ──
+    // Calculate Organic vs. Post-Visit Booked Ratio
+    const organicBookedRatio = totalBookedVolume > 0
+        ? Math.max(0, Math.round((untouchedBookedVolume / totalBookedVolume) * 100))
+        : 0;
+
+    const postVisitBookedLiftPct = totalBookedVolume > 0
+        ? Math.round((touchedBookedVolume / totalBookedVolume) * 100)
+        : null;
+
+    const yieldPerVisit = totalVisits > 0 ? Math.round(totalBookedVolume / totalVisits) : 0;
+
+    // ── 4. Causal Velocity & Unvisited Gap Analysis ──
+    const postVelocities = [];
     const interactionCycles = [];
     let spikeAndDecayCycleCount = 0;
     const cycleYields = [];
@@ -347,6 +373,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         const bookedVolumeInWindow = clusterBooked.reduce((sum, a) => sum + a.amount, 0);
         const appsInWindow = clusterApps.length;
         cycleYields.push(bookedVolumeInWindow);
+        postVelocities.push(appsInWindow / seasonalWindowDays);
 
         // Pre-Window baseline [startDate - seasonalWindowDays, startDate]
         const preApps = validApps.filter(a => {
@@ -380,7 +407,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         const isDecayed = decayApps.length <= 1;
         let patternObserved = 'empty_friction';
 
-        if (bookedInWindow >= 1 && (relativeBookedLift >= 1.5 || preBooked.length === 0)) {
+        if (bookedInWindow >= 1 && (relativeBookedLift >= 1.3 || preBooked.length === 0)) {
             patternObserved = isDecayed ? 'spike_and_decay' : 'escalation';
             if (patternObserved === 'spike_and_decay' || isDecayed) {
                 spikeAndDecayCycleCount++;
@@ -423,7 +450,75 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     // Sort interaction cycles newest first for UI display
     interactionCycles.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
-    // ── 5. Pipeline & Underwriting Conversion Metrics ──
+    // Compute unvisited gap velocity
+    const unvisitedGaps = [];
+    const sortedEpisodes = [...visitClusters].sort((a, b) => a.startDate - b.startDate);
+
+    // Initial unvisited gap
+    if (validApps.length > 0 && sortedEpisodes.length > 0) {
+        const firstAppMs = validApps[0].appDate.getTime();
+        const firstVisitMs = sortedEpisodes[0].startDate.getTime();
+        if ((firstVisitMs - firstAppMs) / DAY_MS >= 45) {
+            unvisitedGaps.push({ start: firstAppMs, end: firstVisitMs });
+        }
+    }
+
+    // Inter-visit unvisited gaps
+    for (let i = 0; i < sortedEpisodes.length - 1; i++) {
+        const windowDays = getSeasonalPostWindowDays(sortedEpisodes[i].startDate);
+        const gapStart = sortedEpisodes[i].endDate.getTime() + (windowDays * DAY_MS);
+        const gapEnd = sortedEpisodes[i + 1].startDate.getTime();
+        if ((gapEnd - gapStart) / DAY_MS >= 30) {
+            unvisitedGaps.push({ start: gapStart, end: gapEnd });
+        }
+    }
+
+    // Post-final visit gap
+    if (sortedEpisodes.length > 0) {
+        const windowDays = getSeasonalPostWindowDays(sortedEpisodes[sortedEpisodes.length - 1].startDate);
+        const lastEnd = sortedEpisodes[sortedEpisodes.length - 1].endDate.getTime() + (windowDays * DAY_MS);
+        if ((nowMs - lastEnd) / DAY_MS >= 30) {
+            unvisitedGaps.push({ start: lastEnd, end: nowMs });
+        }
+    }
+
+    const gapVelocities = unvisitedGaps.map(g => {
+        const days = Math.max(1, (g.end - g.start) / DAY_MS);
+        const appsInGap = validApps.filter(a => {
+            const t = a.appDate.getTime();
+            return t >= g.start && t <= g.end;
+        }).length;
+        return appsInGap / days;
+    });
+
+    const avgPostVelocity = postVelocities.length > 0 
+        ? postVelocities.reduce((a, b) => a + b, 0) / postVelocities.length : 0;
+    const avgGapVelocity = gapVelocities.length > 0
+        ? gapVelocities.reduce((a, b) => a + b, 0) / gapVelocities.length : 0;
+
+    const velocityMultiplier = avgGapVelocity > 0
+        ? Math.round((avgPostVelocity / avgGapVelocity) * 100) / 100
+        : (avgPostVelocity > 0 ? 5.0 : 1.0);
+
+    const hasGapData = unvisitedGaps.length >= 1;
+
+    // ── 5. Recency Dynamics (Last 12 Months) ──
+    const cutoff12MoMs = nowMs - (365 * DAY_MS);
+    const recentApps = validApps.filter(a => a.appDate.getTime() > cutoff12MoMs);
+    const recentBooked = recentApps.filter(a => a.isBooked);
+    const recentBookedVol = recentBooked.reduce((s, a) => s + a.amount, 0);
+    const recentVisits = rawVisits.filter(v => v.date.getTime() > cutoff12MoMs).length;
+
+    let recentTouchedVol = 0;
+    for (const b of recentBooked) {
+        const convMs = b.bookedDate.getTime();
+        if (mergedEnvelopes.some(env => convMs >= env.start && convMs <= env.end)) {
+            recentTouchedVol += b.amount;
+        }
+    }
+    const recentLiftPct = recentBookedVol > 0 ? Math.round((recentTouchedVol / recentBookedVol) * 100) : null;
+
+    // ── 6. Pipeline & Underwriting Conversion Metrics ──
     let totalApproved = 0;
     let totalDeclined = 0;
     const underwriterCounts = {};
@@ -460,13 +555,13 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     if (cycleYields.length >= 2) {
         const lastYield = cycleYields[cycleYields.length - 1];
         const prevYield = cycleYields[cycleYields.length - 2];
-        if (prevYield > 50000 && lastYield < prevYield * 0.60) {
+        if (prevYield > 40000 && lastYield < prevYield * 0.50) {
             isFadingTlc = true;
         }
     }
 
     let isCatalyticActivation = false;
-    if (visitClusters.length === 1 && totalBookings >= 5 && totalApplications >= 15) {
+    if (visitClusters.length === 1 && totalBookings >= 4 && totalApplications >= 12) {
         const clusterEndMs = visitClusters[0].endDate.getTime();
         const appsPrior = validApps.filter(a => a.appDate.getTime() < clusterEndMs).length;
         if (appsPrior <= 2) {
@@ -486,106 +581,181 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
     const daysSinceLastBooked = lastBookedDate ? Math.max(0, Math.floor((nowMs - lastBookedDate.getTime()) / DAY_MS)) : null;
 
     const isLapsed = (daysSinceLastApp !== null && daysSinceLastApp > 180);
-    const isDormant = (daysSinceLastApp === null && daysSinceLastVisit !== null && daysSinceLastVisit > 365) || (daysSinceLastApp !== null && daysSinceLastApp > 365) || (daysSinceLastVisit !== null && daysSinceLastVisit > 365);
+    const isDormant = (daysSinceLastApp === null && daysSinceLastVisit !== null && daysSinceLastVisit > 365) || 
+                      (daysSinceLastApp !== null && daysSinceLastApp > 365) || 
+                      (daysSinceLastVisit !== null && daysSinceLastVisit > 365);
 
-    // Calculate Organic vs. Post-Visit Booked Ratio
-    const organicBookedRatio = totalBookedVolume > 0
-        ? Math.max(0, Math.round((untouchedBookedVolume / totalBookedVolume) * 100))
-        : 0;
-
-    const postVisitBookedLiftPct = totalBookedVolume > 0
-        ? Math.round((touchedBookedVolume / totalBookedVolume) * 100)
-        : null;
-
-    const yieldPerVisit = totalVisits > 0 ? Math.round(totalBookedVolume / totalVisits) : 0;
-
-    const isOverVisitedSink = (totalVisits >= 15 && yieldPerVisit < 25000 && totalBookedVolume < 500000);
+    // Friction Criteria
     const isUnderwritingFriction = (
-        (totalVisits >= 3 && totalApplications >= 8 && (totalBookings === 0 || (totalBookings <= 1 && totalBookedVolume < 50000 && (approvalRatePct <= 35 || lookToBookPct <= 5)))) ||
-        (totalVisits >= 3 && totalApplications >= 35 && (approvalRatePct <= 20 || lookToBookPct <= 8) && (yieldPerVisit < 35000 || totalVisits >= 10))
+        (totalVisits >= 3 && totalApplications >= 12 && totalBookings <= 1 && approvalRatePct <= 25 && lookToBookPct <= 8) ||
+        (totalVisits >= 3 && totalApplications >= 30 && approvalRatePct <= 20 && lookToBookPct <= 8 && yieldPerVisit < 30000)
     );
-    const isStrategicTlc = (totalBookedVolume >= 500000 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && totalVisits >= 3 && yieldPerVisit >= 25000 && !isLapsed);
 
-    // ── 6. Classification & Operational Decision Rules ──
+    const isStrategicTlc = (
+        totalBookedVolume >= 500000 && 
+        postVisitBookedLiftPct !== null && 
+        postVisitBookedLiftPct >= 55 && 
+        organicBookedRatio <= 45 &&
+        totalVisits >= 3 && 
+        yieldPerVisit >= 20000 && 
+        !isLapsed
+    );
+
+    // ── 7. Decision Tree Architecture (v7.0 Rationalized) ──
     let relationshipDemand = 'insufficient_data';
     let patternType = 'unexplored';
     let confidenceScore = 0.35;
     let recommendedCadenceDays = null;
 
-    // Emerging TLC: exactly 1 cycle with high lift AND at least 2 bookings AND not lapsed AND yield >= 25K
-    const isEmergingTlc = (spikeAndDecayCycleCount === 1 && visitClusters.length <= 2 && totalBookings >= 2 && totalBookings <= 4 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && yieldPerVisit >= 25000 && !isLapsed);
+    // Emerging TLC: 1 verified cycle with high lift AND at least 2 bookings AND not lapsed AND yield >= 15K
+    const isEmergingTlc = (
+        spikeAndDecayCycleCount === 1 && 
+        visitClusters.length <= 3 && 
+        totalBookings >= 2 && 
+        totalBookings <= 4 && 
+        postVisitBookedLiftPct !== null && 
+        postVisitBookedLiftPct >= 60 && 
+        yieldPerVisit >= 15000 && 
+        !isLapsed
+    );
 
-    // A dealer is DOMINATED by organic production if >=50% of volume is organic or postVisitLift < 50%
-    const isOrganicDominated = (organicBookedRatio !== null && organicBookedRatio >= 50) || (postVisitBookedLiftPct !== null && postVisitBookedLiftPct < 50);
+    // Organic Domination: True organic dominance requires strong organic ratio AND lack of active visit dependency
+    // Also check envelope coverage — if >80% coverage, rely on velocity multiplier instead of raw lift
+    const isOrganicDominated = (
+        organicBookedRatio >= 45 && 
+        (postVisitBookedLiftPct === null || postVisitBookedLiftPct < 55 || (envelopeCoverage > 0.80 && velocityMultiplier <= 1.3)) && 
+        spikeAndDecayCycleCount < 2 &&
+        (velocityMultiplier <= 1.4 || !hasGapData)
+    );
 
-    // If an account was unvisited for > 120 days and generated >= $100K (or >= 3 bookings) unvisited, they proved autonomy
-    const hasDemonstratedAutonomy = (daysSinceLastVisit !== null && daysSinceLastVisit > 120 && totalBookedVolume >= 100000 && (organicBookedRatio === null || organicBookedRatio >= 35) && !isLapsed);
+    // Autonomous Demonstration: dealer sustained production across 120+ unvisited days with substantial volume
+    const hasDemonstratedAutonomy = (
+        daysSinceLastVisit !== null && 
+        daysSinceLastVisit > 120 && 
+        totalBookedVolume >= 100000 && 
+        organicBookedRatio >= 40 && 
+        !isLapsed
+    );
+
+    // Lift Guard: If visits demonstrably produce deals with economic return, do NOT classify as comfort stop
+    const visitsClearlyProduceDeals = (
+        (postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 50 && totalBookings >= 2 && yieldPerVisit >= 8000) ||
+        (postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 80 && totalBookings >= 1 && totalBookedVolume >= 40000) ||
+        (hasGapData && velocityMultiplier >= 1.5 && totalBookings >= 2 && yieldPerVisit >= 8000) ||
+        (recentLiftPct !== null && recentLiftPct >= 60 && recentBooked.length >= 2 && yieldPerVisit >= 8000)
+    );
 
     if (totalVisits < 2 && totalApplications < 5 && totalBookedVolume < 100000) {
-        // Discovery Queue / Insufficient Data (Black & White)
+        // Step 1: Discovery Queue / Insufficient Data
         relationshipDemand = 'insufficient_data';
         patternType = 'unexplored';
         confidenceScore = 0.40;
         recommendedCadenceDays = null;
     } else if (
-        (totalVisits >= 3 && totalBookings === 0) ||
-        (totalVisits >= 5 && totalBookings <= 1 && totalBookedVolume < 50000) ||
-        (totalVisits >= 10 && totalBookings <= 2 && totalBookedVolume < 150000) ||
-        (isOverVisitedSink) ||
-        (isUnderwritingFriction && yieldPerVisit < 35000)
+        !visitsClearlyProduceDeals && (
+            (totalVisits >= 3 && totalBookings === 0) ||
+            (totalVisits >= 5 && totalBookings <= 1 && totalBookedVolume < 50000) ||
+            (totalVisits >= 10 && yieldPerVisit < 10000 && totalBookedVolume < 150000) ||
+            (totalVisits >= 15 && yieldPerVisit < 20000 && totalBookedVolume < 300000) ||
+            (isUnderwritingFriction && yieldPerVisit < 30000)
+        )
     ) {
-        // Comfort Stop / Empty Friction ($0 or trivial booked volume over 3+ visits, or UW bottleneck)
+        // Step 2: Comfort Stop / Friction Gate (Protected by Lift Guard)
         relationshipDemand = 'comfort_stop';
         patternType = isUnderwritingFriction ? 'underwriting_friction' : 'empty_friction';
-        confidenceScore = Math.min(0.98, 0.75 + (totalVisits * 0.04));
-        recommendedCadenceDays = null; // Do not recommend field road trips
+        confidenceScore = Math.min(0.98, 0.75 + (totalVisits * 0.03));
+        recommendedCadenceDays = null;
     } else if (isLapsed && (totalBookings >= 2 || totalBookedVolume >= 50000)) {
-        // Lapsed / Churned Account: Previously productive, but dark for 180+ days
-        relationshipDemand = 'self_sufficient';
+        // Step 3: Lapsed / Churned Account — previously active, now silent 180+ days
+        relationshipDemand = 'lapsed';
         patternType = 'lapsed_churn';
         confidenceScore = 0.85;
-        recommendedCadenceDays = null; // Exclude from active weekly routes
-    } else if (isOrganicDominated && (totalBookings >= 2 || totalBookedVolume >= 75000 || totalApplications >= 8)) {
-        // SELF-SUFFICIENT: Active organic production
+        recommendedCadenceDays = null;
+    } else if (
+        !isLapsed && (
+            isStrategicTlc ||
+            (spikeAndDecayCycleCount >= 2 && totalBookings >= 2 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 50 && organicBookedRatio <= 50 && yieldPerVisit >= 10000) ||
+            (hasGapData && velocityMultiplier >= 1.5 && totalBookings >= 2 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 50 && organicBookedRatio <= 50 && yieldPerVisit >= 10000) ||
+            (totalVisits >= 2 && totalBookings >= 2 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && organicBookedRatio <= 40 && yieldPerVisit >= 10000) ||
+            (recentVisits >= 2 && recentLiftPct !== null && recentLiftPct >= 65 && recentBooked.length >= 2 && organicBookedRatio <= 50 && yieldPerVisit >= 10000)
+        )
+    ) {
+        // Step 4: Confirmed High TLC (Visit-Dependent Production)
+        relationshipDemand = 'high_tlc';
+        patternType = isStrategicTlc ? 'strategic_tlc' : (isFadingTlc ? 'fading_tlc' : 'spike_and_decay');
+        confidenceScore = Math.min(0.98, 0.65 + (Math.min(3, totalVisits) * 0.06) + Math.min(0.15, totalBookings * 0.02) + (spikeAndDecayCycleCount >= 2 ? 0.10 : 0));
+        recommendedCadenceDays = 35; // Strict 30-45 day in-person route cadence
+    } else if (isEmergingTlc) {
+        // Step 5: Emerging High TLC
+        relationshipDemand = 'high_tlc';
+        patternType = 'spike_and_decay';
+        confidenceScore = 0.72;
+        recommendedCadenceDays = 30;
+    } else if (isCatalyticActivation && !isLapsed) {
+        // Step 6: Catalytic Activation
         relationshipDemand = 'self_sufficient';
-        patternType = isCatalyticActivation ? 'catalytic_activation' : 'autonomous_locomotive';
+        patternType = 'catalytic_activation';
+        confidenceScore = 0.90;
+        recommendedCadenceDays = 90;
+    } else if (
+        isOrganicDominated && (totalBookings >= 2 || totalBookedVolume >= 75000 || totalApplications >= 10)
+    ) {
+        // Step 7: Self-Sufficient / Autonomous Locomotive
+        relationshipDemand = 'self_sufficient';
+        patternType = 'autonomous_locomotive';
         confidenceScore = Math.min(0.98, 0.75 + Math.min(0.20, totalBookings * 0.01));
-        recommendedCadenceDays = 90; // Quarterly digital/phone check-in
+        recommendedCadenceDays = 90;
     } else if (hasDemonstratedAutonomy) {
-        // SELF-SUFFICIENT: Dealer sustained production across 120+ unvisited days
+        // Step 8: Self-Sufficient (Demonstrated via unvisited sustained production)
         relationshipDemand = 'self_sufficient';
         patternType = 'autonomous_locomotive';
         confidenceScore = Math.min(0.98, 0.75 + Math.min(0.20, totalBookings * 0.01));
         recommendedCadenceDays = 90;
     } else if (
-        !isLapsed &&
-        ((totalVisits >= 2 && totalBookings >= 3 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 65 && yieldPerVisit >= 20000) ||
-        (spikeAndDecayCycleCount >= 2 && totalBookings >= 2 && postVisitBookedLiftPct !== null && postVisitBookedLiftPct >= 60 && yieldPerVisit >= 20000) ||
-        (isStrategicTlc) ||
-        (totalVisits >= 4 && totalBookings >= 4 && organicBookedRatio <= 35 && yieldPerVisit >= 20000))
+        (hasGapData && velocityMultiplier <= 1.3 && (totalBookings >= 2 || totalBookedVolume >= 75000) && organicBookedRatio >= 40) ||
+        ((totalBookings >= 2 || totalBookedVolume >= 75000 || totalApplications >= 12) && (organicBookedRatio >= 40 || postVisitBookedLiftPct === null || postVisitBookedLiftPct < 50))
     ) {
-        // Confirmed High TLC (Multi-cycle touch dependency and viable economics)
-        relationshipDemand = 'high_tlc';
-        patternType = isStrategicTlc ? 'strategic_tlc' : (isFadingTlc ? 'fading_tlc' : 'spike_and_decay');
-        confidenceScore = Math.min(0.98, 0.65 + (Math.min(3, totalVisits) * 0.08) + Math.min(0.15, totalBookings * 0.02));
-        recommendedCadenceDays = 35; // Strict 30-45 day in-person route cadence
-    } else if (isEmergingTlc) {
-        // Emerging High TLC
-        relationshipDemand = 'high_tlc';
-        patternType = 'spike_and_decay';
-        confidenceScore = 0.70;
-        recommendedCadenceDays = 30;
-    } else if (totalBookings >= 2 || totalBookedVolume >= 75000 || totalApplications >= 8) {
-        // Self-Sufficient baseline
+        // Step 9: Self-Sufficient Baseline (Requires organic confirmation)
         relationshipDemand = 'self_sufficient';
         patternType = 'autonomous_locomotive';
-        confidenceScore = 0.65;
+        confidenceScore = 0.68;
         recommendedCadenceDays = 90;
+    } else if (totalVisits >= 3 && yieldPerVisit < 10000 && totalBookedVolume < 75000) {
+        // Step 10: Comfort Stop (Uneconomic return with high visit burden)
+        relationshipDemand = 'comfort_stop';
+        patternType = 'empty_friction';
+        confidenceScore = 0.75;
+        recommendedCadenceDays = null;
     } else {
+        // Step 11: Fallback to Insufficient Data
         relationshipDemand = 'insufficient_data';
         patternType = 'unexplored';
         confidenceScore = 0.50;
         recommendedCadenceDays = null;
+    }
+
+    // ── RECENCY OVERRIDE (Promotion-Only: SS → TLC) ──
+    // If classified as Self-Sufficient but recent 12-month data overwhelmingly
+    // shows visit-dependency, promote to High TLC. This ONLY promotes, never demotes.
+    // Conservative thresholds require ALL conditions to fire:
+    //   - 70%+ of recent booked volume occurred inside visit envelopes
+    //   - At least 3 visits in the last 12 months (enough visit data)
+    //   - At least 3 bookings in the last 12 months (enough conversion evidence)
+    //   - At least $50K in recent booked volume (economic viability)
+    if (
+        relationshipDemand === 'self_sufficient' && 
+        !isLapsed && 
+        patternType !== 'lapsed_churn' &&
+        recentLiftPct !== null && recentLiftPct >= 70 &&
+        recentVisits >= 3 &&
+        recentBooked.length >= 3 &&
+        recentBookedVol >= 50000 &&
+        organicBookedRatio <= 50
+    ) {
+        relationshipDemand = 'high_tlc';
+        patternType = 'spike_and_decay';
+        confidenceScore = Math.min(0.92, 0.72 + Math.min(0.15, recentBooked.length * 0.02));
+        recommendedCadenceDays = 35;
     }
 
     // Urgency Calculation
@@ -593,7 +763,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         ? 'dormant'
         : calculateUrgency(daysSinceLastVisit, recommendedCadenceDays, relationshipDemand);
 
-    // ── 7. Generate Plain-English Decision Rationale with When-and-Why Traceability ──
+    // ── 8. Generate Plain-English Decision Rationale with When-and-Why Traceability ──
     const decisionRationale = [];
     const pctLiftStr = postVisitBookedLiftPct !== null ? `${postVisitBookedLiftPct}%` : '0%';
     const bookedVolStr = totalBookedVolume >= 1000000
@@ -621,11 +791,13 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         } else {
             decisionRationale.push(`Classified as High TLC / Visit-Dependent (Confidence ${Math.round(confidenceScore * 100)}%).`);
             decisionRationale.push(`${pctLiftStr} of all lifetime funded loan volume (${bookedVolStr} across ${totalBookings} booked deal${totalBookings > 1 ? 's' : ''}) occurred exclusively within active in-person visit envelopes.`);
-            decisionRationale.push(`Funded loan production flatlines to zero during unvisited gaps.`);
+            if (hasGapData && velocityMultiplier >= 1.5) {
+                decisionRationale.push(`Causal Velocity: Daily application rate is ${velocityMultiplier}x higher post-visit compared to unvisited baseline gaps.`);
+            }
             if (spikeAndDecayCycleCount >= 2) {
                 decisionRationale.push(`Why this rule applied: ${spikeAndDecayCycleCount} independent Spike & Decay cycles verified across interaction history.`);
             } else {
-                decisionRationale.push(`Why this rule applied: High concentration of loan volume (${pctLiftStr} lift) tied directly to sales rep road visits.`);
+                decisionRationale.push(`Why this rule applied: High concentration of loan volume (${pctLiftStr} lift, $${(yieldPerVisit/1000).toFixed(0)}K/visit) tied directly to sales rep road visits.`);
             }
             decisionRationale.push(`Recommendation: Enforce strict 30–45 day in-person route cadence. Currently ${daysSinceLastVisit !== null ? `${daysSinceLastVisit} days unvisited` : 'unvisited'}.`);
         }
@@ -648,7 +820,14 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         decisionRationale.push(`Classified as Self-Sufficient / Autonomous (Confidence ${Math.round(confidenceScore * 100)}%).`);
         decisionRationale.push(`Rooftop generates steady, high-volume funded loans organically (${bookedVolStr} across ${totalBookings} deals) with only ${totalVisits} lifetime visit${totalVisits > 1 ? 's' : ''}.`);
         decisionRationale.push(`${organicBookedRatio}% of funded loan volume occurred without a recent sales visit.`);
-        decisionRationale.push(`Why this rule applied: High organic baseline proves dealer utilizes portal independently.`);
+        if (hasGapData && velocityMultiplier <= 1.3) {
+            decisionRationale.push(`Causal Velocity: Deal submission rate is virtually identical during unvisited gaps (${velocityMultiplier}x multiplier), proving self-sufficiency.`);
+        }
+        if (organicBookedRatio >= 45) {
+            decisionRationale.push(`Why this rule applied: High organic baseline proves dealer utilizes portal independently.`);
+        } else {
+            decisionRationale.push(`Why this rule applied: Stable deal flow without visit-triggered spike-and-decay dependency.`);
+        }
         decisionRationale.push(`Recommendation: Deprioritize in-person road trips. Maintain via quarterly digital/phone check-in.`);
         if (isCatalyticActivation && !isLapsed) {
             decisionRationale.push(`🚀 Catalytic Activation: A single onboarding visit unlocked permanent, sustained organic flow.`);
@@ -702,7 +881,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
         decisionRationale.push(`⚔️ Competitor Friction: Field rep logged deals lost to competitor rate sheets on ${competitorAlert.date}.`);
     }
 
-    // ── 8. Generate Pre-Aggregated Monthly Timeline (2024-2026) ──
+    // ── 9. Generate Pre-Aggregated Monthly Timeline (2024-2026) ──
     const monthlyMap = new Map();
     const startYear = 2024;
     const endYear = referenceDate.getFullYear();
@@ -814,7 +993,7 @@ function evaluateDealerProfile(dealerLoc, apps, comms, referenceDate = new Date(
  */
 async function recomputeAllProfiles({ referenceDate = new Date(), startDate = new Date('2025-01-01T00:00:00.000Z'), dealerIds = null } = {}) {
     const startTime = Date.now();
-    console.log(`\n=== RECOMPUTING DEALER RELATIONSHIP PROFILES (v6.2 Engine - 2025+ Baseline) ===`);
+    console.log(`\n=== RECOMPUTING DEALER RELATIONSHIP PROFILES (v7.0 Rationalized Engine - 2025+ Baseline) ===`);
 
     // 1. Load active DealerLocations
     const dealerQuery = { omniDealerId: { $exists: true, $ne: null } };
@@ -845,7 +1024,10 @@ async function recomputeAllProfiles({ referenceDate = new Date(), startDate = ne
         applicationDate: 1,
         bookedDate: 1,
         status: 1,
-        amountFinanced: 1
+        amountFinanced: 1,
+        wasApproved: 1,
+        underwriter: 1,
+        lender: 1
     }).lean();
 
     const appsByDealer = new Map();
@@ -907,6 +1089,7 @@ async function recomputeAllProfiles({ referenceDate = new Date(), startDate = ne
         high_tlc: 0,
         self_sufficient: 0,
         comfort_stop: 0,
+        lapsed: 0,
         insufficient_data: 0
     };
     const urgencyCounts = {
@@ -963,6 +1146,7 @@ async function recomputeAllProfiles({ referenceDate = new Date(), startDate = ne
     console.log(`    🔴 High TLC (Visit-Dependent) : ${segmentCounts.high_tlc.toLocaleString()} (${(segmentCounts.high_tlc / dealers.length * 100).toFixed(1)}%)`);
     console.log(`    🟢 Self-Sufficient (Organic)   : ${segmentCounts.self_sufficient.toLocaleString()} (${(segmentCounts.self_sufficient / dealers.length * 100).toFixed(1)}%)`);
     console.log(`    🟠 Comfort Stop (Time Sink)   : ${segmentCounts.comfort_stop.toLocaleString()} (${(segmentCounts.comfort_stop / dealers.length * 100).toFixed(1)}%)`);
+    console.log(`    ⚠️  Lapsed / Churned          : ${segmentCounts.lapsed.toLocaleString()} (${(segmentCounts.lapsed / dealers.length * 100).toFixed(1)}%)`);
     console.log(`    ⚪ Discovery Queue (Low Data) : ${segmentCounts.insufficient_data.toLocaleString()} (${(segmentCounts.insufficient_data / dealers.length * 100).toFixed(1)}%)`);
     console.log(`  Urgency Status:`);
     console.log(`    🚨 Overdue Visits             : ${urgencyCounts.overdue.toLocaleString()}`);

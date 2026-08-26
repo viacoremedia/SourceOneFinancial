@@ -23,6 +23,14 @@ export interface GroupSummary {
   avgVisitToApp: number | null;
   latestComm: string | null;
   oldestComm: string | null;
+  drd?: {
+    minDaysSinceLastVisit: number | null;
+    latestVisitDate: string | null;
+    avgLift: number | null;
+    maxLift: number | null;
+    yieldPerVisit: number | null;
+    totalVisits: number;
+  } | null;
 }
 
 // ── Dealer Group ──
@@ -159,7 +167,7 @@ export interface DealerApplicationHistoryResponse {
 }
 
 export interface DealerDRDMeta {
-  segment: 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data';
+  segment: 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'lapsed' | 'insufficient_data';
   urgencyStatus?: string;
   isOverridden?: boolean;
   overriddenSegment?: string | null;
@@ -169,6 +177,11 @@ export interface DealerDRDMeta {
     name?: string | null;
     email?: string | null;
   };
+  lastVisitDate?: string | null;
+  daysSinceLastVisit?: number | null;
+  postVisitLiftPct?: number | null;
+  yieldPerVisit?: number | null;
+  totalVisits?: number;
 }
 
 // ── Dealer Location ──

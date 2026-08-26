@@ -41,6 +41,7 @@ router.get('/summary', async (req, res) => {
             high_tlc: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
             self_sufficient: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
             comfort_stop: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
+            lapsed: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 },
             insufficient_data: { count: 0, pct: 0, bookedVolume: 0, totalVisits: 0, totalBookings: 0 }
         };
 
@@ -303,7 +304,7 @@ router.post('/dealers/:clientDealerId/override', async (req, res) => {
         const rawId = (req.params.clientDealerId || '').trim();
         const { segment, reason } = req.body;
 
-        const VALID_SEGMENTS = ['high_tlc', 'self_sufficient', 'comfort_stop', 'insufficient_data'];
+        const VALID_SEGMENTS = ['high_tlc', 'self_sufficient', 'comfort_stop', 'lapsed', 'insufficient_data'];
         if (!VALID_SEGMENTS.includes(segment)) {
             return res.status(400).json({
                 success: false,
@@ -563,6 +564,8 @@ router.get('/rep-allocation', async (req, res) => {
             } else if (p.relationshipDemand === 'comfort_stop') {
                 r.comfortStopCount++;
                 r.comfortStopVisits += visits;
+            } else if (p.relationshipDemand === 'lapsed') {
+                r.lapsedCount = (r.lapsedCount || 0) + 1;
             } else {
                 r.insufficientCount++;
             }

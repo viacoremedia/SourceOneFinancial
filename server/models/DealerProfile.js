@@ -7,6 +7,7 @@ const RELATIONSHIP_DEMAND_SEGMENTS = [
     'high_tlc',        // Spike & Decay: Production strictly surges after visits and decays without contact
     'self_sufficient', // Autonomous Locomotive: Healthy organic flow via portal; visits produce negligible lift
     'comfort_stop',    // Empty Friction: 3+ visits with $0 in lifetime booked loans (waste of travel budget)
+    'lapsed',          // Churned / Inactive: Previously active dealer that has gone silent (180+ days no apps)
     'insufficient_data'// Discovery Queue: <2 visits and <5 applications
 ];
 
@@ -286,6 +287,5 @@ const dealerProfileSchema = new mongoose.Schema({
 dealerProfileSchema.index({ assignedRep: 1, relationshipDemand: 1, urgencyStatus: 1 });
 dealerProfileSchema.index({ relationshipDemand: 1, urgencyStatus: 1 });
 dealerProfileSchema.index({ statePrefix: 1, relationshipDemand: 1 });
-dealerProfileSchema.index({ 'manualOverride.isOverridden': 1 });
 
 module.exports = mongoose.model('DealerProfile', dealerProfileSchema);

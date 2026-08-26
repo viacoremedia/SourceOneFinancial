@@ -21,7 +21,6 @@ import type {
   DealerApplicationHistoryResponse,
   ApplicationHistoryItem
 } from '../../types';
-import { useAuth } from '../../../auth/hooks/useAuth';
 import {
   X,
   TrendingUp,
@@ -119,7 +118,7 @@ export function AnalyticsDrawer({
   initialStartDate = null,
   initialEndDate = null,
   initialDatePreset = null,
-  initialTab = 'mom',
+  initialTab = 'drd',
   tableRowData = null,
   comparisonLabel,
   datePresetLabel,
@@ -128,13 +127,6 @@ export function AnalyticsDrawer({
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
-  const { user } = useAuth();
-  const isSuperAdminOrJoshua = Boolean(
-    user?.role === 'super_admin' ||
-    (user?.role as string) === 'superadmin' ||
-    user?.email?.trim().toLowerCase() === 'joshua@viacoremedia.com'
-  );
-
   // Active Tab: 'drd' | 'mom' | 'applications' | 'communications'
   const [activeTab, setActiveTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>(initialTab);
 
@@ -476,9 +468,7 @@ export function AnalyticsDrawer({
       setSelectedDealerId(dealer.dealerId || dealer._id || dealer.clientDealerId);
       setSelectedDealerObj(dealer);
       onSelectDealerId?.(dealer.dealerId || dealer._id || dealer.clientDealerId);
-      if (isSuperAdminOrJoshua) {
-        setActiveTab('drd');
-      }
+      setActiveTab('drd');
     }
     setDealerSearchOpen(false);
     setAppHistoryPage(1);

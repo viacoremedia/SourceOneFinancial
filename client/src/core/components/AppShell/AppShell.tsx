@@ -44,9 +44,6 @@ export function AppShell({
   const [underwriterOpen, setUnderwriterOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Whitelist check: only joshua@viacoremedia.com can see the PDF Reports feature
-  const isJoshua = (user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com') || (typeof window !== 'undefined' && localStorage.getItem('ENABLE_TLC') === 'true');
-
   const formattedDate = latestReportDate
     ? (() => {
         const d = new Date(latestReportDate);
@@ -118,18 +115,16 @@ export function AppShell({
                   <span>Rep Scorecard</span>
                 </button>
 
-                {isJoshua && (
-                  <button
-                    className={styles.navCell}
-                    onClick={() => setScorecardReportsOpen(true)}
-                    title="PDF Scorecard Reports & Executive Dispatch"
-                    id="pdf-reports-btn"
-                    aria-label="PDF Reports"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    <span>PDF Reports</span>
-                  </button>
-                )}
+                <button
+                  className={styles.navCell}
+                  onClick={() => setScorecardReportsOpen(true)}
+                  title="PDF Scorecard Reports & Executive Dispatch"
+                  id="pdf-reports-btn"
+                  aria-label="PDF Reports"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  <span>PDF Reports</span>
+                </button>
 
                 <button
                   className={styles.navCell}
@@ -209,7 +204,7 @@ export function AppShell({
                   onClick={() => { setMobileMenuOpen(false); onOpenVisitImpact(); }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  <span>{user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com' ? 'Relationship Demand (DRD)' : 'Visit Impact'}</span>
+                  <span>Relationship Demand & Visit Impact</span>
                 </button>
               )}
               {user && (
@@ -221,15 +216,13 @@ export function AppShell({
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>
                     <span>Rep Scorecard</span>
                   </button>
-                  {isJoshua && (
-                    <button
-                      className={styles.mobileDrawerItem}
-                      onClick={() => { setMobileMenuOpen(false); setScorecardReportsOpen(true); }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                      <span>PDF Reports</span>
-                    </button>
-                  )}
+                  <button
+                    className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setScorecardReportsOpen(true); }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>PDF Reports</span>
+                  </button>
                   <button
                     className={styles.mobileDrawerItem}
                     onClick={() => { setMobileMenuOpen(false); setUnderwriterOpen(true); }}

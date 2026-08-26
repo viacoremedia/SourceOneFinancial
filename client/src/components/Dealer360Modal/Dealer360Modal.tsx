@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAnalyticsContext } from '../../core/contexts/AnalyticsContext';
-import { useAuth } from '../../features/auth/hooks/useAuth';
 import {
   getDealer360,
   getDealer360Timeline,
@@ -55,8 +54,6 @@ export function Dealer360Modal() {
     closeDealer360,
     setFocusedRep,
   } = useAnalyticsContext();
-  const { user } = useAuth();
-  const isJoshua = (user?.email?.toLowerCase().trim() === 'joshua@viacoremedia.com') || (typeof window !== 'undefined' && localStorage.getItem('ENABLE_TLC') === 'true');
 
   const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'mom' | 'touchpoints' | 'apps'>('overview');
   const [timelineFilter, setTimelineFilter] = useState<'all' | 'visits' | 'apps' | 'booked'>('all');
@@ -162,17 +159,19 @@ export function Dealer360Modal() {
                     {overviewData.status.replace('_', ' ')}
                   </span>
                 )}
-                {isJoshua && drdData?.profile?.relationshipDemand && (
+                {drdData?.profile?.relationshipDemand && (
                   <span
                     className={styles.statusBadge}
                     style={{
                       background: drdData.profile.relationshipDemand === 'high_tlc' ? 'rgba(239, 68, 68, 0.18)' :
                         drdData.profile.relationshipDemand === 'self_sufficient' ? 'rgba(16, 185, 129, 0.18)' :
                         drdData.profile.relationshipDemand === 'comfort_stop' ? 'rgba(249, 115, 22, 0.18)' :
+                        drdData.profile.relationshipDemand === 'lapsed' ? 'rgba(234, 179, 8, 0.18)' :
                         'rgba(148, 163, 184, 0.18)',
                       color: drdData.profile.relationshipDemand === 'high_tlc' ? '#ef4444' :
                         drdData.profile.relationshipDemand === 'self_sufficient' ? '#10b981' :
                         drdData.profile.relationshipDemand === 'comfort_stop' ? '#f97316' :
+                        drdData.profile.relationshipDemand === 'lapsed' ? '#eab308' :
                         '#94a3b8',
                       border: '1px solid currentColor'
                     }}
@@ -180,6 +179,7 @@ export function Dealer360Modal() {
                     {drdData.profile.relationshipDemand === 'high_tlc' ? '🔴 High TLC' :
                      drdData.profile.relationshipDemand === 'self_sufficient' ? '🟢 Autonomous' :
                      drdData.profile.relationshipDemand === 'comfort_stop' ? '🟠 Comfort Stop' :
+                     drdData.profile.relationshipDemand === 'lapsed' ? '⚠️ Lapsed / Churned' :
                      '⚪ Insufficient Data'}
                   </span>
                 )}

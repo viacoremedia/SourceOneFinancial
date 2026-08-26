@@ -1013,7 +1013,7 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
                 { dealerLocation: { $in: locIds } },
                 { clientDealerId: { $in: clientIds } }
             ]
-        }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride').lean();
+        }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride lastVisitDate daysSinceLastVisit postVisitBookedLiftPct lifetimeYieldPerVisit lifetimeStats').lean();
 
         const drdMap = new Map();
         for (const p of groupProfiles) {
@@ -1031,7 +1031,12 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
                     isOverridden: Boolean(p.manualOverride?.isOverridden),
                     overriddenSegment: p.manualOverride?.overriddenSegment,
                     reason: p.manualOverride?.reason,
-                    overriddenBy: p.manualOverride?.overriddenBy
+                    overriddenBy: p.manualOverride?.overriddenBy,
+                    lastVisitDate: p.lastVisitDate || null,
+                    daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
+                    postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
+                    yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
+                    totalVisits: p.lifetimeStats?.totalVisits || 0
                 } : null
             };
         });
@@ -1208,10 +1213,35 @@ router.get('/groups', async (req, res) => {
             }
         ]);
 
+        // Aggregate DRD profiles per group
+        const groupDrdAgg = await DealerProfile.aggregate([
+            { $match: { dealerGroup: { $ne: null } } },
+            {
+                $group: {
+                    _id: '$dealerGroup',
+                    minDaysSinceLastVisit: {
+                        $min: { $cond: [{ $ne: ['$daysSinceLastVisit', null] }, '$daysSinceLastVisit', 99999] }
+                    },
+                    latestVisitDate: { $max: '$lastVisitDate' },
+                    avgLift: { $avg: '$postVisitBookedLiftPct' },
+                    maxLift: { $max: '$postVisitBookedLiftPct' },
+                    totalYield: { $sum: '$lifetimeStats.totalBookedVolume' },
+                    totalVisits: { $sum: '$lifetimeStats.totalVisits' }
+                }
+            }
+        ]);
+
+        const drdGroupMap = new Map();
+        for (const d of groupDrdAgg) {
+            drdGroupMap.set(d._id.toString(), d);
+        }
+
         // Map summaries by group ID for fast lookup
         const summaryMap = {};
         for (const s of groupSummaries) {
-            summaryMap[s._id.toString()] = {
+            const gId = s._id.toString();
+            const drd = drdGroupMap.get(gId);
+            summaryMap[gId] = {
                 locationCount: s.locationCount,
                 activeCount: s.activeCount,
                 inactive30Count: s.inactive30Count,
@@ -1237,6 +1267,14 @@ router.get('/groups', async (req, res) => {
                 avgVisitToApp: s.avgVisitToApp != null ? Math.round(s.avgVisitToApp * 10) / 10 : null,
                 latestComm: s.latestComm || null,
                 oldestComm: s.oldestComm || null,
+                drd: drd ? {
+                    minDaysSinceLastVisit: drd.minDaysSinceLastVisit === 99999 ? null : drd.minDaysSinceLastVisit,
+                    latestVisitDate: drd.latestVisitDate || null,
+                    avgLift: drd.avgLift != null ? Math.round(drd.avgLift) : null,
+                    maxLift: drd.maxLift != null ? Math.round(drd.maxLift) : null,
+                    yieldPerVisit: (drd.totalVisits > 0 && drd.totalYield > 0) ? Math.round(drd.totalYield / drd.totalVisits) : null,
+                    totalVisits: drd.totalVisits || 0
+                } : null
             };
         }
 
@@ -1477,7 +1515,10 @@ router.get('/dealers/small', async (req, res) => {
             'lookToBook', 'approvalToBook', 'leadBooked', 'leadBookedDollars', 
             'appBkd', 'appBooked', 'appBookedDollars', 'avgFico'
         ];
+        const DRD_SORT_FIELDS = ['lastVisit', 'postVisitLift', 'yieldPerVisit'];
         const isSortingByStat = sortFields.some(f => STAT_FIELDS.includes(f));
+        const isSortingByDrd = sortFields.some(f => DRD_SORT_FIELDS.includes(f));
+        const isInMemorySort = isSortingByStat || isSortingByDrd;
 
         const SORT_FIELD_MAP = {
             'name': 'dealerName',
@@ -1501,6 +1542,9 @@ router.get('/dealers/small', async (req, res) => {
             'lookToBook': 'stats.lookToBook',
             'approvalToBook': 'stats.approvalToBook',
             'avgFico': 'stats.avgFico',
+            'lastVisit': 'drdProfile.daysSinceLastVisit',
+            'postVisitLift': 'drdProfile.postVisitBookedLiftPct',
+            'yieldPerVisit': 'drdProfile.lifetimeYieldPerVisit',
         };
 
         // Build resolved sort columns
@@ -1668,22 +1712,19 @@ router.get('/dealers/small', async (req, res) => {
         let endD = endDate ? new Date(endDate) : null;
         if (endD) endD.setUTCHours(23, 59, 59, 999);
 
-        const appMatchExpr = [
-            { $eq: ['$clientDealerId', '$$cId'] }
-        ];
-        if (startD) appMatchExpr.push({ $gte: ['$applicationDate', startD] });
-        if (endD) appMatchExpr.push({ $lte: ['$applicationDate', endD] });
-
         let dealers = [];
         let totalCount = 0;
 
-        if (isSortingByStat) {
-            // Fast path for stat sorting:
-            // 1. Fetch aggregated stats for all dealers via single indexed $group query
-            const statsMap = await getDealerStatsMap({
-                startDate,
-                endDate
-            });
+        if (isInMemorySort) {
+            // Fast path for stat and DRD sorting:
+            // 1. Fetch aggregated stats for all dealers if needed
+            let statsMap = new Map();
+            if (isSortingByStat) {
+                statsMap = await getDealerStatsMap({
+                    startDate,
+                    endDate
+                });
+            }
 
             // 2. Fetch matching locations with latest snapshots
             const locationPipeline = [
@@ -1745,19 +1786,80 @@ router.get('/dealers/small', async (req, res) => {
                 return { apps: 0, approvals: 0, inHouse: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 };
             }
 
-            // 3. Attach stats to each matching location
-            for (const loc of matchingLocations) {
-                loc.stats = getStatsForLoc(loc);
+            if (isSortingByStat) {
+                for (const loc of matchingLocations) {
+                    loc.stats = getStatsForLoc(loc);
+                }
             }
 
-            // 4. Sort matchingLocations in memory by stat columns with dealerName tie-breaker
+            if (isSortingByDrd) {
+                const allLocIds = matchingLocations.map(l => l._id);
+                const allClientIds = matchingLocations.map(l => (l.clientDealerId || l.dealerId || '').trim().toUpperCase()).filter(Boolean);
+                const drdProfiles = await DealerProfile.find({
+                    $or: [
+                        { dealerLocation: { $in: allLocIds } },
+                        { clientDealerId: { $in: allClientIds } }
+                    ]
+                }).select('dealerLocation clientDealerId lastVisitDate daysSinceLastVisit postVisitBookedLiftPct lifetimeYieldPerVisit lifetimeStats').lean();
+
+                const drdMap = new Map();
+                for (const p of drdProfiles) {
+                    if (p.dealerLocation) drdMap.set(p.dealerLocation.toString(), p);
+                    if (p.clientDealerId) drdMap.set(p.clientDealerId.trim().toUpperCase(), p);
+                }
+
+                for (const loc of matchingLocations) {
+                    const key = (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase();
+                    const p = drdMap.get(loc._id.toString()) || (key ? drdMap.get(key) : null);
+                    loc.drd = p ? {
+                        lastVisitDate: p.lastVisitDate || null,
+                        daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
+                        postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
+                        yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
+                        totalVisits: p.lifetimeStats?.totalVisits || 0
+                    } : null;
+                }
+            }
+
+            // 4. Sort matchingLocations in memory
             matchingLocations.sort((a, b) => {
                 for (const sc of sortColumns) {
-                    const statKey = sc.resolved.replace('stats.', '');
-                    const aVal = a.stats?.[statKey] ?? (sc.dir === 1 ? 99999999 : -1);
-                    const bVal = b.stats?.[statKey] ?? (sc.dir === 1 ? 99999999 : -1);
+                    let aVal, bVal;
+                    if (sc.resolved === 'drdProfile.daysSinceLastVisit') {
+                        const nullVal = sc.dir === 1 ? 99999999 : -1;
+                        aVal = a.drd?.daysSinceLastVisit ?? nullVal;
+                        bVal = b.drd?.daysSinceLastVisit ?? nullVal;
+                    } else if (sc.resolved === 'drdProfile.postVisitBookedLiftPct') {
+                        const nullVal = sc.dir === 1 ? 99999999 : -99999999;
+                        aVal = a.drd?.postVisitLiftPct ?? nullVal;
+                        bVal = b.drd?.postVisitLiftPct ?? nullVal;
+                    } else if (sc.resolved === 'drdProfile.lifetimeYieldPerVisit') {
+                        const nullVal = sc.dir === 1 ? 99999999 : -99999999;
+                        aVal = a.drd?.yieldPerVisit ?? nullVal;
+                        bVal = b.drd?.yieldPerVisit ?? nullVal;
+                    } else if (sc.resolved.startsWith('stats.')) {
+                        const statKey = sc.resolved.replace('stats.', '');
+                        aVal = a.stats?.[statKey] ?? (sc.dir === 1 ? 99999999 : -1);
+                        bVal = b.stats?.[statKey] ?? (sc.dir === 1 ? 99999999 : -1);
+                    } else if (sc.resolved.startsWith('latestSnapshot.')) {
+                        const snapKey = sc.resolved.replace('latestSnapshot.', '');
+                        aVal = a.latestSnapshot?.[snapKey] ?? (sc.dir === 1 ? 99999999 : -1);
+                        bVal = b.latestSnapshot?.[snapKey] ?? (sc.dir === 1 ? 99999999 : -1);
+                    } else if (sc.resolved === '_commDaysNum') {
+                        const aDays = a.latestSnapshot?.latestCommunicationDatetime ? Math.floor((Date.now() - new Date(a.latestSnapshot.latestCommunicationDatetime).getTime()) / (1000 * 60 * 60 * 24)) : (sc.dir === 1 ? 99999999 : -1);
+                        const bDays = b.latestSnapshot?.latestCommunicationDatetime ? Math.floor((Date.now() - new Date(b.latestSnapshot.latestCommunicationDatetime).getTime()) / (1000 * 60 * 60 * 24)) : (sc.dir === 1 ? 99999999 : -1);
+                        aVal = aDays;
+                        bVal = bDays;
+                    } else {
+                        aVal = a[sc.resolved] ?? '';
+                        bVal = b[sc.resolved] ?? '';
+                    }
+
                     if (aVal !== bVal) {
-                        return (aVal - bVal) * sc.dir;
+                        if (typeof aVal === 'string' && typeof bVal === 'string') {
+                            return aVal.localeCompare(bVal) * sc.dir;
+                        }
+                        return (Number(aVal) - Number(bVal)) * sc.dir;
                     }
                 }
                 return (a.dealerName || '').localeCompare(b.dealerName || '');
@@ -2038,7 +2140,7 @@ router.get('/dealers/small', async (req, res) => {
                 { dealerLocation: { $in: pageLocIds } },
                 { clientDealerId: { $in: pageDealerKeys } }
             ]
-        }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride').lean();
+        }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride lastVisitDate daysSinceLastVisit postVisitBookedLiftPct lifetimeYieldPerVisit lifetimeStats').lean();
 
         const drdMap = new Map();
         for (const p of drdProfiles) {
@@ -2054,7 +2156,12 @@ router.get('/dealers/small', async (req, res) => {
                 isOverridden: Boolean(p.manualOverride?.isOverridden),
                 overriddenSegment: p.manualOverride?.overriddenSegment,
                 reason: p.manualOverride?.reason,
-                overriddenBy: p.manualOverride?.overriddenBy
+                overriddenBy: p.manualOverride?.overriddenBy,
+                lastVisitDate: p.lastVisitDate || null,
+                daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
+                postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
+                yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
+                totalVisits: p.lifetimeStats?.totalVisits || 0
             } : null;
         }
 

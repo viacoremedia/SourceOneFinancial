@@ -328,6 +328,7 @@ export function FilterBar({
             <option value="high_tlc">🔴 High TLC</option>
             <option value="self_sufficient">🟢 Autonomous</option>
             <option value="comfort_stop">🟠 Comfort Stop</option>
+            <option value="lapsed">⚠️ Lapsed / Churned</option>
             <option value="insufficient_data">⚪ Discovery Queue</option>
             <option value="overridden">🔒 Manually Reconciled</option>
           </select>

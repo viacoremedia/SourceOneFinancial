@@ -458,6 +458,7 @@ export function RelationshipDemandView() {
               <option value="high_tlc">🔴 High TLC (Visit-Dependent)</option>
               <option value="self_sufficient">🟢 Self-Sufficient (Autonomous)</option>
               <option value="comfort_stop">🟠 Comfort Stop (Time Sink)</option>
+              <option value="lapsed">⚠️ Lapsed / Churned</option>
               <option value="insufficient_data">⚪ Discovery Queue (Low Data)</option>
             </select>
 
@@ -582,6 +583,10 @@ export function RelationshipDemandView() {
                           ) : d.relationshipDemand === 'comfort_stop' ? (
                             <span style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#fb923c', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
                               🟠 Comfort Stop
+                            </span>
+                          ) : d.relationshipDemand === 'lapsed' ? (
+                            <span style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                              ⚠️ Lapsed
                             </span>
                           ) : (
                             <span style={{ background: 'rgba(148, 163, 184, 0.15)', color: '#cbd5e1', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>

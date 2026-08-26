@@ -313,9 +313,162 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
           {isOverridden && <span>🔒</span>}⚪ Discovery
         </span>
       );
+    case 'lapsed':
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'rgba(234, 179, 8, 0.15)',
+            color: '#facc15',
+            border: '1px solid rgba(234, 179, 8, 0.35)',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap'
+          }}
+          title={isOverridden ? `Overridden to Lapsed: ${drd.reason || ''}` : 'Lapsed / Churned (180+ Days Inactive)'}
+        >
+          {isOverridden && <span>🔒</span>}⚠️ Lapsed
+        </span>
+      );
     default:
       return null;
   }
+}
+
+// ── DRD Visit Metrics Cell Renderers ──
+
+function renderLastVisitCell(drd?: DealerLocation['drd']) {
+  if (!drd || (!drd.lastVisitDate && (drd.daysSinceLastVisit == null || drd.totalVisits === 0))) {
+    return <span style={{ color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Never</span>;
+  }
+  const days = drd.daysSinceLastVisit != null ? drd.daysSinceLastVisit : daysSinceDate(drd.lastVisitDate);
+  const daysStr = days != null ? `${days}d` : null;
+
+  let dateFormatted = '—';
+  if (drd.lastVisitDate) {
+    const d = new Date(drd.lastVisitDate);
+    if (!isNaN(d.getTime())) {
+      dateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    }
+  }
+
+  const fullDateTooltip = drd.lastVisitDate
+    ? `Last visit on ${new Date(drd.lastVisitDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}${days != null ? ` (${days} days ago)` : ''}`
+    : days != null ? `${days} days ago` : 'Never';
+
+  return (
+    <div
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2', padding: '1px 0' }}
+      title={fullDateTooltip}
+    >
+      <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', fontFamily: 'var(--font-mono, monospace)' }}>
+        {dateFormatted !== '—' ? dateFormatted : (daysStr ? `${daysStr} ago` : 'Never')}
+      </span>
+      {daysStr && dateFormatted !== '—' && (
+        <span style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'var(--font-mono, monospace)' }}>
+          ({daysStr})
+        </span>
+      )}
+    </div>
+  );
+}
+
+function renderPostVisitLiftCell(lift?: number | null) {
+  if (lift == null) return <span className={styles.emptyValue}>—</span>;
+  const isPositive = lift > 0;
+  const isZero = lift === 0;
+  const sign = isPositive ? '+' : '';
+  const text = `${sign}${lift}%`;
+
+  let textColor = '#34d399';
+  if (lift >= 50) {
+    textColor = '#34d399'; // Bright emerald green
+  } else if (lift > 0) {
+    textColor = '#38bdf8'; // Bright sky blue
+  } else if (isZero) {
+    textColor = '#94a3b8'; // Slate
+  } else {
+    textColor = '#f87171'; // Soft red
+  }
+
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        fontSize: '13px',
+        fontWeight: 700,
+        fontFamily: 'var(--font-mono, monospace)',
+        color: textColor,
+        whiteSpace: 'nowrap',
+        letterSpacing: '-0.02em',
+      }}
+      title={`Post-visit booked volume lift: ${text}`}
+    >
+      {text}
+    </span>
+  );
+}
+
+function renderYieldPerVisitCell(yieldVal?: number | null) {
+  if (yieldVal == null || yieldVal <= 0) return <span className={styles.emptyValue}>—</span>;
+  
+  let formatted = '';
+  if (yieldVal >= 1000000) {
+    formatted = `$${(yieldVal / 1000000).toFixed(1)}M`;
+  } else if (yieldVal >= 1000) {
+    formatted = `$${Math.round(yieldVal / 1000)}K`;
+  } else {
+    formatted = `$${Math.round(yieldVal).toLocaleString()}`;
+  }
+
+  return (
+    <span
+      style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
+      title={`$${Math.round(yieldVal).toLocaleString()} lifetime booked volume per visit`}
+    >
+      {formatted}
+    </span>
+  );
+}
+
+function renderGroupLastVisit(locations: DealerLocation[]) {
+  const visitedLocs = locations.filter(l => l.drd?.lastVisitDate || l.drd?.daysSinceLastVisit != null);
+  if (visitedLocs.length === 0) {
+    return <span style={{ color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Never</span>;
+  }
+  let bestLoc = visitedLocs[0];
+  let minDays = bestLoc.drd?.daysSinceLastVisit ?? 99999;
+  for (const loc of visitedLocs) {
+    const d = loc.drd?.daysSinceLastVisit ?? 99999;
+    if (d < minDays) {
+      minDays = d;
+      bestLoc = loc;
+    }
+  }
+  return renderLastVisitCell(bestLoc.drd);
+}
+
+function renderGroupLift(locations: DealerLocation[]) {
+  const lifts = locations.map(l => l.drd?.postVisitLiftPct).filter((x): x is number => x != null);
+  if (lifts.length === 0) return <span className={styles.emptyValue}>—</span>;
+  const avg = Math.round(lifts.reduce((a, b) => a + b, 0) / lifts.length);
+  return renderPostVisitLiftCell(avg);
+}
+
+function renderGroupYield(locations: DealerLocation[]) {
+  let totalVol = 0;
+  let totalVis = 0;
+  for (const l of locations) {
+    totalVol += l.stats?.bookedDollars || 0;
+    totalVis += l.drd?.totalVisits || 0;
+  }
+  if (totalVis === 0) return <span className={styles.emptyValue}>—</span>;
+  return renderYieldPerVisitCell(Math.round(totalVol / totalVis));
 }
 
 // ── Sort Helpers ──
@@ -337,6 +490,12 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
       return s?.daysSinceApproval?.best ?? 99999;
     case 'daysSinceLastBooking':
       return s?.daysSinceBooking?.best ?? 99999;
+    case 'lastVisit':
+      return s?.drd?.minDaysSinceLastVisit ?? 99999;
+    case 'postVisitLift':
+      return s?.drd?.avgLift ?? -99999;
+    case 'yieldPerVisit':
+      return s?.drd?.yieldPerVisit ?? -99999;
     case 'activityStatus': {
       if (!s || s.locationCount === 0) return -1;
       return s.activeCount / s.locationCount;
@@ -393,6 +552,12 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
       return snap?.daysSinceLastApproval ?? 99999;
     case 'daysSinceLastBooking':
       return snap?.daysSinceLastBooking ?? 99999;
+    case 'lastVisit':
+      return loc.drd?.daysSinceLastVisit ?? 99999;
+    case 'postVisitLift':
+      return loc.drd?.postVisitLiftPct ?? -99999;
+    case 'yieldPerVisit':
+      return loc.drd?.yieldPerVisit ?? -99999;
     case 'activityStatus':
       return snap?.activityStatus || 'zzz';
     case 'commDays':
@@ -551,7 +716,8 @@ export function DealerTable({
   // - shouldAppend=true  (double click): APPEND column to stack
   const STAT_KEYS = new Set([
     'apps', 'approvals', 'inHouse', 'leadBooked', 'leadBookedDollars', 
-    'booked', 'bookedDollars', 'lookToBook', 'approvalToBook', 'avgFico'
+    'booked', 'bookedDollars', 'lookToBook', 'approvalToBook', 'avgFico',
+    'postVisitLift', 'yieldPerVisit'
   ]);
 
   const updateStack = (stack: SortColumn[], key: string, shouldAppend: boolean): SortColumn[] => {
@@ -724,18 +890,23 @@ export function DealerTable({
     return 'long_inactive';
   };
 
-  const renderChildCells = (snap: DealerLocation['latestSnapshot'], showLocCol = true, stats?: DealerStats) => {
+  const renderChildCells = (snap: DealerLocation['latestSnapshot'], stats?: DealerStats, drd?: DealerLocation['drd']) => {
     const trends = stats?.trends;
     const isAllTime = datePreset === 'all_time';
     return (
       <>
-        {showLocCol && <td style={{ textAlign: 'center' }}><span className={styles.emptyValue}>—</span></td>}
-        <td style={{ textAlign: 'center' }}>
-          <StatusBadge status={deriveStatus(snap)} />
-        </td>
         <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
         <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
         <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
+        {visibleColumns.some(c => c.key === 'lastVisit') && (
+          <td style={{ textAlign: 'right' }}>{renderLastVisitCell(drd)}</td>
+        )}
+        {visibleColumns.some(c => c.key === 'postVisitLift') && (
+          <td style={{ textAlign: 'right' }}>{renderPostVisitLiftCell(drd?.postVisitLiftPct)}</td>
+        )}
+        {visibleColumns.some(c => c.key === 'yieldPerVisit') && (
+          <td style={{ textAlign: 'right' }}>{renderYieldPerVisitCell(drd?.yieldPerVisit)}</td>
+        )}
         {visibleColumns.some(c => c.key === 'commDays') && (
           <td>{renderCommCell(snap?.latestCommunicationDatetime as string | null)}</td>
         )}
@@ -1212,29 +1383,38 @@ export function DealerTable({
                         visibleColumns={visibleColumns}
                         onSelectGroup={onSelectGroup}
                         onSelectDealer={onSelectDealer}
+                        stateRepMap={stateRepMap}
                       />
                     );
                   })
-                : sortedDealers.map((dealer) => (
-                    <tr key={dealer._id} className={styles.dealerRow}>
-                      <td
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => onSelectDealer?.(dealer._id)}
-                        title="Click to view application history"
-                      >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ color: '#38bdf8', fontWeight: 600 }}>{dealer.dealerName}</span>
-                          {renderDrdBadge(dealer.drd)}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'left' }}>
-                        <span className={styles.repCell}>
-                          {getRepDisplayForDealer(dealer.dealerRepresentative, dealer.repName, dealer.statePrefix, stateRepMap)}
-                        </span>
-                      </td>
-                      {renderChildCells(dealer.latestSnapshot, false, dealer.stats)}
-                    </tr>
-                  ))}
+                : sortedDealers.map((dealer) => {
+                    const repName = getRepDisplayForDealer(dealer.dealerRepresentative, dealer.repName, dealer.statePrefix, stateRepMap);
+                    const hasRep = repName && repName !== '—';
+                    return (
+                      <tr key={dealer._id} className={styles.dealerRow}>
+                        <td
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => onSelectDealer?.(dealer._id)}
+                          title="Click to view application history"
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', justifyContent: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '13px' }}>{dealer.dealerName}</span>
+                              <StatusBadge status={deriveStatus(dealer.latestSnapshot)} />
+                              {renderDrdBadge(dealer.drd)}
+                            </div>
+                            {hasRep && (
+                              <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ color: '#64748b' }}>Rep:</span>
+                                <span style={{ color: '#cbd5e1' }}>{repName}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        {renderChildCells(dealer.latestSnapshot, dealer.stats, dealer.drd)}
+                      </tr>
+                    );
+                  })}
               {/* Intersection observer sentinel */}
               {mode !== 'groups' && hasMore && (
                 <tr ref={sentinelRef} style={{ height: '1px', opacity: 0 }}>
@@ -1363,11 +1543,12 @@ interface GroupRowsProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   onToggle: () => void;
-  renderChildCells: (snap: DealerLocation['latestSnapshot'], showLocCol?: boolean, stats?: DealerStats) => React.JSX.Element;
+  renderChildCells: (snap: DealerLocation['latestSnapshot'], stats?: DealerStats, drd?: DealerLocation['drd']) => React.JSX.Element;
   deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
   visibleColumns: TableColumn[];
   onSelectGroup?: (groupSlug: string) => void;
   onSelectDealer?: (dealerId: string) => void;
+  stateRepMap?: StateRepMap;
 }
 
 
@@ -1401,7 +1582,7 @@ function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null
   return { best, worst };
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns, onSelectGroup, onSelectDealer }: GroupRowsProps) {
+function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns, onSelectGroup, onSelectDealer, stateRepMap }: GroupRowsProps) {
   const s = group.summary;
 
   // Aggregate stats across child locations
@@ -1482,13 +1663,13 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         onClick={onToggle}
       >
         <td>
-          <span className={styles.groupName}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span
               className={`${styles.expandIcon} ${isExpanded ? styles.expandIconOpen : ''}`}
               onClick={(e) => { e.stopPropagation(); onToggle(); }}
             >▶</span>
             <span
-              style={{ cursor: 'pointer', color: '#38bdf8', fontWeight: 600 }}
+              style={{ cursor: 'pointer', color: '#38bdf8', fontWeight: 600, fontSize: '14px' }}
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectGroup?.(group.slug);
@@ -1498,21 +1679,54 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
               {group.name}
             </span>
             <span className={styles.locationCount}>({displayCount})</span>
-          </span>
-        </td>
-        <td style={{ textAlign: 'center' }}>{showSkeleton ? <SkeletonCell /> : (filteredTotal ?? displayCount)}</td>
-        <td style={{ textAlign: 'center' }}>
-          {showSkeleton ? <SkeletonCell /> : (
-            <ActiveCountBadge
-              summary={s}
-              overrideActive={filteredActive}
-              overrideTotal={filteredTotal}
-            />
-          )}
+            {showSkeleton ? (
+              <SkeletonCell />
+            ) : (
+              <ActiveCountBadge
+                summary={s}
+                overrideActive={filteredActive}
+                overrideTotal={filteredTotal}
+              />
+            )}
+          </div>
         </td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
+        {visibleColumns.some(c => c.key === 'lastVisit') && (
+          <td style={{ textAlign: 'right' }}>
+            {showSkeleton ? <SkeletonCell /> : (
+              locations.length > 0
+                ? renderGroupLastVisit(locations)
+                : (s?.drd?.minDaysSinceLastVisit != null || s?.drd?.latestVisitDate
+                    ? renderLastVisitCell({
+                        lastVisitDate: s.drd.latestVisitDate,
+                        daysSinceLastVisit: s.drd.minDaysSinceLastVisit,
+                        totalVisits: s.drd.totalVisits,
+                        segment: 'high_tlc'
+                      })
+                    : <span style={{ color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Never</span>)
+            )}
+          </td>
+        )}
+        {visibleColumns.some(c => c.key === 'postVisitLift') && (
+          <td style={{ textAlign: 'right' }}>
+            {showSkeleton ? <SkeletonCell /> : (
+              locations.length > 0
+                ? renderGroupLift(locations)
+                : renderPostVisitLiftCell(s?.drd?.avgLift)
+            )}
+          </td>
+        )}
+        {visibleColumns.some(c => c.key === 'yieldPerVisit') && (
+          <td style={{ textAlign: 'right' }}>
+            {showSkeleton ? <SkeletonCell /> : (
+              locations.length > 0
+                ? renderGroupYield(locations)
+                : renderYieldPerVisitCell(s?.drd?.yieldPerVisit)
+            )}
+          </td>
+        )}
         {visibleColumns.some(c => c.key === 'commDays') && (
           <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={commDays} forceSingle={isSingle} useCommHeatmap unit="d" />}</td>
         )}
@@ -1538,24 +1752,38 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
           {showSkeleton ? <SkeletonCell /> : (group.stats?.avgFico ? <span style={{ fontWeight: 600, color: '#f8fafc' }}>{group.stats.avgFico}</span> : '—')}
         </td>
       </tr>
-      {isExpanded && locations.map((loc) => (
-        <tr key={loc._id} className={styles.childRow}>
-          <td
-            style={{ cursor: 'pointer', paddingLeft: '32px' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectDealer?.(loc.dealerId || loc._id);
-            }}
-            title="Click to view Historical MoM & application history"
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ color: '#38bdf8', fontWeight: 500 }}>{loc.dealerName}</span>
-              {renderDrdBadge(loc.drd)}
-            </span>
-          </td>
-          {renderChildCells(loc.latestSnapshot, true, loc.stats)}
-        </tr>
-      ))}
+      {isExpanded && locations.map((loc) => {
+        const repDisplay = getRepDisplayForDealer(loc.dealerRepresentative, loc.repName, loc.statePrefix, stateRepMap);
+        const hasRep = repDisplay && repDisplay !== '—';
+        const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
+        return (
+          <tr key={loc._id} className={styles.childRow}>
+            <td
+              style={{ cursor: 'pointer', paddingLeft: '32px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectDealer?.(loc.dealerId || loc._id);
+              }}
+              title="Click to view Historical MoM & application history"
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', justifyContent: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#38bdf8', fontWeight: 500, fontSize: '13px' }}>{loc.dealerName}</span>
+                  <StatusBadge status={locStatus} />
+                  {renderDrdBadge(loc.drd)}
+                </div>
+                {hasRep && (
+                  <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Rep:</span>
+                    <span style={{ color: '#cbd5e1' }}>{repDisplay}</span>
+                  </div>
+                )}
+              </div>
+            </td>
+            {renderChildCells(loc.latestSnapshot, loc.stats, loc.drd)}
+          </tr>
+        );
+      })}
     </>
   );
 }

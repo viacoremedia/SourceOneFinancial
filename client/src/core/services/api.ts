@@ -602,7 +602,7 @@ export async function getUnderwriterScorecardApi(startDate?: string, endDate?: s
 }
 
 // ── Relationship Demand & DRD Engine (v6.2 Final) ──
-export type RelationshipDemandSegment = 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data';
+export type RelationshipDemandSegment = 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'lapsed' | 'insufficient_data';
 export type UrgencyStatus = 'overdue' | 'due_soon' | 'on_track' | 'dormant' | 'self_sufficient' | 'not_monitored';
 
 export interface InteractionCycleItem {
@@ -814,7 +814,7 @@ export async function getRepAllocationDiagnostics(): Promise<RepAllocationDiagno
 
 export async function overrideDealerRelationshipSegment(
   clientDealerId: string,
-  overriddenSegment: 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data',
+  overriddenSegment: 'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'lapsed' | 'insufficient_data',
   reason: string
 ): Promise<{ success: boolean; profile: any; message?: string }> {
   const { data } = await api.post(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/override`, {

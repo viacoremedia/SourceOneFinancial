@@ -50,7 +50,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
   // Human Reconciliation & DRD Override state
   const [overrideModalOpen, setOverrideModalOpen] = useState<boolean>(false);
-  const [overrideSegment, setOverrideSegment] = useState<'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data'>('high_tlc');
+  const [overrideSegment, setOverrideSegment] = useState<'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'lapsed' | 'insufficient_data'>('high_tlc');
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [overrideSubmitting, setOverrideSubmitting] = useState<boolean>(false);
   const [overrideActionError, setOverrideActionError] = useState<string | null>(null);
@@ -145,6 +145,8 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
         return styles.demandSelfSuff;
       case 'comfort_stop':
         return styles.demandComfortStop;
+      case 'lapsed':
+        return styles.demandLapsed || styles.demandComfortStop;
       default:
         return styles.demandDiscovery;
     }
@@ -158,6 +160,8 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
         return '🟢 Self-Sufficient (Autonomous)';
       case 'comfort_stop':
         return '🟠 Comfort Stop (Time Sink)';
+      case 'lapsed':
+        return '⚠️ Lapsed / Churned';
       default:
         return '⚪ Discovery Queue (Low Data)';
     }
