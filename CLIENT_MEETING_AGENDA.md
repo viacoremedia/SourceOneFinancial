@@ -15,9 +15,9 @@ In our database analysis across 244,147 application records, 3,851 dealer locati
 - "tderouin" in CRM -> Tony DeRouin
 - "edominguez" in deals / "Ericka Dominguez" in CRM -> Ericka Dominguez
 - "bsweere" in CRM -> Bruce Sweere
-- "jharrington1" in deals / "Janet Harrington" in CRM -> Janet Harrington
+- "jharrington1" in deals / "John Harrington" (formerly Janet Harrington) in CRM -> John Harrington
 - "jsmith" in deals / "Jeff Smith" in CRM -> Jeff Smith
-- "jweller" in deals -> Jeff Weller
+- "jweller" in deals (formerly Jeff Weller) -> Janet Weller
 - "wstoutimore" in deals / "Ward Stoutimore" in CRM -> Ward Stoutimore
 - "pcarter" in deals / "Paul Carter" / "Pam Carter" in CRM -> Paul / Pam Carter
 - "mschultz1" in deals / "Mandy Schultz" in CRM -> Mandi Schultz

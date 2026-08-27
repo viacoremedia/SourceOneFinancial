@@ -91,7 +91,7 @@ When a generation request starts, `pdfGenerator.js` pulls data from **3 separate
 ### Rep Name Normalization Layer (`config/repConfig.js`)
 - In the DB, different collections use different identifiers for the same rep:
   - Rolling snapshots use capitalized aliases: `'Wstoutimore'`, `'Jharrington1'`, `'Gott'`.
-  - Communication logs use full names: `'Ward Stoutimore'`, `'Janet Harrington'`, `'George Ott'`.
+  - Communication logs use full names: `'Ward Stoutimore'`, `'John Harrington'`, `'George Ott'`.
   - Dealer profiles use handles: `'wstoutimore'`, `'janet'`.
 - `pdfGenerator.js` wraps all rep keys with `resolveRepName(rep)` before creating lookup Maps. This ensures every rep gets exact 1:1 data joined across all three subsystems.
 

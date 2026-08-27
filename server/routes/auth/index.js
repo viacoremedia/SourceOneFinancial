@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const User = require('../../models/User');
 const { requireAuth, requireRole, JWT_SECRET, ROLE_HIERARCHY } = require('../../middleware/authMiddleware');
 const { sendInviteEmail, sendPasswordResetEmail } = require('../../services/emailService');
+const { getActiveRepNames, resolveRepName } = require('../../config/repConfig');
 
 const router = express.Router();
 
@@ -103,7 +104,7 @@ router.post('/reset-password', async (req, res) => {
         res.json({
             success: true,
             token: jwtToken,
-            user: { id: user._id, email: user.email, name: user.name, role: user.role },
+            user: { id: user._id, email: user.email, name: user.name, role: user.role, assignedRep: user.assignedRep },
             message: 'Password reset successfully',
         });
     } catch (err) {
@@ -138,7 +139,7 @@ router.post('/login', async (req, res) => {
         res.json({
             success: true,
             token,
-            user: { id: user._id, email: user.email, name: user.name, role: user.role },
+            user: { id: user._id, email: user.email, name: user.name, role: user.role, assignedRep: user.assignedRep },
         });
     } catch (err) {
         console.error('Login error:', err);
@@ -177,7 +178,7 @@ router.post('/accept-invite', async (req, res) => {
         res.json({
             success: true,
             token: jwtToken,
-            user: { id: user._id, email: user.email, name: user.name, role: user.role },
+            user: { id: user._id, email: user.email, name: user.name, role: user.role, assignedRep: user.assignedRep },
         });
     } catch (err) {
         console.error('Accept invite error:', err);
@@ -188,6 +189,17 @@ router.post('/accept-invite', async (req, res) => {
 // ── GET /auth/me ──
 router.get('/me', requireAuth, (req, res) => {
     res.json({ success: true, user: req.user });
+});
+
+// ── GET /auth/rep-list (admin+) ──
+router.get('/rep-list', requireAuth, (req, res) => {
+    try {
+        const reps = getActiveRepNames();
+        res.json({ success: true, reps });
+    } catch (err) {
+        console.error('Get rep list error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
 });
 
 // ── POST /auth/change-password ──
@@ -217,15 +229,65 @@ router.post('/change-password', requireAuth, async (req, res) => {
     }
 });
 
+// ── POST /auth/create-rep-account (admin+) ──
+router.post('/create-rep-account', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+        const { email, password, name = '', assignedRep } = req.body;
+        if (!email || typeof email !== 'string') {
+            return res.status(400).json({ success: false, message: 'Valid email is required' });
+        }
+        if (!password || password.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+        if (!assignedRep || typeof assignedRep !== 'string' || !assignedRep.trim()) {
+            return res.status(400).json({ success: false, message: 'Assigned rep mapping is required for inside sales accounts' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const existing = await User.findOne({ email: normalizedEmail });
+        if (existing) {
+            return res.status(409).json({ success: false, message: 'User with this email already exists' });
+        }
+
+        const resolvedRep = resolveRepName(assignedRep) || assignedRep.trim();
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        const user = await User.create({
+            email: normalizedEmail,
+            passwordHash,
+            name: name.trim() || resolvedRep,
+            role: 'inside_rep',
+            assignedRep: resolvedRep,
+            status: 'active',
+        });
+
+        res.json({
+            success: true,
+            message: `Inside sales rep account created for ${user.email}`,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                assignedRep: user.assignedRep,
+                status: user.status,
+            },
+        });
+    } catch (err) {
+        console.error('Create rep account error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 // ── POST /auth/invite (admin+) ──
 router.post('/invite', requireAuth, requireRole('admin'), async (req, res) => {
     try {
-        const { email, role = 'employee', name = '' } = req.body;
+        const { email, role = 'employee', name = '', assignedRep = null } = req.body;
         if (!email) {
             return res.status(400).json({ success: false, message: 'Email is required' });
         }
 
-        // Admins can only invite employees; super_admins can invite anyone
+        // Admins can only invite employees/inside_reps; super_admins can invite anyone
         const inviterLevel = ROLE_HIERARCHY[req.user.role];
         const targetLevel = ROLE_HIERARCHY[role] ?? 0;
         if (targetLevel >= inviterLevel) {
@@ -240,10 +302,13 @@ router.post('/invite', requireAuth, requireRole('admin'), async (req, res) => {
         const inviteToken = crypto.randomBytes(32).toString('hex');
         const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+        const resolvedRep = assignedRep ? (resolveRepName(assignedRep) || assignedRep.trim()) : null;
+
         const user = await User.create({
             email: email.toLowerCase().trim(),
             name: name.trim(),
             role,
+            assignedRep: resolvedRep,
             status: 'invited',
             inviteToken,
             inviteExpiresAt,
@@ -251,7 +316,11 @@ router.post('/invite', requireAuth, requireRole('admin'), async (req, res) => {
 
         await sendInviteEmail(user.email, inviteToken, req.user.name || req.user.email, role);
 
-        res.json({ success: true, message: `Invite sent to ${user.email}`, user: { id: user._id, email: user.email, role: user.role, status: user.status } });
+        res.json({
+            success: true,
+            message: `Invite sent to ${user.email}`,
+            user: { id: user._id, email: user.email, role: user.role, assignedRep: user.assignedRep, status: user.status },
+        });
     } catch (err) {
         console.error('Invite error:', err);
         res.status(500).json({ success: false, message: 'Server error' });

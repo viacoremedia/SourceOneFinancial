@@ -20,9 +20,9 @@
 const REPS = {
     // ── Active Field Reps ─────────────────────────────────────────────
     'George Ott':         { handles: ['gott', 'george'], status: 'active', type: 'field' },
-    'John Harrington':    { handles: ['jharrington1', 'jharrington', 'johnharrington', 'johnh'], status: 'active', type: 'field' },
+    'John Harrington':    { handles: ['jharrington1', 'jharrington', 'johnharrington', 'johnh'], legacyNames: ['Janet Harrington'], status: 'active', type: 'field' },
     'Jeff Smith':         { handles: ['jsmith'], status: 'active', type: 'field' },
-    'Janet Weller':       { handles: ['jweller', 'janetweller', 'janet', 'jeff', 'joe'], status: 'active', type: 'field' },
+    'Janet Weller':       { handles: ['jweller', 'janetweller', 'janet', 'jeff', 'joe'], legacyNames: ['Jeff Weller', 'Joe Weller'], status: 'active', type: 'field' },
     'Ward Stoutimore':    { handles: ['wstoutimore', 'ward'], status: 'active', type: 'field' },
     'Pam Carter':         { handles: ['pcarter', 'pam'], status: 'active', type: 'field' },
     'Larry Jablonoski':   { handles: ['ljablonoski', 'larryj'], status: 'active', type: 'field' },
@@ -56,7 +56,18 @@ const _handleToName = {};
 /** handle (lowercase) → rep config object */
 const _handleToConfig = {};
 
+/** display name / legacy name (lowercase) → canonical display name */
+const _nameToName = {};
+
 for (const [displayName, config] of Object.entries(REPS)) {
+    _nameToName[displayName.toLowerCase()] = displayName;
+
+    if (Array.isArray(config.legacyNames)) {
+        for (const legacy of config.legacyNames) {
+            _nameToName[legacy.toLowerCase()] = displayName;
+        }
+    }
+
     for (const handle of config.handles) {
         const key = handle.toLowerCase();
         _handleToName[key] = displayName;
@@ -101,7 +112,7 @@ function getRepDisplayMap() {
 
 /**
  * Resolve a raw handle/email to a display name.
- * Handles email addresses (strips @domain), trailing numbers, etc.
+ * Handles email addresses (strips @domain), trailing numbers, legacy names, etc.
  * Returns the original string capitalized if no match found.
  * 
  * @param {string} rawStr - Raw handle, email, or name
@@ -109,17 +120,30 @@ function getRepDisplayMap() {
  */
 function resolveRepName(rawStr) {
     if (!rawStr) return null;
-    let str = rawStr.trim().toLowerCase();
-    // Strip email domain
-    if (str.includes('@')) {
-        str = str.split('@')[0].trim();
+    let str = rawStr.trim();
+    if (!str || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return null;
+
+    const lower = str.toLowerCase();
+    // 1. Try exact display name / legacy name match
+    if (_nameToName[lower]) return _nameToName[lower];
+
+    // 2. Strip email domain if present
+    let handleKey = lower;
+    if (handleKey.includes('@')) {
+        handleKey = handleKey.split('@')[0].trim();
     }
-    // Try exact match first
-    if (_handleToName[str]) return _handleToName[str];
-    // Try without trailing digits (e.g. 'jharrington1' → 'jharrington')
-    const strNoNum = str.replace(/[0-9]/g, '');
+    if (_nameToName[handleKey]) return _nameToName[handleKey];
+    if (_handleToName[handleKey]) return _handleToName[handleKey];
+
+    // 3. Try without trailing digits (e.g. 'jharrington1' → 'jharrington')
+    const strNoNum = handleKey.replace(/[0-9]/g, '');
+    if (_nameToName[strNoNum]) return _nameToName[strNoNum];
     if (_handleToName[strNoNum]) return _handleToName[strNoNum];
-    // Fallback: capitalize first letter
+
+    // Fallback: proper title-case
+    if (str.includes(' ')) {
+        return str.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
@@ -133,18 +157,27 @@ function getRepHandles(repInput) {
     if (!repInput) return [];
     const inputClean = repInput.trim().toLowerCase();
 
-    // 1. Direct display name lookup in REPS
+    // 1. Direct canonical or legacy name lookup
+    const canonicalName = _nameToName[inputClean];
+    if (canonicalName && REPS[canonicalName]) {
+        return [...REPS[canonicalName].handles];
+    }
+
+    // 2. Direct display name lookup in REPS
     for (const [displayName, config] of Object.entries(REPS)) {
         if (displayName.toLowerCase() === inputClean) {
             return [...config.handles];
         }
+        if (Array.isArray(config.legacyNames) && config.legacyNames.some(l => l.toLowerCase() === inputClean)) {
+            return [...config.handles];
+        }
     }
 
-    // 2. Try alias map lookup (by primary handle)
+    // 3. Try alias map lookup (by primary handle)
     const aliasMap = getRepAliasMap();
     if (aliasMap[inputClean]) return aliasMap[inputClean];
 
-    // 3. Try full map (including inactive / excluded)
+    // 4. Try full map (including inactive / excluded)
     const fullMap = getRepAliasMap({ includeInactive: true, includeExcluded: true });
     if (fullMap[inputClean]) return fullMap[inputClean];
 

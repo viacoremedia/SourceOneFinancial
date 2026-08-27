@@ -5,6 +5,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './FilterBar.module.css';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../../core/services/api';
 import type { DealerGroup, HeatClass } from '../../types';
@@ -94,6 +95,9 @@ export function FilterBar({
   onTransitionFilterChange,
   repStatesMap = {},
 }: FilterBarProps) {
+  const { user } = useAuth();
+  const isInsideRep = user?.role === 'inside_rep';
+  const assignedRep = user?.assignedRep;
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const activeFilterCount = useMemo(() => {
@@ -240,6 +244,16 @@ export function FilterBar({
     onStatusFilterChange(null);
   };
 
+  const handleClearFilters = () => {
+    if (!isInsideRep) {
+      handleRepChange('');
+    } else if (assignedRep) {
+      handleRepChange(assignedRep);
+    }
+    handleStateChange('');
+    onStatusFilterChange(null);
+  };
+
   const handleStatClick = (statKey: string | null) => {
     if (statKey === null) {
       onStatusFilterChange(null);
@@ -268,16 +282,26 @@ export function FilterBar({
           </label>
           <select
             className={`${styles.filterSelect} ${selectedRep ? styles.filterActive : ''}`}
-            value={selectedRep}
-            onChange={(e) => handleRepChange(e.target.value)}
+            value={isInsideRep && assignedRep ? assignedRep : selectedRep}
+            onChange={(e) => {
+              if (!isInsideRep) {
+                handleRepChange(e.target.value);
+              }
+            }}
+            disabled={isInsideRep}
+            title={isInsideRep ? `Locked to ${assignedRep}` : undefined}
             id="filter-rep"
           >
-            <option value="">All Reps</option>
-            {reps.map((r) => (
-              <option key={r} value={r}>
-                {repHeatMap?.[r] ? `${heatDotSymbol(repHeatMap[r])} ${r}` : r}
-              </option>
-            ))}
+            {!isInsideRep && <option value="">All Reps</option>}
+            {isInsideRep && assignedRep ? (
+              <option value={assignedRep}>{assignedRep}</option>
+            ) : (
+              reps.map((r) => (
+                <option key={r} value={r}>
+                  {repHeatMap?.[r] ? `${heatDotSymbol(repHeatMap[r])} ${r}` : r}
+                </option>
+              ))
+            )}
           </select>
         </div>
 
@@ -337,7 +361,10 @@ export function FilterBar({
         {hasActiveFilters && (
           <button
             className={styles.clearBtn}
-            onClick={() => { onRepChange(''); onStateChange(''); onStatusFilterChange(null); onDrdFilterChange?.(null); }}
+            onClick={() => {
+              handleClearFilters();
+              onDrdFilterChange?.(null);
+            }}
             title="Clear all filters"
           >
             ✕

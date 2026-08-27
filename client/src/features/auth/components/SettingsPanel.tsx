@@ -11,10 +11,11 @@ interface SettingsPanelProps {
 
 const ROLE_LABELS: Record<string, string> = {
   employee: 'Employee',
+  inside_rep: 'Inside Rep',
   admin: 'Admin',
   super_admin: 'Super Admin',
 };
-const ROLE_HIERARCHY: Record<string, number> = { employee: 0, admin: 1, super_admin: 2 };
+const ROLE_HIERARCHY: Record<string, number> = { employee: 0, inside_rep: 0, admin: 1, super_admin: 2 };
 
 export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const { user, logout } = useAuth();
@@ -28,11 +29,20 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
   // User list + invite
   const [users, setUsers] = useState<AuthUser[]>([]);
+  const [repOptions, setRepOptions] = useState<string[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'employee' | 'admin'>('employee');
   const [inviteName, setInviteName] = useState('');
   const [inviteMsg, setInviteMsg] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+
+  // Inside Rep direct creation
+  const [repEmail, setRepEmail] = useState('');
+  const [repPassword, setRepPassword] = useState('');
+  const [repName, setRepName] = useState('');
+  const [repAssignedRep, setRepAssignedRep] = useState('');
+  const [repMsg, setRepMsg] = useState('');
+  const [repLoading, setRepLoading] = useState(false);
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<AuthUser | null>(null);
@@ -47,6 +57,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   useEffect(() => {
     if (open && isAdmin) {
       api.get('/auth/users').then(({ data }) => setUsers(data.users)).catch(() => {});
+      api.get('/auth/rep-list').then(({ data }) => { if (data?.reps) setRepOptions(data.reps); }).catch(() => {});
       api.get('/reports/recipients').then(({ data }) => setRecipients(data.recipients)).catch(() => {});
     }
   }, [open, isAdmin]);
@@ -86,6 +97,35 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     }
   };
 
+  const handleCreateRepAccount = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!repAssignedRep) {
+      setRepMsg('❌ Please select an assigned sales rep mapping');
+      return;
+    }
+    setRepMsg('');
+    setRepLoading(true);
+    try {
+      await api.post('/auth/create-rep-account', {
+        email: repEmail,
+        password: repPassword,
+        name: repName || repAssignedRep,
+        assignedRep: repAssignedRep,
+      });
+      setRepMsg(`✅ Created inside sales rep account for ${repEmail} (${repAssignedRep})`);
+      setRepEmail('');
+      setRepPassword('');
+      setRepName('');
+      setRepAssignedRep('');
+      const { data } = await api.get('/auth/users');
+      setUsers(data.users);
+    } catch (err: any) {
+      setRepMsg(`❌ ${err.response?.data?.message || 'Failed to create rep account'}`);
+    } finally {
+      setRepLoading(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -122,7 +162,14 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           <h3>Profile</h3>
           <div className={styles.profileInfo}>
             <span>{user?.name || user?.email}</span>
-            <span className={styles.roleBadge}>{ROLE_LABELS[user?.role || 'employee']}</span>
+            <span className={`${styles.roleBadge} ${styles[`role_${user?.role || 'employee'}`]}`}>
+              {ROLE_LABELS[user?.role || 'employee']}
+            </span>
+            {user?.assignedRep && (
+              <span className={styles.repBadge}>
+                {user.assignedRep}
+              </span>
+            )}
           </div>
         </section>
 
@@ -153,10 +200,58 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           </form>
         </section>
 
+        {/* Admin: Create Inside Rep Account */}
+        {isAdmin && (
+          <section className={styles.section}>
+            <h3>Create Inside Sales Rep Account</h3>
+            <p className={styles.recipientHint}>Directly create an active account locked to a rep filter. Rep can log in immediately and change their password in settings.</p>
+            <form onSubmit={handleCreateRepAccount} className={styles.inlineForm}>
+              <input
+                className={styles.input}
+                type="email"
+                placeholder="Rep Email"
+                value={repEmail}
+                onChange={(e) => setRepEmail(e.target.value)}
+                required
+              />
+              <input
+                className={styles.input}
+                type="password"
+                placeholder="Initial Password (min 6 chars)"
+                value={repPassword}
+                onChange={(e) => setRepPassword(e.target.value)}
+                required
+              />
+              <input
+                className={styles.input}
+                type="text"
+                placeholder="Name (optional)"
+                value={repName}
+                onChange={(e) => setRepName(e.target.value)}
+              />
+              <select
+                className={styles.select}
+                value={repAssignedRep}
+                onChange={(e) => setRepAssignedRep(e.target.value)}
+                required
+              >
+                <option value="">-- Select Internal Rep Mapping --</option>
+                {repOptions.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <button className={styles.btn} type="submit" disabled={repLoading}>
+                {repLoading ? 'Creating...' : 'Create Account'}
+              </button>
+              {repMsg && <div className={styles.msg}>{repMsg}</div>}
+            </form>
+          </section>
+        )}
+
         {/* Admin: Invite user */}
         {isAdmin && (
           <section className={styles.section}>
-            <h3>Invite User</h3>
+            <h3>Invite Admin / Employee</h3>
             <form onSubmit={handleInvite} className={styles.inlineForm}>
               <input
                 className={styles.input}
@@ -204,9 +299,14 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                     <div className={styles.userInfo}>
                       <span className={styles.userName}>{u.name || u.email}</span>
                       <span className={styles.userEmail}>{u.email}</span>
+                      {u.assignedRep && (
+                        <span className={styles.repBadge} style={{ alignSelf: 'flex-start' }}>
+                          Rep: {u.assignedRep}
+                        </span>
+                      )}
                     </div>
                     <span className={`${styles.roleBadge} ${styles[`role_${u.role}`]}`}>
-                      {ROLE_LABELS[u.role]}
+                      {ROLE_LABELS[u.role] || u.role}
                     </span>
                     <span className={`${styles.statusDot} ${styles[`status_${u.status}`]}`}>
                       {u.status}

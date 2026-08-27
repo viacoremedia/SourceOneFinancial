@@ -15,6 +15,7 @@ import type { UnderwriterDateRange } from '../components/UnderwriterScorecard/Un
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
@@ -45,6 +46,7 @@ const SORT_KEY_MAP: Record<string, string> = {
 };
 
 function DashboardContent() {
+  const { user } = useAuth();
   const { data: overview } = useOverview();
 
   // ── Centralized Store Subscription ──
@@ -77,6 +79,13 @@ function DashboardContent() {
     setSearchQuery,
     setLatestReportDate,
   } = useDashboardStore();
+
+  // If inside rep, lock rep filter to assignedRep
+  useEffect(() => {
+    if (user?.role === 'inside_rep' && user?.assignedRep) {
+      setRep(user.assignedRep);
+    }
+  }, [user, setRep]);
 
   const [groupLocations, setGroupLocations] = useState<
     Record<string, DealerLocation[]>

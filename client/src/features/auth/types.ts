@@ -3,7 +3,8 @@ export interface AuthUser {
   _id?: string;
   email: string;
   name: string;
-  role: 'employee' | 'admin' | 'super_admin';
+  role: 'employee' | 'admin' | 'super_admin' | 'inside_rep';
+  assignedRep?: string | null;
   status?: 'invited' | 'active' | 'disabled';
   createdAt?: string;
 }

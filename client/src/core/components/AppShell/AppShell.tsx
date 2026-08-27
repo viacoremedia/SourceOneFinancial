@@ -44,6 +44,8 @@ export function AppShell({
   const [underwriterOpen, setUnderwriterOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isInsideRep = user?.role === 'inside_rep';
+
   const formattedDate = latestReportDate
     ? (() => {
         const d = new Date(latestReportDate);
@@ -104,27 +106,31 @@ export function AppShell({
                   </button>
                 )}
 
-                <button
-                  className={styles.navCell}
-                  onClick={() => setScorecardOpen(true)}
-                  title="Rep Leaderboard & Scorecard"
-                  id="scorecard-btn"
-                  aria-label="Rep Scorecard"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-                  <span>Rep Scorecard</span>
-                </button>
+                {!isInsideRep && (
+                  <button
+                    className={styles.navCell}
+                    onClick={() => setScorecardOpen(true)}
+                    title="Rep Leaderboard & Scorecard"
+                    id="scorecard-btn"
+                    aria-label="Rep Scorecard"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                    <span>Rep Scorecard</span>
+                  </button>
+                )}
 
-                <button
-                  className={styles.navCell}
-                  onClick={() => setScorecardReportsOpen(true)}
-                  title="PDF Scorecard Reports & Executive Dispatch"
-                  id="pdf-reports-btn"
-                  aria-label="PDF Reports"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                  <span>PDF Reports</span>
-                </button>
+                {!isInsideRep && (
+                  <button
+                    className={styles.navCell}
+                    onClick={() => setScorecardReportsOpen(true)}
+                    title="PDF Scorecard Reports & Executive Dispatch"
+                    id="pdf-reports-btn"
+                    aria-label="PDF Reports"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>PDF Reports</span>
+                  </button>
+                )}
 
                 <button
                   className={styles.navCell}
@@ -137,16 +143,18 @@ export function AppShell({
                   <span>Underwriters</span>
                 </button>
 
-                <button
-                  className={styles.navCell}
-                  onClick={() => setDigestOpen(true)}
-                  title="Daily Digest & Email Reports"
-                  id="digest-btn"
-                  aria-label="Daily Digest"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  <span>Daily Digest</span>
-                </button>
+                {!isInsideRep && (
+                  <button
+                    className={styles.navCell}
+                    onClick={() => setDigestOpen(true)}
+                    title="Daily Digest & Email Reports"
+                    id="digest-btn"
+                    aria-label="Daily Digest"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Daily Digest</span>
+                  </button>
+                )}
 
                 <div className={styles.navCellDivider} />
 
@@ -209,20 +217,24 @@ export function AppShell({
               )}
               {user && (
                 <>
-                  <button
-                    className={styles.mobileDrawerItem}
-                    onClick={() => { setMobileMenuOpen(false); setScorecardOpen(true); }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>
-                    <span>Rep Scorecard</span>
-                  </button>
-                  <button
-                    className={styles.mobileDrawerItem}
-                    onClick={() => { setMobileMenuOpen(false); setScorecardReportsOpen(true); }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    <span>PDF Reports</span>
-                  </button>
+                  {!isInsideRep && (
+                    <button
+                      className={styles.mobileDrawerItem}
+                      onClick={() => { setMobileMenuOpen(false); setScorecardOpen(true); }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/></svg>
+                      <span>Rep Scorecard</span>
+                    </button>
+                  )}
+                  {!isInsideRep && (
+                    <button
+                      className={styles.mobileDrawerItem}
+                      onClick={() => { setMobileMenuOpen(false); setScorecardReportsOpen(true); }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                      <span>PDF Reports</span>
+                    </button>
+                  )}
                   <button
                     className={styles.mobileDrawerItem}
                     onClick={() => { setMobileMenuOpen(false); setUnderwriterOpen(true); }}
@@ -230,13 +242,15 @@ export function AppShell({
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
                     <span>Underwriters</span>
                   </button>
-                  <button
-                    className={styles.mobileDrawerItem}
-                    onClick={() => { setMobileMenuOpen(false); setDigestOpen(true); }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    <span>Daily Digest</span>
-                  </button>
+                  {!isInsideRep && (
+                    <button
+                      className={styles.mobileDrawerItem}
+                      onClick={() => { setMobileMenuOpen(false); setDigestOpen(true); }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                      <span>Daily Digest</span>
+                    </button>
+                  )}
                   <button
                     className={styles.mobileDrawerItem}
                     onClick={() => { setMobileMenuOpen(false); setSettingsOpen(true); }}

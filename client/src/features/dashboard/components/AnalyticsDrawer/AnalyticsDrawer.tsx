@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
+import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './AnalyticsDrawer.module.css';
 
 interface AnalyticsDrawerProps {
@@ -171,6 +172,10 @@ export function AnalyticsDrawer({
     statePrefix: string;
   }>>([]);
 
+  const { user } = useAuth();
+  const isInsideRep = user?.role === 'inside_rep';
+  const assignedRep = user?.assignedRep;
+
   // Historical MoM State
   const [data, setData] = useState<HistoricalMoMResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -232,12 +237,15 @@ export function AnalyticsDrawer({
         setSelectedDealerObj(null);
       }
       setSelectedGroup(initialGroupSlug || '');
+      if (isInsideRep && assignedRep) {
+        setSelectedRep(assignedRep);
+      }
       setAppHistoryPage(1);
       setAppHistoryData(null);
       setCommHistoryPage(1);
       setCommHistoryData(null);
     }
-  }, [isOpen, initialDealerId, initialGroupSlug, initialUnderwriter, initialStartDate, initialEndDate, initialDatePreset, initialTab]);
+  }, [isOpen, initialDealerId, initialGroupSlug, initialUnderwriter, initialStartDate, initialEndDate, initialDatePreset, initialTab, isInsideRep, assignedRep]);
 
   const handleAppDatePresetChange = (preset: string) => {
     setAppDatePreset(preset);
@@ -1528,15 +1536,25 @@ export function AnalyticsDrawer({
                 <span className={styles.filterLabel}>Sales Rep:</span>
                 <select
                   className={styles.selectInput}
-                  value={selectedRep || ''}
-                  onChange={(e) => setSelectedRep(e.target.value)}
+                  value={isInsideRep && assignedRep ? assignedRep : (selectedRep || '')}
+                  onChange={(e) => {
+                    if (!isInsideRep) {
+                      setSelectedRep(e.target.value);
+                    }
+                  }}
+                  disabled={isInsideRep}
+                  title={isInsideRep ? `Locked to ${assignedRep}` : undefined}
                 >
-                  <option value="">All Reps</option>
-                  {repList.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {!isInsideRep && <option value="">All Reps</option>}
+                  {isInsideRep && assignedRep ? (
+                    <option value={assignedRep}>{assignedRep}</option>
+                  ) : (
+                    repList.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 

@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-const ROLE_HIERARCHY = { employee: 0, admin: 1, super_admin: 2 };
+const ROLE_HIERARCHY = { employee: 0, inside_rep: 0, admin: 1, super_admin: 2 };
 
 /**
  * Verify JWT and attach req.user
