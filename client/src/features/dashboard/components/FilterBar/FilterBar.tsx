@@ -320,25 +320,27 @@ export function FilterBar({
           </select>
         </div>
 
-        <div className={styles.filterGroup}>
-          <label className={styles.filterLabel}>Portfolio</label>
-          <select
-            className={`${styles.filterSelect} ${selectedRep === 'S1House' ? styles.filterActive : ''}`}
-            value={selectedRep === 'S1House' ? 'S1House' : ''}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === 'S1House') {
-                handleRepChange('S1House');
-              } else {
-                if (selectedRep === 'S1House') handleRepChange('');
-              }
-            }}
-            id="filter-portfolio"
-          >
-            <option value="">All Accounts</option>
-            <option value="S1House">House (S1House)</option>
-          </select>
-        </div>
+        {!isInsideRep && (
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Portfolio</label>
+            <select
+              className={`${styles.filterSelect} ${selectedRep === 'S1House' ? styles.filterActive : ''}`}
+              value={selectedRep === 'S1House' ? 'S1House' : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'S1House') {
+                  handleRepChange('S1House');
+                } else {
+                  if (selectedRep === 'S1House') handleRepChange('');
+                }
+              }}
+              id="filter-portfolio"
+            >
+              <option value="">All Accounts</option>
+              <option value="S1House">House (S1House)</option>
+            </select>
+          </div>
+        )}
 
         <div className={styles.filterGroup}>
           <label className={styles.filterLabel}>Relationship (DRD)</label>
