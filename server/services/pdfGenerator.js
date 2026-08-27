@@ -465,6 +465,7 @@ async function generateScorecardPDFs(reportId, config = {}) {
             activePct: Math.round((unifiedReps.reduce((s, r) => s + r.activePct, 0) / repCount) * 10) / 10,
             inactive30Pct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? (r.inactive30Count / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
             inactive60Pct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? (r.inactive60Count / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
+            inactive90Pct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? ((r.inactive90Count || 0) / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
             longInactivePct: Math.round((unifiedReps.reduce((s, r) => s + (r.totalDealers > 0 ? (r.longInactiveCount / r.totalDealers) * 100 : 0), 0) / repCount) * 10) / 10,
             avgDaysSinceApp: Math.round(unifiedReps.reduce((s, r) => s + (r.rollingAvg?.avgDaysSinceApp || 0), 0) / repCount),
             avgDaysSinceApproval: Math.round(unifiedReps.reduce((s, r) => s + (r.rollingAvg?.avgDaysSinceApproval || 0), 0) / repCount),
@@ -503,6 +504,7 @@ async function generateScorecardPDFs(reportId, config = {}) {
                     case 'activePct': v = r.activePct || 0; break;
                     case 'inactive30Pct': v = r.totalDealers > 0 ? (r.inactive30Count / r.totalDealers) * 100 : 0; break;
                     case 'inactive60Pct': v = r.totalDealers > 0 ? (r.inactive60Count / r.totalDealers) * 100 : 0; break;
+                    case 'inactive90Pct': v = r.totalDealers > 0 ? ((r.inactive90Count || 0) / r.totalDealers) * 100 : 0; break;
                     case 'longInactivePct': v = r.totalDealers > 0 ? (r.longInactiveCount / r.totalDealers) * 100 : 0; break;
                     case 'avgDaysSinceApp': v = r.rollingAvg?.avgDaysSinceApp ?? 999; break;
                     case 'avgDaysSinceApproval': v = r.rollingAvg?.avgDaysSinceApproval ?? 999; break;
@@ -674,6 +676,7 @@ function generateCompanyPDFBuffer(reps, peerAvg, dateRanges, visitImpactData) {
         const activeDealers = reps.reduce((s, r) => s + (r.activeCount || 0), 0);
         const inact30 = reps.reduce((s, r) => s + (r.inactive30Count || 0), 0);
         const inact60 = reps.reduce((s, r) => s + (r.inactive60Count || 0), 0);
+        const inact90 = reps.reduce((s, r) => s + (r.inactive90Count || 0), 0);
         const longInact = reps.reduce((s, r) => s + (r.longInactiveCount || 0), 0);
 
         const statusHeaders = [
@@ -686,13 +689,15 @@ function generateCompanyPDFBuffer(reps, peerAvg, dateRanges, visitImpactData) {
             ['Active (0–30 Days)', formatNumber(activeDealers), formatPercent(totalDealers > 0 ? (activeDealers / totalDealers) * 100 : 0), 'Healthy flow — sustain speed to fund and weekly rep touch'],
             ['30d Inactive (31–60 Days)', formatNumber(inact30), formatPercent(totalDealers > 0 ? (inact30 / totalDealers) * 100 : 0), 'Cooling accounts — targeted phone check-in before 60-day cliff'],
             ['60d Inactive (61–90 Days)', formatNumber(inact60), formatPercent(totalDealers > 0 ? (inact60 / totalDealers) * 100 : 0), 'High churn risk — in-person lot visit required immediately'],
-            ['Long Inactive (90+ Days)', formatNumber(longInact), formatPercent(totalDealers > 0 ? (longInact / totalDealers) * 100 : 0), 'Dormant roster — review DRD profile for High TLC reactivation'],
+            ['90d Inactive (91–120 Days)', formatNumber(inact90), formatPercent(totalDealers > 0 ? (inact90 / totalDealers) * 100 : 0), 'Critical churn stage — evaluate financing barriers & phone outreach'],
+            ['Long Inactive (120+ Days)', formatNumber(longInact), formatPercent(totalDealers > 0 ? (longInact / totalDealers) * 100 : 0), 'Dormant roster — review DRD profile for High TLC reactivation'],
             ['Total Network Roster', formatNumber(totalDealers), '100.0%', 'Consolidated portfolio across all sales territories']
         ];
-        drawTable(doc, 216, statusHeaders, statusRows, [130, 65, 55, 290], { isTotalRow: true });
+        const endStatusY = drawTable(doc, 214, statusHeaders, statusRows, [130, 65, 55, 290], { isTotalRow: true });
 
         // Section: Top Highlights & Performance Summary
-        doc.fillColor(C_NAVY).font('Helvetica-Bold').fontSize(9.5).text('Network Operational Benchmark Summary', margin, 330, { lineBreak: false });
+        const benchY = endStatusY + 14;
+        doc.fillColor(C_NAVY).font('Helvetica-Bold').fontSize(9.5).text('Network Operational Benchmark Summary', margin, benchY, { lineBreak: false });
         
         const sortedByHeat = [...reps].sort((a, b) => (b.heatIndex || 0) - (a.heatIndex || 0));
         const topRep = sortedByHeat[0]?.rep || 'N/A';
@@ -712,7 +717,7 @@ function generateCompanyPDFBuffer(reps, peerAvg, dateRanges, visitImpactData) {
             ['Visit Reactivations', `${peerAvg.reactivatedCount} accounts`, topReactRep, 'Dormant dealerships revived following in-person rep visits'],
             ['Contact Discipline', `${peerAvg.avgContactDays} days`, topRep, 'Average days elapsed across network between dealer communications']
         ];
-        drawTable(doc, 344, benchmarkHeaders, benchmarkRows, [130, 80, 100, 230]);
+        drawTable(doc, benchY + 14, benchmarkHeaders, benchmarkRows, [130, 80, 100, 230]);
 
         drawFooter(doc);
 
@@ -1013,7 +1018,8 @@ function generateRepScorecardPDFBuffer(rep, peerAvg, getRank, dateRanges) {
             ['Active (0–30 Days)', formatNumber(rep.activeCount), formatPercent(rep.activePct), formatPercent(peerAvg.activePct), getRank('activePct', rep.activePct), 'Sustain weekly contact & speed to fund'],
             ['30d Inactive (31–60 Days)', formatNumber(rep.inactive30Count), formatPercent(rep.totalDealers > 0 ? (rep.inactive30Count / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.inactive30Pct), getRank('inactive30Pct', rep.totalDealers > 0 ? (rep.inactive30Count / rep.totalDealers) * 100 : 0, true), 'Priority phone outreach before 60-day cliff'],
             ['60d Inactive (61–90 Days)', formatNumber(rep.inactive60Count), formatPercent(rep.totalDealers > 0 ? (rep.inactive60Count / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.inactive60Pct), getRank('inactive60Pct', rep.totalDealers > 0 ? (rep.inactive60Count / rep.totalDealers) * 100 : 0, true), 'In-person field visit required immediately'],
-            ['Long Inactive (90+ Days)', formatNumber(rep.longInactiveCount), formatPercent(rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.longInactivePct), getRank('longInactivePct', rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0, true), 'Review DRD profile for High TLC candidate']
+            ['90d Inactive (91–120 Days)', formatNumber(rep.inactive90Count || 0), formatPercent(rep.totalDealers > 0 ? ((rep.inactive90Count || 0) / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.inactive90Pct), getRank('inactive90Pct', rep.totalDealers > 0 ? ((rep.inactive90Count || 0) / rep.totalDealers) * 100 : 0, true), 'Critical retention outreach before long dormancy'],
+            ['Long Inactive (120+ Days)', formatNumber(rep.longInactiveCount), formatPercent(rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0), formatPercent(peerAvg.longInactivePct), getRank('longInactivePct', rep.totalDealers > 0 ? (rep.longInactiveCount / rep.totalDealers) * 100 : 0, true), 'Review DRD profile for High TLC candidate']
         ];
         const endRecY = drawTable(doc, 188, recencyHeaders, recencyRows, [125, 60, 60, 75, 65, 155]);
 

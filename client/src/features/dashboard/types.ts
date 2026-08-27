@@ -14,6 +14,7 @@ export interface GroupSummary {
   activeCount: number;
   inactive30Count: number;
   inactive60Count: number;
+  inactive90Count?: number;
   longInactiveCount: number;
   reactivatedCount: number;
   daysSinceApp: BestWorst;
@@ -416,6 +417,7 @@ export interface RepScorecardEntry {
   activeCount: number;
   inactive30Count: number;
   inactive60Count: number;
+  inactive90Count?: number;
   longInactiveCount: number;
   reactivatedCount: number;     // reactivations within the rolling window
 
@@ -455,6 +457,7 @@ export interface StateBreakdown {
   activeCount: number;
   inactive30Count: number;
   inactive60Count: number;
+  inactive90Count?: number;
   longInactiveCount: number;
   reactivatedCount: number;
   rollingAvg: RollingAvgMetrics;

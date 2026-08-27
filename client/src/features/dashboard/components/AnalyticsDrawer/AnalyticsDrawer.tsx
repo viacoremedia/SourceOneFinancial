@@ -12,7 +12,8 @@ import {
 import type {
   RepMappings,
   RepCommunicationHistoryResponse,
-  RelationshipDemandDrawerResponse
+  RelationshipDemandDrawerResponse,
+  RelationshipDemandSegment
 } from '../../../../core/services/api';
 import type {
   HistoricalMoMItem,
@@ -153,7 +154,7 @@ export function AnalyticsDrawer({
 
   // DRD Manual Override & Reconciliation State
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
-  const [overrideSegment, setOverrideSegment] = useState<'high_tlc' | 'self_sufficient' | 'comfort_stop' | 'insufficient_data'>('high_tlc');
+  const [overrideSegment, setOverrideSegment] = useState<RelationshipDemandSegment>('high_tlc');
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideSubmitting, setOverrideSubmitting] = useState(false);
   const [overrideActionError, setOverrideActionError] = useState<string | null>(null);

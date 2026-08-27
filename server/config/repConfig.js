@@ -20,9 +20,9 @@
 const REPS = {
     // ── Active Field Reps ─────────────────────────────────────────────
     'George Ott':         { handles: ['gott', 'george'], status: 'active', type: 'field' },
-    'Janet Harrington':   { handles: ['jharrington1', 'jharrington', 'janet'], status: 'active', type: 'field' },
+    'John Harrington':    { handles: ['jharrington1', 'jharrington', 'johnharrington', 'johnh'], status: 'active', type: 'field' },
     'Jeff Smith':         { handles: ['jsmith'], status: 'active', type: 'field' },
-    'Jeff Weller':        { handles: ['jweller', 'jeff'], status: 'active', type: 'field' },
+    'Janet Weller':       { handles: ['jweller', 'janetweller', 'janet', 'jeff', 'joe'], status: 'active', type: 'field' },
     'Ward Stoutimore':    { handles: ['wstoutimore', 'ward'], status: 'active', type: 'field' },
     'Pam Carter':         { handles: ['pcarter', 'pam'], status: 'active', type: 'field' },
     'Larry Jablonoski':   { handles: ['ljablonoski', 'larryj'], status: 'active', type: 'field' },

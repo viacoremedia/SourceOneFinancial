@@ -433,6 +433,16 @@ const COLUMNS: ScorecardColumn[] = [
     filterKey: '60d',
   },
   {
+    key: 'inactive90Count', label: '90d Inactive', short: '90d',
+    align: 'center',
+    getValue: (r) => r.inactive90Count || 0,
+    formatFull: (r) => r.totalDealers > 0
+      ? `${r.inactive90Count || 0} (${Math.round(((r.inactive90Count || 0) / r.totalDealers) * 100)}%)`
+      : String(r.inactive90Count || 0),
+    staticColor: '#ea580c',
+    filterKey: '90d',
+  },
+  {
     key: 'longInactiveCount', label: 'Long Inactive', short: 'Lng',
     align: 'center',
     getValue: (r) => r.longInactiveCount,
@@ -1128,6 +1138,11 @@ export function RepScorecard({
                                 ? `${st.inactive60Count} (${Math.round((st.inactive60Count / st.totalDealers) * 100)}%)`
                                 : String(st.inactive60Count);
                               cellColor = 'var(--color-orange, #f97316)';
+                            } else if (col.key === 'inactive90Count') {
+                              val = st.totalDealers > 0
+                                ? `${st.inactive90Count || 0} (${Math.round(((st.inactive90Count || 0) / st.totalDealers) * 100)}%)`
+                                : String(st.inactive90Count || 0);
+                              cellColor = '#ea580c';
                             } else if (col.key === 'longInactiveCount') {
                               val = st.totalDealers > 0
                                 ? `${st.longInactiveCount} (${Math.round((st.longInactiveCount / st.totalDealers) * 100)}%)`

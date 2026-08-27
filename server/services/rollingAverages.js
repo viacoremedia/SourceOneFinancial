@@ -17,7 +17,7 @@ const DailyDealerSnapshot = require('../models/DailyDealerSnapshot');
 const DealerLocation = require('../models/DealerLocation');
 const SalesBudget = require('../models/SalesBudget');
 const { computeHeatScores } = require('./heatIndex');
-const { getRepAliasMap, resolveRepName } = require('../config/repConfig');
+const { getRepAliasMap, getRepDisplayMap, resolveRepName, isInactiveRep, isExcludedRep } = require('../config/repConfig');
 
 // ── Helpers ──
 
@@ -443,14 +443,8 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
     const Application = require('../models/Application');
 
     // ── Rep Alias Map (from centralized config) ──
-    const REP_ALIAS_MAP = getRepAliasMap();
-
-    // Build handle → display name lookup
-    const handleToDisplay = {};
-    for (const [key, handles] of Object.entries(REP_ALIAS_MAP)) {
-        const display = key.split('/').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('/');
-        for (const h of handles) handleToDisplay[h.toLowerCase()] = display;
-    }
+    const repDisplayMap = getRepDisplayMap();
+    const handleToDisplay = { ...repDisplayMap };
 
     // Get all locations with their dealerRepresentative + state
     const allLocations = await DealerLocation.find({}).select('_id statePrefix dealerRepresentative').lean();
@@ -459,7 +453,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
     for (const loc of allLocations) {
         const locStr = loc._id.toString();
         const handle = (loc.dealerRepresentative || '').trim().toLowerCase();
-        locationRepMap[locStr] = handleToDisplay[handle] || null;
+        locationRepMap[locStr] = handleToDisplay[handle] || handleToDisplay[handle.replace(/[0-9]/g, '')] || resolveRepName(handle) || null;
         locationStateMap[locStr] = loc.statePrefix;
     }
 
@@ -488,24 +482,27 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
 
     // Helper: derive activity status from daysSince value
     const deriveStatus = (days) => {
-        if (days == null) return 'long_inactive';
+        if (days == null) return 'never_active';
         if (days <= 30) return 'active';
         if (days <= 60) return '30d_inactive';
         if (days <= 90) return '60d_inactive';
+        if (days <= 120) return '90d_inactive';
         return 'long_inactive';
     };
 
     // Build per-rep accumulators (from actual dealerRepresentative, not budget)
     const repData = {};
-    const knownReps = new Set(Object.values(handleToDisplay));
+    const knownReps = new Set(Object.values(handleToDisplay).filter(Boolean));
 
     for (const rep of knownReps) {
+        if (isInactiveRep(rep) || isExcludedRep(rep)) continue;
         repData[rep] = {
             rep,
             totalDealers: 0,
             activeCount: 0,
             inactive30Count: 0,
             inactive60Count: 0,
+            inactive90Count: 0,
             longInactiveCount: 0,
             reactivatedCount: 0,
             locationIds: [],
@@ -534,7 +531,12 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             case 'active': repData[rep].activeCount++; break;
             case '30d_inactive': repData[rep].inactive30Count++; break;
             case '60d_inactive': repData[rep].inactive60Count++; break;
-            case 'long_inactive': repData[rep].longInactiveCount++; break;
+            case '90d_inactive': repData[rep].inactive90Count++; break;
+            case 'long_inactive':
+            case 'never_active':
+            default:
+                repData[rep].longInactiveCount++;
+                break;
         }
         if (snap.reactivatedAfterVisit) repData[rep].reactivatedCount++;
         repData[rep].locationIds.push(snap.dealerLocation);
@@ -543,7 +545,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
         if (!repData[rep].stateData[st]) {
             repData[rep].stateData[st] = {
                 state: st, totalDealers: 0, activeCount: 0,
-                inactive30Count: 0, inactive60Count: 0, longInactiveCount: 0,
+                inactive30Count: 0, inactive60Count: 0, inactive90Count: 0, longInactiveCount: 0,
                 reactivatedCount: 0, locationIds: [],
             };
         }
@@ -553,7 +555,12 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             case 'active': sd.activeCount++; break;
             case '30d_inactive': sd.inactive30Count++; break;
             case '60d_inactive': sd.inactive60Count++; break;
-            case 'long_inactive': sd.longInactiveCount++; break;
+            case '90d_inactive': sd.inactive90Count++; break;
+            case 'long_inactive':
+            case 'never_active':
+            default:
+                sd.longInactiveCount++;
+                break;
         }
         if (snap.reactivatedAfterVisit) sd.reactivatedCount++;
         sd.locationIds.push(snap.dealerLocation);
@@ -868,6 +875,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
                         activeCount: sd.activeCount,
                         inactive30Count: sd.inactive30Count,
                         inactive60Count: sd.inactive60Count,
+                        inactive90Count: sd.inactive90Count,
                         longInactiveCount: sd.longInactiveCount,
                         reactivatedCount: sd.reactivatedCount,
                         rollingAvg: sCurrent,
@@ -883,6 +891,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
                 activeCount: repData[rep].activeCount,
                 inactive30Count: repData[rep].inactive30Count,
                 inactive60Count: repData[rep].inactive60Count,
+                inactive90Count: repData[rep].inactive90Count,
                 longInactiveCount: repData[rep].longInactiveCount,
                 reactivatedCount: repData[rep].reactivatedCount,
                 rollingAvg: current,

@@ -1152,6 +1152,7 @@ router.get('/groups', async (req, res) => {
                         { case: { $lte: [daysField, 30] }, then: 'active' },
                         { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
                         { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+                        { case: { $lte: [daysField, 120] }, then: '90d_inactive' },
                     ],
                     default: 'long_inactive'
                 }
@@ -1174,8 +1175,11 @@ router.get('/groups', async (req, res) => {
                     inactive60Count: {
                         $sum: { $cond: [{ $eq: [statusExpr, '60d_inactive'] }, 1, 0] }
                     },
+                    inactive90Count: {
+                        $sum: { $cond: [{ $eq: [statusExpr, '90d_inactive'] }, 1, 0] }
+                    },
                     longInactiveCount: {
-                        $sum: { $cond: [{ $eq: [statusExpr, 'long_inactive'] }, 1, 0] }
+                        $sum: { $cond: [{ $in: [statusExpr, ['long_inactive', 'never_active']] }, 1, 0] }
                     },
                     reactivatedCount: {
                         $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] }
@@ -1246,6 +1250,7 @@ router.get('/groups', async (req, res) => {
                 activeCount: s.activeCount,
                 inactive30Count: s.inactive30Count,
                 inactive60Count: s.inactive60Count,
+                inactive90Count: s.inactive90Count,
                 longInactiveCount: s.longInactiveCount,
                 reactivatedCount: s.reactivatedCount,
                 daysSinceApp: {
