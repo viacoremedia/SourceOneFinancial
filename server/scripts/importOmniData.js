@@ -64,6 +64,9 @@ Options:
   --table=<name>     Filter table: 'dealers', 'communications', 'applications', or 'all' (default: all)
   --dry-run          Parse and validate headers without writing to MongoDB
   --skip-snapshots   Skip automatic snapshot generation after import
+  --from=<date>      Start date for snapshot regeneration (default: 90 days ago / last 3 months)
+  --to=<date>        End date for snapshot regeneration (default: today)
+  --full-history     Regenerate all snapshots back to 2025-01-01
 `);
         process.exit(0);
     }
@@ -78,6 +81,24 @@ Options:
     const targetDir = path.resolve(process.cwd(), targetDirArg);
     const dryRun = args.includes('--dry-run');
     const skipSnapshots = args.includes('--skip-snapshots');
+    const fullHistory = args.includes('--full-history');
+    
+    // Default fromDate: 90 days ago (covers 60-day approval window + 30-day visit attribution) or full history
+    let snapshotFromDate;
+    if (fullHistory) {
+        snapshotFromDate = '2025-01-01';
+    } else {
+        const default90DaysAgo = new Date();
+        default90DaysAgo.setDate(default90DaysAgo.getDate() - 90);
+        snapshotFromDate = default90DaysAgo.toISOString().split('T')[0];
+    }
+
+    const fromOpt = args.find(a => a.startsWith('--from='));
+    if (fromOpt) snapshotFromDate = fromOpt.split('=')[1];
+
+    let snapshotToDate = new Date();
+    const toOpt = args.find(a => a.startsWith('--to='));
+    if (toOpt) snapshotToDate = toOpt.split('=')[1];
     
     const tableOpt = args.find(a => a.startsWith('--table='));
     const selectedTable = tableOpt ? tableOpt.split('=')[1].toLowerCase() : 'all';
@@ -94,6 +115,9 @@ Options:
     console.log(` Mode             : ${dryRun ? 'DRY-RUN (Validation Only)' : 'LIVE IMPORT (Database Write)'}`);
     console.log(` Filter Table     : ${selectedTable}`);
     console.log(` Skip Snapshots   : ${skipSnapshots}`);
+    if (!skipSnapshots) {
+        console.log(` Snapshot Range   : ${snapshotFromDate} to ${typeof snapshotToDate === 'string' ? snapshotToDate : snapshotToDate.toISOString().split('T')[0]}`);
+    }
     console.log(`==================================================\n`);
 
     if (!fs.existsSync(targetDir)) {
@@ -240,7 +264,19 @@ Options:
         console.log(` TRIGGERING AUTOMATIC SNAPSHOT & ROLLUP GENERATION`);
         console.log(`--------------------------------------------------`);
         try {
-            await generateSnapshotsForRange({ fromDate: '2025-01-01' });
+            // If --to was not explicitly passed, anchor to the latest application date in DB
+            if (!toOpt) {
+                const Application = require('../models/Application');
+                const latestApp = await Application.findOne({ applicationDate: { $ne: null } })
+                    .sort({ applicationDate: -1 })
+                    .select('applicationDate')
+                    .lean();
+                if (latestApp && latestApp.applicationDate) {
+                    snapshotToDate = latestApp.applicationDate.toISOString().split('T')[0];
+                }
+            }
+            console.log(`Snapshot Range: ${snapshotFromDate} to ${snapshotToDate}`);
+            await generateSnapshotsForRange({ fromDate: snapshotFromDate, toDate: snapshotToDate });
             console.log(`\nRebuilding Monthly Dealer Rollups...`);
             const { rebuildAllRollups } = require('../services/rollupService');
             await rebuildAllRollups();

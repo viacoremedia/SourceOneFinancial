@@ -132,12 +132,18 @@ check();
 "
 ```
 
----
+## 4. Summary of Execution Logs
 
-## 4. Summary of Execution Logs for August 14 Ingestion
+### August 28 Ingestion Batch (`./new_data/aug28`)
+- **Dealer Information**: 3,945 rows processed (8 new upserted, 3,937 updated).
+- **Sales Communication**: 10,080 rows processed (532 new upserted, 9,548 updated).
+- **Main Application**: 3,425 rows processed (1,847 new upserted, 1,578 updated).
+- **Phantom Dealer Count**: 0 (100% clean).
+- **Snapshot & Rollup Regeneration**: Executed for 3,945 dealers across 90 days (June 1, 2026 – August 29, 2026) to account for the 60-day approval lifespan + 30-day visit attribution window. All 78,784 monthly rollups rebuilt successfully with 0 errors.
 
+### August 14 Ingestion Batch (`./new_data/aug14`)
 - **Dealer Information**: 3,937 rows processed (13 new upserted, 3,923 updated).
 - **Sales Communication**: 9,548 rows processed (575 new upserted, 8,973 updated).
 - **Main Application**: 3,414 rows processed (3,414 upserted).
 - **Phantom Dealer Count**: 0.
-- **Snapshot Generation**: Automatically executed for 3,937 dealers across 2025–2026.
+- **Snapshot Generation**: Executed for 3,937 dealers across 2025–2026.
