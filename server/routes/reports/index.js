@@ -13,16 +13,16 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireRole } = require('../../middleware/authMiddleware');
+const { requireAuth, requireRole } = require('../../middleware/authMiddleware');
 const ReportRecipient = require('../../models/ReportRecipient');
 
-// All report routes require admin+
-router.use(requireRole('admin'));
+// All report routes require valid authentication
+router.use(requireAuth);
 
 // ==========================================
 // GET /reports/recipients — List all recipients
 // ==========================================
-router.get('/recipients', async (req, res) => {
+router.get('/recipients', requireRole('admin'), async (req, res) => {
     try {
         const recipients = await ReportRecipient.find({})
             .sort({ createdAt: -1 })
@@ -38,7 +38,7 @@ router.get('/recipients', async (req, res) => {
 // POST /reports/recipients — Add a recipient
 // Body: { email: "someone@example.com" }
 // ==========================================
-router.post('/recipients', async (req, res) => {
+router.post('/recipients', requireRole('admin'), async (req, res) => {
     try {
         const { email } = req.body;
         if (!email) {
@@ -67,7 +67,7 @@ router.post('/recipients', async (req, res) => {
 // ==========================================
 // DELETE /reports/recipients/:id — Remove a recipient
 // ==========================================
-router.delete('/recipients/:id', async (req, res) => {
+router.delete('/recipients/:id', requireRole('admin'), async (req, res) => {
     try {
         const result = await ReportRecipient.deleteOne({ _id: req.params.id });
         if (result.deletedCount === 0) {
@@ -84,7 +84,7 @@ router.delete('/recipients/:id', async (req, res) => {
 // POST /reports/daily-digest — Manually trigger digest
 // Body: { date: "2026-04-08" } (optional, defaults to latest)
 // ==========================================
-router.post('/daily-digest', async (req, res) => {
+router.post('/daily-digest', requireRole('admin'), async (req, res) => {
     try {
         const { sendReport } = require('../../services/reportService');
         const { generateDailyDigest } = require('../../services/reports/dailyDigest');
@@ -119,7 +119,7 @@ router.post('/daily-digest', async (req, res) => {
 // GET /reports/preview/daily-digest — Preview HTML
 // Query: ?date=2026-04-08 (optional)
 // ==========================================
-router.get('/preview/daily-digest', async (req, res) => {
+router.get('/preview/daily-digest', requireRole('admin'), async (req, res) => {
     try {
         const { generateDailyDigest } = require('../../services/reports/dailyDigest');
         const DailyDealerSnapshot = require('../../models/DailyDealerSnapshot');

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import api from '../../../core/services/api';
 import styles from './DigestPanel.module.css';
 
@@ -75,13 +76,23 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function DigestPanel({ open, onClose }: DigestPanelProps) {
+  const { user } = useAuth();
+  const isInsideRep = user?.role === 'inside_rep';
+  const assignedRep = user?.assignedRep;
+
   const [data, setData] = useState<DigestData | null>(null);
   const [dates, setDates] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [repFilter, setRepFilter] = useState<string>('');
+  const [repFilter, setRepFilter] = useState<string>(isInsideRep && assignedRep ? assignedRep : '');
   const [flowFilter, setFlowFilter] = useState<string>('');
   const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
+
+  useEffect(() => {
+    if (isInsideRep && assignedRep) {
+      setRepFilter(assignedRep);
+    }
+  }, [isInsideRep, assignedRep]);
 
   // Fetch available dates
   useEffect(() => {
@@ -128,6 +139,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
 
   if (data) {
     for (const t of data.statusTransitions) {
+      if (repFilter && t.rep !== repFilter) continue;
       const key = `${t.from}→${t.to}`;
       if (!flowGroups[key]) flowGroups[key] = { from: t.from, to: t.to, count: 0 };
       flowGroups[key].count++;
@@ -149,6 +161,10 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
         if (flowFilter && `${t.from}→${t.to}` !== flowFilter) return false;
         return true;
       })
+    : [];
+
+  const filteredAtRisk = data
+    ? data.atRiskDealers.filter(d => !repFilter || d.rep === repFilter)
     : [];
 
   const activeRate = data && data.totalSnapshotsToday > 0
@@ -331,7 +347,11 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                   <h3 className={styles.sectionTitle}>
                     🔄 Status Changes ({filteredTransitions.length}{(repFilter || flowFilter) ? ` of ${data.statusTransitions.length}` : ''})
                   </h3>
-                  {allReps.length > 1 && (
+                  {isInsideRep && assignedRep ? (
+                    <span style={{ fontSize: '0.78rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', padding: '4px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                      Rep: {assignedRep}
+                    </span>
+                  ) : allReps.length > 1 ? (
                     <select
                       className={styles.repFilter}
                       value={repFilter}
@@ -342,7 +362,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
-                  )}
+                  ) : null}
                 </div>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
@@ -374,9 +394,11 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
             )}
 
             {/* At-Risk Dealers */}
-            {data.atRiskDealers.length > 0 && (
+            {filteredAtRisk.length > 0 && (
               <div className={styles.tableSection}>
-                <h3 className={styles.sectionTitle}>⚠️ At-Risk Dealers</h3>
+                <h3 className={styles.sectionTitle}>
+                  ⚠️ At-Risk Dealers ({filteredAtRisk.length})
+                </h3>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
                     <thead>
@@ -388,7 +410,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.atRiskDealers.map((d, i) => (
+                      {filteredAtRisk.map((d, i) => (
                         <tr key={i}>
                           <td className={styles.dealerName}>{d.dealerName || 'Unknown'}</td>
                           <td className={styles.dealerIdCell}>{d.dealerId}</td>

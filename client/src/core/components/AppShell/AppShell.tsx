@@ -141,18 +141,16 @@ export function AppShell({
                   <span>Underwriters</span>
                 </button>
 
-                {!isInsideRep && (
-                  <button
-                    className={styles.navCell}
-                    onClick={() => setDigestOpen(true)}
-                    title="Daily Digest & Email Reports"
-                    id="digest-btn"
-                    aria-label="Daily Digest"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    <span>Daily Digest</span>
-                  </button>
-                )}
+                <button
+                  className={styles.navCell}
+                  onClick={() => setDigestOpen(true)}
+                  title="Daily Digest & Email Reports"
+                  id="digest-btn"
+                  aria-label="Daily Digest"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  <span>Daily Digest</span>
+                </button>
 
                 <div className={styles.navCellDivider} />
 
@@ -238,15 +236,13 @@ export function AppShell({
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
                     <span>Underwriters</span>
                   </button>
-                  {!isInsideRep && (
-                    <button
-                      className={styles.mobileDrawerItem}
-                      onClick={() => { setMobileMenuOpen(false); setDigestOpen(true); }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                      <span>Daily Digest</span>
-                    </button>
-                  )}
+                  <button
+                    className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setDigestOpen(true); }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Daily Digest</span>
+                  </button>
                   <button
                     className={styles.mobileDrawerItem}
                     onClick={() => { setMobileMenuOpen(false); setSettingsOpen(true); }}

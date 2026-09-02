@@ -12,6 +12,7 @@ const DailyDealerSnapshot = require('../../models/DailyDealerSnapshot');
 const DealerLocation = require('../../models/DealerLocation');
 const DealerGroup = require('../../models/DealerGroup');
 const SalesBudget = require('../../models/SalesBudget');
+const { resolveRepName } = require('../../config/repConfig');
 
 /**
  * Collect all data needed for the daily digest.
@@ -182,6 +183,7 @@ async function collectDigestData(reportDate, activityMode = 'application') {
                 dealerName: '$location.dealerName',
                 dealerId: '$location.dealerId',
                 statePrefix: '$location.statePrefix',
+                dealerRepresentative: '$location.dealerRepresentative',
                 daysSinceLastApplication: 1,
                 activityStatus: 1,
             }
@@ -189,7 +191,7 @@ async function collectDigestData(reportDate, activityMode = 'application') {
     ];
 
     const atRiskDealers = (await DailyDealerSnapshot.aggregate(atRiskPipeline))
-        .map(d => ({ ...d, rep: stateRepMap[d.statePrefix] || '—' }))
+        .map(d => ({ ...d, rep: resolveRepName(d.dealerRepresentative) || stateRepMap[d.statePrefix] || '—' }))
         .sort((a, b) => a.rep.localeCompare(b.rep));
 
     // 5. Find dealers whose status actually changed (with names)
@@ -255,6 +257,7 @@ async function collectDigestData(reportDate, activityMode = 'application') {
                     dealerName: '$location.dealerName',
                     dealerId: '$location.dealerId',
                     statePrefix: '$location.statePrefix',
+                    dealerRepresentative: '$location.dealerRepresentative',
                     from: '$_prevStatus',
                     to: '$_todayStatus',
                     daysSinceLastApplication: 1,
@@ -264,7 +267,7 @@ async function collectDigestData(reportDate, activityMode = 'application') {
             { $limit: 50 }, // Cap to keep email reasonable
         ]);
         statusTransitions = statusTransitions
-            .map(t => ({ ...t, rep: stateRepMap[t.statePrefix] || '—' }))
+            .map(t => ({ ...t, rep: resolveRepName(t.dealerRepresentative) || stateRepMap[t.statePrefix] || '—' }))
             .sort((a, b) => a.rep.localeCompare(b.rep) || a.from.localeCompare(b.from));
     }
 

@@ -15,7 +15,7 @@ const DealerLocation = require('../../models/DealerLocation');
 const Application = require('../../models/Application');
 const DealerCommunication = require('../../models/DealerCommunication');
 const { recomputeAllProfiles, classifyCommType } = require('../../services/dealerRelationshipEngine');
-const { getRepHandles } = require('../../config/repConfig');
+const { getRepSearchTerms, getRepQuery, resolveRepName, isInactiveRep, isExcludedRep } = require('../../config/repConfig');
 
 // ==========================================
 // GET /analytics/relationship-demand/summary
@@ -27,8 +27,7 @@ router.get('/summary', async (req, res) => {
         const match = {};
 
         if (rep && rep.trim() && rep !== 'all') {
-            const handles = getRepHandles(rep);
-            match.assignedRep = { $in: handles.map(h => new RegExp(h, 'i')) };
+            Object.assign(match, getRepQuery('assignedRep', rep));
         }
         if (state && state.trim() && state !== 'all') {
             match.statePrefix = state.trim().toUpperCase();
@@ -123,8 +122,7 @@ router.get('/dealers', async (req, res) => {
         }
 
         if (rep && rep.trim() && rep !== 'all') {
-            const handles = getRepHandles(rep);
-            match.assignedRep = { $in: handles.map(h => new RegExp(h, 'i')) };
+            Object.assign(match, getRepQuery('assignedRep', rep));
         }
 
         if (state && state.trim() && state !== 'all') {
@@ -525,7 +523,11 @@ router.get('/rep-allocation', async (req, res) => {
         const repMap = new Map();
 
         for (const p of profiles) {
-            const rep = p.assignedRep;
+            const rawRep = p.assignedRep;
+            if (!rawRep || isInactiveRep(rawRep) || isExcludedRep(rawRep)) continue;
+            const rep = resolveRepName(rawRep) || rawRep;
+            if (isInactiveRep(rep) || isExcludedRep(rep)) continue;
+
             if (!repMap.has(rep)) {
                 repMap.set(rep, {
                     rep,

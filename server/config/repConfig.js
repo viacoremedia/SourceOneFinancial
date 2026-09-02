@@ -19,19 +19,19 @@
 
 const REPS = {
     // ── Active Field Reps ─────────────────────────────────────────────
-    'George Ott':         { handles: ['gott', 'george'], status: 'active', type: 'field' },
-    'John Harrington':    { handles: ['jharrington1', 'jharrington', 'johnharrington', 'johnh'], legacyNames: ['Janet Harrington'], status: 'active', type: 'field' },
-    'Jeff Smith':         { handles: ['jsmith'], status: 'active', type: 'field' },
-    'Janet Weller':       { handles: ['jweller', 'janetweller', 'janet', 'jeff', 'joe'], legacyNames: ['Jeff Weller', 'Joe Weller'], status: 'active', type: 'field' },
-    'Ward Stoutimore':    { handles: ['wstoutimore', 'ward'], status: 'active', type: 'field' },
-    'Pam Carter':         { handles: ['pcarter', 'pam'], status: 'active', type: 'field' },
-    'Larry Jablonoski':   { handles: ['ljablonoski', 'larryj'], status: 'active', type: 'field' },
-    'John Rubi':          { handles: ['jrubi', 'john'], status: 'active', type: 'field' },
+    'George Ott':         { handles: ['gott', 'george'], legacyNames: ['George Ott'], status: 'active', type: 'field' },
+    'John Harrington':    { handles: ['jharrington1', 'jharrington', 'johnharrington', 'johnh'], legacyNames: ['Janet Harrington', 'John Harrington'], status: 'active', type: 'field' },
+    'Jeff Smith':         { handles: ['jsmith', 'jeffsmith'], legacyNames: ['Jeff Smith'], status: 'active', type: 'field' },
+    'Janet Weller':       { handles: ['jweller', 'janetweller', 'janet', 'jeff', 'joe', 'jeffweller'], legacyNames: ['Jeff Weller', 'Joe Weller', 'Janet Weller'], status: 'active', type: 'field' },
+    'Ward Stoutimore':    { handles: ['wstoutimore', 'ward', 'wayne', 'waynestoutimore'], legacyNames: ['Ward Stoutimore', 'Wayne Stoutimore'], status: 'active', type: 'field' },
+    'Pam Carter':         { handles: ['pcarter', 'pam', 'pamcarter'], legacyNames: ['Pam Carter'], status: 'active', type: 'field' },
+    'Larry Jablonoski':   { handles: ['ljablonoski', 'larryj', 'larry', 'larryjablonoski'], legacyNames: ['Larry Jablonoski'], status: 'active', type: 'field' },
+    'John Rubi':          { handles: ['jrubi', 'john', 'johnrubi'], legacyNames: ['John Rubi'], status: 'active', type: 'field' },
 
     // ── Active Inside Reps ────────────────────────────────────────────
-    'Ericka Dominguez':   { handles: ['edominguez', 'ericka'], status: 'active', type: 'inside' },
-    'Genevieve Coulombe': { handles: ['gcoulombe', 'genevieve'], status: 'active', type: 'inside' },
-    'Dan Zilberchtein':   { handles: ['dzilberchtein', 'daniilz', 'danillz'], status: 'active', type: 'inside' },
+    'Ericka Dominguez':   { handles: ['edominguez', 'ericka', 'erickadominguez'], legacyNames: ['Ericka Dominguez'], status: 'active', type: 'inside' },
+    'Genevieve Coulombe': { handles: ['gcoulombe', 'genevieve', 'gary', 'garycoulombe'], legacyNames: ['Genevieve Coulombe', 'Gary Coulombe'], status: 'active', type: 'inside' },
+    'Dan Zilberchtein':   { handles: ['dzilberchtein', 'daniilz', 'danillz', 'danz', 'dan', 'daniil', 'danzilberchtein'], legacyNames: ['Dan Zilberchtein', 'Daniil Zilberchtein'], status: 'active', type: 'inside' },
 
     // ── Inactive (No Longer Employed) ─────────────────────────────────
     'Bruce Sweere':   { handles: ['bsweere', 'bruce'], status: 'inactive', reason: 'No longer employed' },
@@ -40,7 +40,7 @@ const REPS = {
     'N Boly':         { handles: ['nboly'], status: 'inactive', reason: 'No longer employed' },
 
     // ── Corporate House Portfolio ──────────────────────────────────────
-    'S1 House':       { handles: ['s1house', 'house'], status: 'active', type: 'house' },
+    'S1 House':       { handles: ['s1house', 'house', 's1 house'], status: 'active', type: 'house' },
 
     // ── Excluded (Not Sales) ──────────────────────────────────────────
     'Mandi Schultz':  { handles: ['mschultz1', 'mschultz', 'mandi', 'mandy'], status: 'excluded', reason: 'Dealer services — no sales' },
@@ -78,6 +78,10 @@ for (const [displayName, config] of Object.entries(REPS)) {
 // ──────────────────────────────────────────────────────────────────────
 // Public API
 // ──────────────────────────────────────────────────────────────────────
+
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /**
  * Get the REP_ALIAS_MAP used by analytics routes and services.
@@ -184,6 +188,46 @@ function getRepHandles(repInput) {
     return [repInput.trim()];
 }
 
+/**
+ * Get all search terms (canonical display name, legacy names, handles, input)
+ * for querying across collections regardless of whether data stores display name or handle.
+ * 
+ * @param {string} repInput 
+ * @returns {string[]}
+ */
+function getRepSearchTerms(repInput) {
+    if (!repInput) return [];
+    const raw = repInput.trim();
+    const resolved = resolveRepName(raw) || raw;
+    const config = REPS[resolved];
+    const terms = new Set([raw, resolved]);
+
+    if (config) {
+        if (Array.isArray(config.handles)) {
+            config.handles.forEach(h => terms.add(h));
+        }
+        if (Array.isArray(config.legacyNames)) {
+            config.legacyNames.forEach(l => terms.add(l));
+        }
+    }
+
+    return Array.from(terms);
+}
+
+/**
+ * Build a MongoDB regex query for matching a rep field against all possible aliases.
+ * 
+ * @param {string} fieldName - Field name in MongoDB (e.g. 'assignedRep' or 'dealerRepresentative')
+ * @param {string} repInput - The rep filter string
+ * @returns {Object} MongoDB query filter object
+ */
+function getRepQuery(fieldName, repInput) {
+    if (!repInput || !repInput.trim() || repInput === 'all') return {};
+    const terms = getRepSearchTerms(repInput);
+    const regexes = terms.map(t => new RegExp('^' + escapeRegex(t) + '$', 'i'));
+    return { [fieldName]: { $in: regexes } };
+}
+
 function isExcludedRep(rawStr) {
     if (!rawStr) return false;
     let str = rawStr.trim().toLowerCase();
@@ -237,6 +281,8 @@ module.exports = {
     getRepDisplayMap,
     resolveRepName,
     getRepHandles,
+    getRepSearchTerms,
+    getRepQuery,
     isExcludedRep,
     isInactiveRep,
     getActiveRepNames,

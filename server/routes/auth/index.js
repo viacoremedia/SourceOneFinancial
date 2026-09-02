@@ -92,6 +92,9 @@ router.post('/reset-password', async (req, res) => {
         user.passwordHash = await bcrypt.hash(password, 12);
         user.resetPasswordToken = null;
         user.resetPasswordExpiresAt = null;
+        user.lastLoginAt = new Date();
+        user.lastActiveAt = new Date();
+        user.loginCount = (user.loginCount || 0) + 1;
         if (user.status === 'invited') {
             user.status = 'active';
             user.inviteToken = null;
@@ -134,6 +137,11 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
+        user.lastLoginAt = new Date();
+        user.lastActiveAt = new Date();
+        user.loginCount = (user.loginCount || 0) + 1;
+        await user.save();
+
         const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
 
         res.json({
@@ -170,6 +178,9 @@ router.post('/accept-invite', async (req, res) => {
         user.status = 'active';
         user.inviteToken = null;
         user.inviteExpiresAt = null;
+        user.lastLoginAt = new Date();
+        user.lastActiveAt = new Date();
+        user.loginCount = (user.loginCount || 0) + 1;
         if (name) user.name = name.trim();
         await user.save();
 
@@ -188,6 +199,9 @@ router.post('/accept-invite', async (req, res) => {
 
 // ── GET /auth/me ──
 router.get('/me', requireAuth, (req, res) => {
+    if (req.user?._id) {
+        User.updateOne({ _id: req.user._id }, { $set: { lastActiveAt: new Date() } }).catch(() => {});
+    }
     res.json({ success: true, user: req.user });
 });
 

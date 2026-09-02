@@ -17,6 +17,61 @@ const ROLE_LABELS: Record<string, string> = {
 };
 const ROLE_HIERARCHY: Record<string, number> = { employee: 0, inside_rep: 0, admin: 1, super_admin: 2 };
 
+function formatLoginTime(isoString?: string | null): { formatted: string; relative: string; isRecent: boolean } | null {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return null;
+
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  const dayName = dayNames[d.getDay()];
+  const monthName = monthNames[d.getMonth()];
+  const dateNum = d.getDate();
+  
+  const nth = (n: number) => {
+    if (n > 3 && n < 21) return 'th';
+    switch (n % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  };
+
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  const timeStr = `${hours}:${minutes} ${ampm}`;
+
+  const now = Date.now();
+  const diffMs = Math.max(0, now - d.getTime());
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  let relative = '';
+  if (diffSec < 45) {
+    relative = 'just now';
+  } else if (diffMin < 60) {
+    relative = `${diffMin} ${diffMin === 1 ? 'min' : 'mins'} ago`;
+  } else if (diffHours < 24) {
+    relative = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+  } else if (diffDays < 30) {
+    relative = `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+  } else {
+    const diffMonths = Math.floor(diffDays / 30);
+    relative = `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
+  }
+
+  const formatted = `${dayName} the ${dateNum}${nth(dateNum)} (${monthName} ${dateNum}) at ${timeStr}`;
+  const isRecent = diffHours < 12;
+
+  return { formatted, relative, isRecent };
+}
+
 export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const { user, logout } = useAuth();
   const isAdmin = user && ROLE_HIERARCHY[user.role] >= 1;
@@ -294,16 +349,32 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 const canRemove =
                   uid !== (user?._id || user?.id) &&
                   ROLE_HIERARCHY[u.role] < myLevel;
+                const loginInfo = formatLoginTime(u.lastLoginAt);
                 return (
                   <div key={uid} className={styles.userRow}>
                     <div className={styles.userInfo}>
-                      <span className={styles.userName}>{u.name || u.email}</span>
+                      <div className={styles.userNameRow}>
+                        <span className={styles.userName}>{u.name || u.email}</span>
+                        {u.assignedRep && (
+                          <span className={styles.repBadge}>
+                            Rep: {u.assignedRep}
+                          </span>
+                        )}
+                      </div>
                       <span className={styles.userEmail}>{u.email}</span>
-                      {u.assignedRep && (
-                        <span className={styles.repBadge} style={{ alignSelf: 'flex-start' }}>
-                          Rep: {u.assignedRep}
-                        </span>
-                      )}
+                      <div className={styles.userLoginMeta}>
+                        {loginInfo ? (
+                          <span className={`${styles.lastLoginTag} ${loginInfo.isRecent ? styles.lastLoginRecent : ''}`}>
+                            <span className={styles.loginDot} />
+                            Last login: <strong>{loginInfo.formatted}</strong> ({loginInfo.relative})
+                            {u.loginCount && u.loginCount > 1 ? ` • ${u.loginCount} logins` : ''}
+                          </span>
+                        ) : (
+                          <span className={styles.neverLoginTag}>
+                            {u.status === 'invited' ? '✉️ Invited — No logins yet' : '⚪ Never logged in'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className={`${styles.roleBadge} ${styles[`role_${u.role}`]}`}>
                       {ROLE_LABELS[u.role] || u.role}

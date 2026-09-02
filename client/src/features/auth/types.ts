@@ -7,6 +7,9 @@ export interface AuthUser {
   assignedRep?: string | null;
   status?: 'invited' | 'active' | 'disabled';
   createdAt?: string;
+  lastLoginAt?: string | null;
+  lastActiveAt?: string | null;
+  loginCount?: number;
 }
 
 export interface AuthState {

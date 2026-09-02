@@ -25,6 +25,7 @@ import type {
   RepMappings
 } from '../../../../core/services/api';
 import { DealerRelationshipDrawer } from '../DealerRelationshipDrawer/DealerRelationshipDrawer';
+import { useAuth } from '../../../auth/hooks/useAuth';
 import {
   Users,
   Search,
@@ -41,6 +42,10 @@ function formatDollar(n: number): string {
 }
 
 export function RelationshipDemandView() {
+  const { user } = useAuth();
+  const isInsideRep = user?.role === 'inside_rep';
+  const assignedRep = user?.assignedRep;
+
   // Navigation
   const [activeTab, setActiveTab] = useState<'allocation' | 'explorer' | 'diagnostics'>('allocation');
 
@@ -58,7 +63,7 @@ export function RelationshipDemandView() {
   // Filter & Sort states
   const [selectedDemand, setSelectedDemand] = useState<string>('all');
   const [selectedUrgency, setSelectedUrgency] = useState<string>('all');
-  const [selectedRep, setSelectedRep] = useState<string>('');
+  const [selectedRep, setSelectedRep] = useState<string>(isInsideRep && assignedRep ? assignedRep : '');
   const [selectedState, setSelectedState] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<string>('urgency');
@@ -67,6 +72,12 @@ export function RelationshipDemandView() {
 
   // Rep mappings for filter dropdowns
   const [repMappings, setRepMappings] = useState<RepMappings | null>(null);
+
+  useEffect(() => {
+    if (isInsideRep && assignedRep) {
+      setSelectedRep(assignedRep);
+    }
+  }, [isInsideRep, assignedRep]);
 
   useEffect(() => {
     getRepMappings().then(setRepMappings).catch(console.error);
@@ -501,12 +512,13 @@ export function RelationshipDemandView() {
             </select>
 
             {/* Clear Filters Button */}
-            {(selectedDemand !== 'all' || selectedUrgency !== 'all' || selectedRep !== '' || searchQuery !== '') && (
+            {(selectedDemand !== 'all' || selectedUrgency !== 'all' || selectedRep !== (isInsideRep && assignedRep ? assignedRep : '') || searchQuery !== '' || selectedState !== '') && (
               <button
                 onClick={() => {
                   setSelectedDemand('all');
                   setSelectedUrgency('all');
-                  setSelectedRep('');
+                  setSelectedRep(isInsideRep && assignedRep ? assignedRep : '');
+                  setSelectedState('');
                   setSearchQuery('');
                   setPage(1);
                 }}

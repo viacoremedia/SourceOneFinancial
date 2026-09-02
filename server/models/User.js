@@ -48,6 +48,18 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    lastLoginAt: {
+        type: Date,
+        default: null,
+    },
+    lastActiveAt: {
+        type: Date,
+        default: null,
+    },
+    loginCount: {
+        type: Number,
+        default: 0,
+    },
 }, { timestamps: true });
 
 userSchema.index({ inviteToken: 1 });
