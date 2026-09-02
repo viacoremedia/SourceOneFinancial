@@ -11,14 +11,24 @@ import {
   UserCheck,
   Lock,
   Unlock,
-  History
+  History,
+  RefreshCw,
+  Skull,
+  EyeOff,
+  Eye,
+  Copy,
+  Check
 } from 'lucide-react';
 import { 
   getDealerRelationshipDrawer,
   overrideDealerRelationshipSegment,
-  resetDealerRelationshipOverride
+  resetDealerRelationshipOverride,
+  syncDealerBadger,
+  setDealerSystemStatus,
+  excludeDealer
 } from '../../../../core/services/api';
 import type { RelationshipDemandDrawerResponse } from '../../../../core/services/api';
+import { useAuth } from '../../../auth/hooks/useAuth';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
 import styles from './DealerRelationshipDrawer.module.css';
@@ -40,6 +50,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   isOpen,
   onClose,
 }) => {
+  const { user } = useAuth();
+  const isInsideRep = user?.role === 'inside_rep';
+
   const [data, setData] = useState<RelationshipDemandDrawerResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +68,75 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   const [overrideSubmitting, setOverrideSubmitting] = useState<boolean>(false);
   const [overrideActionError, setOverrideActionError] = useState<string | null>(null);
   const [auditLogExpanded, setAuditLogExpanded] = useState<boolean>(false);
+
+  // Badger Sync state
+  const [badgerSyncing, setBadgerSyncing] = useState<boolean>(false);
+  const [badgerSyncMsg, setBadgerSyncMsg] = useState<string | null>(null);
+
+  // Lifecycle Status (Dead Dealer) modal state
+  const [lifecycleModalOpen, setLifecycleModalOpen] = useState<boolean>(false);
+  const [lifecycleStatus, setLifecycleStatus] = useState<'active' | 'closed' | 'bought_out' | 'no_longer_in_service'>('closed');
+  const [lifecycleReason, setLifecycleReason] = useState<string>('');
+  const [lifecycleSubmitting, setLifecycleSubmitting] = useState<boolean>(false);
+
+  // Rep Excluded state
+  const [isExcluded, setIsExcluded] = useState<boolean>(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, fieldId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleSyncBadger = async () => {
+    if (!clientDealerId) return;
+    setBadgerSyncing(true);
+    setBadgerSyncMsg(null);
+    try {
+      const res = await syncDealerBadger(clientDealerId);
+      const matchedInfo = res.data?.matchedCode || res.data?.dealerId || clientDealerId;
+      const accountInfo = res.data?.badgerAccountName ? ` ("${res.data.badgerAccountName}" / Badger ID: #${res.data?.badgerId})` : '';
+      setBadgerSyncMsg(`✅ Synced ${res.data?.contacts?.length || 0} contacts for ${matchedInfo}${accountInfo}`);
+      setTimeout(() => setBadgerSyncMsg(null), 5000);
+      await reloadDrawerData();
+    } catch (err: any) {
+      setBadgerSyncMsg(`❌ ${err.message || 'Dealer not found in Badger Maps'}`);
+    } finally {
+      setBadgerSyncing(false);
+    }
+  };
+
+  const handleSaveLifecycleStatus = async () => {
+    if (!clientDealerId) return;
+    setLifecycleSubmitting(true);
+    try {
+      await setDealerSystemStatus(clientDealerId, lifecycleStatus, lifecycleReason.trim());
+      setLifecycleModalOpen(false);
+      setLifecycleReason('');
+      await reloadDrawerData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update dealer lifecycle status');
+    } finally {
+      setLifecycleSubmitting(false);
+    }
+  };
+
+  const handleToggleExclude = async () => {
+    if (!clientDealerId) return;
+    try {
+      const nextState = !isExcluded;
+      await excludeDealer(clientDealerId, nextState);
+      setIsExcluded(nextState);
+      if (nextState) {
+        alert(`Dealer ${clientDealerId} has been excluded from your personal portfolio view.`);
+      } else {
+        alert(`Dealer ${clientDealerId} has been restored to your portfolio view.`);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to toggle exclusion');
+    }
+  };
 
   const reloadDrawerData = async () => {
     if (!clientDealerId) return;
@@ -111,6 +193,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
   // Fetch drawer payload on open
   useEffect(() => {
+    setBadgerSyncMsg(null);
     if (!isOpen || !clientDealerId) {
       setData(null);
       return;
@@ -234,6 +317,44 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   {urgencyLabel}
                 </span>
               )}
+              {profile?.systemStatus && profile.systemStatus !== 'active' && (
+                <span style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize' }}>
+                  🚫 {profile.systemStatus.replace(/_/g, ' ')}
+                </span>
+              )}
+            </div>
+
+            {/* Quick Actions Strip */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap' }}>
+              <button
+                className={styles.syncBadgerBtn}
+                onClick={handleSyncBadger}
+                disabled={badgerSyncing}
+                title="Refresh contacts & notes from Badger Maps"
+              >
+                <RefreshCw size={13} className={badgerSyncing ? styles.spin : ''} />
+                <span>{badgerSyncing ? 'Syncing...' : 'Sync Badger'}</span>
+              </button>
+
+              <button
+                className={styles.lifecycleBtn}
+                onClick={() => setLifecycleModalOpen(true)}
+                title="Flag dealership status (Closed, Bought Out, No Longer In Service)"
+              >
+                <Skull size={13} />
+                <span>Flag Account</span>
+              </button>
+
+              {isInsideRep && (
+                <button
+                  className={styles.excludeBtn}
+                  onClick={handleToggleExclude}
+                  title={isExcluded ? 'Restore account to your portfolio' : 'Exclude account from your portfolio'}
+                >
+                  {isExcluded ? <Eye size={13} /> : <EyeOff size={13} />}
+                  <span>{isExcluded ? 'Include in Portfolio' : 'Exclude from Portfolio'}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -351,6 +472,77 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                 </div>
               </div>
             )}
+
+            {/* Contacts & Badger Maps Communication Roster */}
+            <div className={styles.contactsSection}>
+              <div className={styles.contactsHeader}>
+                <div className={styles.contactsTitle}>
+                  <Phone size={15} color="#38bdf8" />
+                  <span>Dealer Contacts</span>
+                  {profile.contacts && profile.contacts.length > 0 && (
+                    <span style={{ fontSize: '11px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 7px', borderRadius: '999px', fontWeight: 600 }}>
+                      {profile.contacts.length} Contacts
+                    </span>
+                  )}
+                  {profile.badgerData?.badgerId && (
+                    <span style={{ fontSize: '11px', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8', padding: '2px 8px', borderRadius: '6px' }}>
+                      Badger Account: #{profile.badgerData.badgerId} {profile.badgerData.accountName ? `(${profile.badgerData.accountName})` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {badgerSyncMsg && (
+                <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#4ade80' : '#f87171' }}>
+                  {badgerSyncMsg}
+                </div>
+              )}
+
+              {profile.contacts && profile.contacts.length > 0 ? (
+                <div className={styles.contactsGrid}>
+                  {profile.contacts.map((c: any, i: number) => (
+                    <div key={i} className={`${styles.contactCard} ${c.isPrimary ? styles.contactCardPrimary : ''}`}>
+                      <div className={styles.contactNameRow}>
+                        <span className={styles.contactName}>{c.name || 'Contact'}</span>
+                        {c.isPrimary && (
+                          <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                            PRIMARY
+                          </span>
+                        )}
+                      </div>
+                      {c.title && <div className={styles.contactTitle}>{c.title}</div>}
+                      <div className={styles.contactActionRow}>
+                        {c.phone && (
+                          <a href={`tel:${c.phone}`} className={styles.contactActionBtn} title={`Call ${c.phone}`}>
+                            <Phone size={11} />
+                            <span>{c.phone}</span>
+                          </a>
+                        )}
+                        {c.email && (
+                          <a href={`mailto:${c.email}`} className={styles.contactActionBtn} title={`Email ${c.email}`}>
+                            <Mail size={11} />
+                            <span>{c.email}</span>
+                          </a>
+                        )}
+                        {c.email && (
+                          <button
+                            className={styles.contactActionBtn}
+                            onClick={() => copyToClipboard(c.email, `email_${i}`)}
+                            title="Copy Email"
+                          >
+                            {copiedField === `email_${i}` ? <Check size={11} color="#4ade80" /> : <Copy size={11} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', padding: '8px 0' }}>
+                  No contacts loaded yet. Click <strong>"Sync Badger"</strong> in the top header to pull contact records from Badger Maps.
+                </div>
+              )}
+            </div>
 
             {/* Decision Audit Box */}
             <div className={styles.auditBox}>
@@ -1049,6 +1241,59 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
           groupName: (profile as any)?.groupName || undefined,
         }}
       />
+
+      {/* Flag Lifecycle Status Modal */}
+      {lifecycleModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Skull size={18} color="#f87171" />
+              <span>Flag Dealership Lifecycle Status</span>
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', lineHeight: '1.4' }}>
+              Set system-wide status for <strong>{profile?.dealerName || clientDealerId}</strong>. Dead accounts (closed/bought out/out of service) are removed from all views and archived in the Admin Graveyard.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>Lifecycle Status</label>
+              <select
+                value={lifecycleStatus}
+                onChange={(e: any) => setLifecycleStatus(e.target.value)}
+                style={{ background: '#1e293b', border: '1px solid #475569', color: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
+              >
+                <option value="active">🟢 Active (Normal Operation)</option>
+                <option value="closed">🚫 Closed Dealership</option>
+                <option value="bought_out">🤝 Bought Out / Acquired</option>
+                <option value="no_longer_in_service">⚠️ No Longer In Service</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>Reason / Notes</label>
+              <textarea
+                value={lifecycleReason}
+                onChange={(e) => setLifecycleReason(e.target.value)}
+                placeholder="Details (e.g. bought out by larger group, facility permanently closed)..."
+                rows={3}
+                style={{ background: '#1e293b', border: '1px solid #475569', color: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+              <button
+                onClick={() => setLifecycleModalOpen(false)}
+                style={{ background: 'transparent', border: '1px solid #475569', color: '#cbd5e1', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveLifecycleStatus}
+                disabled={lifecycleSubmitting}
+                style={{ background: '#ef4444', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+              >
+                {lifecycleSubmitting ? 'Updating...' : 'Save Lifecycle Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

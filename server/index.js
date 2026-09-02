@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const webhookRoutes = require('./webhook/routes');
 const analyticsRoutes = require('./routes/analytics');
 const reportRoutes = require('./routes/reports');
+const dealerRoutes = require('./routes/dealers');
 const authRoutes = require('./routes/auth');
 const { requireAuth } = require('./middleware/authMiddleware');
 
@@ -113,6 +114,9 @@ app.use('/analytics', analyticsRoutes);
 
 // Use report routes (PROTECTED)
 app.use('/reports', reportRoutes);
+
+// Use dealer management routes (PROTECTED)
+app.use('/dealers', dealerRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

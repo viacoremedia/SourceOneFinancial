@@ -24,13 +24,20 @@ const { getRepSearchTerms, getRepQuery, resolveRepName, isInactiveRep, isExclude
 router.get('/summary', async (req, res) => {
     try {
         const { rep, state } = req.query;
-        const match = {};
+        const match = {
+            systemStatus: { $nin: ['closed', 'bought_out', 'no_longer_in_service'] }
+        };
 
         if (rep && rep.trim() && rep !== 'all') {
             Object.assign(match, getRepQuery('assignedRep', rep));
         }
         if (state && state.trim() && state !== 'all') {
             match.statePrefix = state.trim().toUpperCase();
+        }
+
+        // Inside reps automatically exclude their personal excluded accounts
+        if (req.user && req.user.role === 'inside_rep' && req.user.excludedDealers && req.user.excludedDealers.length > 0) {
+            match.clientDealerId = { $nin: req.user.excludedDealers };
         }
 
         const profiles = await DealerProfile.find(match).lean();
@@ -111,7 +118,9 @@ router.get('/dealers', async (req, res) => {
             limit = 25
         } = req.query;
 
-        const match = {};
+        const match = {
+            systemStatus: { $nin: ['closed', 'bought_out', 'no_longer_in_service'] }
+        };
 
         if (demand && demand !== 'all') {
             match.relationshipDemand = demand;
@@ -129,12 +138,23 @@ router.get('/dealers', async (req, res) => {
             match.statePrefix = state.trim().toUpperCase();
         }
 
+        // Inside reps automatically exclude their personal excluded accounts
+        if (req.user && req.user.role === 'inside_rep' && req.user.excludedDealers && req.user.excludedDealers.length > 0) {
+            match.clientDealerId = { $nin: req.user.excludedDealers };
+        }
+
         if (search && search.trim()) {
             const s = search.trim();
-            match.$or = [
+            const searchClause = [
                 { clientDealerId: new RegExp(s, 'i') },
                 { dealerName: new RegExp(s, 'i') }
             ];
+            if (match.$or) {
+                match.$and = [{ $or: match.$or }, { $or: searchClause }];
+                delete match.$or;
+            } else {
+                match.$or = searchClause;
+            }
         }
 
         // Build sort object
@@ -254,6 +274,15 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
 
         const clientDealerId = profile.clientDealerId;
 
+        // Fetch location details for complete contact info
+        const loc = await DealerLocation.findOne({
+            $or: [
+                { _id: profile.dealerLocation },
+                { dealerId: clientDealerId },
+                { clientDealerId }
+            ]
+        }).select('contacts badgerData dealerPhoneNumber dealerFaxNumber dealerAddress dealerCity dealerState dealerPostalCode systemStatus systemStatusReason').lean();
+
         // Fetch recent communications (normalized)
         const rawComms = await DealerCommunication.find({
             internalRelationshipId2: clientDealerId,
@@ -281,9 +310,28 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
             .limit(50)
             .lean();
 
+        const isExcludedByRep = Boolean(
+            req.user &&
+            req.user.role === 'inside_rep' &&
+            req.user.excludedDealers &&
+            req.user.excludedDealers.includes(clientDealerId)
+        );
+
         res.status(200).json({
             success: true,
-            profile,
+            profile: {
+                ...profile,
+                systemStatus: profile.systemStatus || loc?.systemStatus || 'active',
+                systemStatusReason: profile.systemStatusReason || loc?.systemStatusReason || null,
+                contacts: (profile.contacts && profile.contacts.length > 0) ? profile.contacts : (loc?.contacts || []),
+                badgerData: profile.badgerData || loc?.badgerData || null,
+                dealerPhoneNumber: loc?.dealerPhoneNumber || null,
+                dealerAddress: loc?.dealerAddress || null,
+                dealerCity: loc?.dealerCity || null,
+                dealerState: loc?.dealerState || null,
+                dealerPostalCode: loc?.dealerPostalCode || null,
+                isExcludedByRep
+            },
             recentCommunications,
             recentApplications
         });
@@ -518,7 +566,10 @@ router.get('/reconciliation-audit', async (req, res) => {
 // ==========================================
 router.get('/rep-allocation', async (req, res) => {
     try {
-        const profiles = await DealerProfile.find({ assignedRep: { $ne: null } }).lean();
+        const profiles = await DealerProfile.find({
+            assignedRep: { $ne: null },
+            systemStatus: { $nin: ['closed', 'bought_out', 'no_longer_in_service'] }
+        }).lean();
 
         const repMap = new Map();
 

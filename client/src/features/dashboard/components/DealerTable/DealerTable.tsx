@@ -655,24 +655,24 @@ export function DealerTable({
   activityMode = 'application',
   stateRepMap = {},
 }: DealerTableProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [committedQuery, setCommittedQuery] = useState('');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced search for server-side mode
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setSearchQuery(value);
-      if (mode !== 'groups' && onDealerSearch) {
-        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-        searchTimerRef.current = setTimeout(() => {
-          onDealerSearch(value);
-        }, 350);
-      }
-    },
-    [mode, onDealerSearch]
-  );
+  // Physical button / Enter key search execution
+  const executeSearch = useCallback((val?: string) => {
+    const q = val !== undefined ? val : searchInput;
+    const trimmed = q.trim();
+    setCommittedQuery(trimmed);
+    onDealerSearch?.(trimmed);
+  }, [searchInput, onDealerSearch]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('');
+    setCommittedQuery('');
+    onDealerSearch?.('');
+  }, [onDealerSearch]);
 
   // Multi-column sort stacks (groups tab)
   const [groupSortStack, setGroupSortStack] = useState<SortColumn[]>([{ key: 'locationCount', dir: 'desc' }]);
@@ -683,7 +683,8 @@ export function DealerTable({
 
   // Reset search, sort, and expanded groups when tab mode changes
   useEffect(() => {
-    setSearchQuery('');
+    setSearchInput('');
+    setCommittedQuery('');
     setDealerSort([{ key: 'apps', dir: 'desc' }]);
     setExpandedSlugs(new Set());
   }, [mode]);
@@ -811,10 +812,11 @@ export function DealerTable({
 
   // Filter groups
   const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return groups;
-    const q = searchQuery.toLowerCase();
-    return groups.filter((g) => g.name.toLowerCase().includes(q));
-  }, [groups, searchQuery]);
+    const q = (committedQuery || searchInput).trim();
+    if (!q) return groups;
+    const lower = q.toLowerCase();
+    return groups.filter((g) => g.name.toLowerCase().includes(lower));
+  }, [groups, committedQuery, searchInput]);
 
   // Sort groups (multi-column)
   const sortedGroups = useMemo(() => {
@@ -823,8 +825,19 @@ export function DealerTable({
     return sorted;
   }, [filteredGroups, groupSortStack, statusFilter]);
 
-  // In dealer mode, server handles search — no client-side filtering needed
-  const sortedDealers = smallDealers;
+  // Instant client-side filtering on loaded items while server search resolves
+  const sortedDealers = useMemo(() => {
+    const q = committedQuery.trim();
+    if (!q) return smallDealers;
+    const lower = q.toLowerCase();
+    return smallDealers.filter((d) => {
+      const name = (d.dealerName || '').toLowerCase();
+      const code = (d.dealerId || d.clientDealerId || '').toLowerCase();
+      const state = (d.statePrefix || '').toLowerCase();
+      const rep = (d.dealerRepresentative || '').toLowerCase();
+      return name.includes(lower) || code.includes(lower) || state.includes(lower) || rep.includes(lower);
+    });
+  }, [smallDealers, committedQuery]);
 
   // Which sort to display in the headers
   const displayStack: SortColumn[] = mode !== 'groups'
@@ -935,57 +948,61 @@ export function DealerTable({
     );
   };
 
-  // Infinite scroll for dealer mode (supports IntersectionObserver + container scroll + window scroll)
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // ── Infinite scroll trigger ──
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLTableRowElement | null>(null);
-  const loadingMoreRef = useRef(false);
-  loadingMoreRef.current = Boolean(isLoadingMore);
+  const observerTarget = useRef<HTMLDivElement | null>(null);
 
   const triggerLoadMore = useCallback(() => {
-    if (!hasMore || loadingMoreRef.current || !onLoadMore) return;
-    onLoadMore();
-  }, [hasMore, onLoadMore]);
+    if (!isLoadingMore && hasMore) {
+      if (mode === 'groups') {
+        // Groups infinite scroll
+        if (hasMore && onLoadMore) {
+          onLoadMore();
+        }
+      } else {
+        // Flat dealers infinite scroll
+        if (hasMore && onLoadMore) {
+          onLoadMore();
+        }
+      }
+    }
+  }, [isLoadingMore, hasMore, mode, onLoadMore]);
 
-  // 1. IntersectionObserver on bottom sentinel
+  // Observer on bottom sentinel
   useEffect(() => {
-    if (mode === 'groups' || !hasMore) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    const target = observerTarget.current;
+    if (!target) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
+        if (entries[0].isIntersecting) {
           triggerLoadMore();
         }
       },
-      {
-        root: null, // Viewport or scroll parent
-        rootMargin: '500px',
-        threshold: 0,
-      }
+      { threshold: 0.1, rootMargin: '400px' }
     );
 
-    observer.observe(sentinel);
+    observer.observe(target);
     return () => observer.disconnect();
   }, [mode, hasMore, triggerLoadMore, sortedDealers.length]);
 
-  // 2. Container & Window scroll listeners
+  // Scroll listeners as backup trigger
   useEffect(() => {
-    if (mode === 'groups' || !hasMore) return;
     const el = scrollRef.current;
-
     const handleContainerScroll = () => {
       if (!el) return;
       const { scrollTop, scrollHeight, clientHeight } = el;
-      if (scrollHeight - scrollTop - clientHeight < 500) {
+      if (scrollHeight - (scrollTop + clientHeight) < 600) {
         triggerLoadMore();
       }
     };
 
     const handleWindowScroll = () => {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      if (rect.bottom - window.innerHeight < 600) {
+      const scrollY = window.scrollY || window.pageYOffset;
+      const docHeight = document.documentElement.scrollHeight;
+      const winHeight = window.innerHeight;
+      if (docHeight - (scrollY + winHeight) < 600) {
         triggerLoadMore();
       }
     };
@@ -1011,9 +1028,9 @@ export function DealerTable({
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
-              <tr>
+              <tr className={styles.headerRow}>
                 {visibleColumns.map((col) => (
-                  <th key={col.key} style={{ textAlign: col.align, width: col.width }}>
+                  <th key={col.key} className={styles.headerCell}>
                     {col.label}
                   </th>
                 ))}
@@ -1046,13 +1063,27 @@ export function DealerTable({
           <input
             className={styles.searchInput}
             placeholder={mode === 'groups' ? 'Search dealer groups...' : 'Search dealers...'}
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                executeSearch();
+              }
+            }}
             id="dealer-search"
           />
-          {searchQuery && (
-            <button className={styles.searchClear} onClick={() => handleSearchChange('')} aria-label="Clear search">✕</button>
+          {searchInput && (
+            <button className={styles.searchClear} onClick={handleClearSearch} aria-label="Clear search" title="Clear search">✕</button>
           )}
+          <button
+            type="button"
+            className={styles.searchSubmitBtn}
+            onClick={() => executeSearch()}
+            title="Click to search (or press Enter)"
+          >
+            Search
+          </button>
         </div>
         <div className={styles.toolbarRight}>
           {/* Sort target toggle — groups tab only */}
@@ -1311,11 +1342,11 @@ export function DealerTable({
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>📊</div>
             <div className={styles.emptyTitle}>
-              {searchQuery ? 'No results found' : 'No data available'}
+              {(committedQuery || searchInput) ? 'No results found' : 'No data available'}
             </div>
             <p>
-              {searchQuery
-                ? `No ${mode === 'groups' ? 'groups' : 'dealers'} match "${searchQuery}"`
+              {(committedQuery || searchInput)
+                ? `No ${mode === 'groups' ? 'groups' : 'dealers'} match "${committedQuery || searchInput}"`
                 : 'Data will appear once reports are processed.'}
             </p>
           </div>

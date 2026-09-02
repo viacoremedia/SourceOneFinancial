@@ -383,4 +383,63 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), async (req, res) 
     }
 });
 
+// ── POST /auth/exclude-dealer (Toggle or set exclusion for rep) ──
+router.post('/exclude-dealer', requireAuth, async (req, res) => {
+    try {
+        const { dealerId, exclude } = req.body;
+        if (!dealerId) {
+            return res.status(400).json({ success: false, message: 'dealerId is required' });
+        }
+        const cleanId = dealerId.trim().toUpperCase();
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        if (!user.excludedDealers) user.excludedDealers = [];
+
+        const isCurrentlyExcluded = user.excludedDealers.includes(cleanId);
+        const shouldExclude = typeof exclude === 'boolean' ? exclude : !isCurrentlyExcluded;
+
+        if (shouldExclude && !isCurrentlyExcluded) {
+            user.excludedDealers.push(cleanId);
+        } else if (!shouldExclude && isCurrentlyExcluded) {
+            user.excludedDealers = user.excludedDealers.filter(d => d !== cleanId);
+        }
+
+        await user.save();
+        res.json({
+            success: true,
+            excluded: shouldExclude,
+            excludedDealers: user.excludedDealers,
+            message: shouldExclude ? `Dealer ${cleanId} excluded from portfolio` : `Dealer ${cleanId} restored to portfolio`
+        });
+    } catch (err) {
+        console.error('Exclude dealer error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── GET /auth/excluded-dealers (Get rep's excluded dealers list) ──
+router.get('/excluded-dealers', requireAuth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('excludedDealers assignedRep').lean();
+        const excludedIds = user?.excludedDealers || [];
+
+        const DealerLocation = require('../../models/DealerLocation');
+        const dealers = await DealerLocation.find({ dealerId: { $in: excludedIds } })
+            .select('dealerId dealerName statePrefix dealerRepresentative dealerPhoneNumber')
+            .lean();
+
+        res.json({
+            success: true,
+            excludedIds,
+            dealers
+        });
+    } catch (err) {
+        console.error('Get excluded dealers error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 module.exports = router;

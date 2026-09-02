@@ -65,6 +65,36 @@ const dealerProfileSchema = new mongoose.Schema({
         default: null
     },
 
+    // ── Custom System Status (Dead Dealers / Active Lifecycle) ──
+    systemStatus: {
+        type: String,
+        enum: ['active', 'closed', 'bought_out', 'no_longer_in_service'],
+        default: 'active',
+        index: true
+    },
+    systemStatusReason: { type: String, default: null },
+    systemStatusChangedAt: { type: Date, default: null },
+    systemStatusChangedBy: { type: String, default: null },
+
+    // ── Contacts ──
+    contacts: [{
+        name: { type: String, trim: true, default: '' },
+        title: { type: String, trim: true, default: '' },
+        phone: { type: String, trim: true, default: '' },
+        email: { type: String, trim: true, default: '' },
+        isPrimary: { type: Boolean, default: false }
+    }],
+
+    // ── Badger Maps Metadata ──
+    badgerData: {
+        badgerId: { type: Number, default: null },
+        accountOwner: { type: String, trim: true, default: null },
+        notes: { type: String, default: null },
+        lastCheckinDate: { type: Date, default: null },
+        daysSinceLastCheckin: { type: Number, default: null },
+        lastSyncedAt: { type: Date, default: null }
+    },
+
     // ── 4 Primary DRD Classification Buckets ──
     relationshipDemand: {
         type: String,

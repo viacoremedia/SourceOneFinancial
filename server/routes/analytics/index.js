@@ -1569,6 +1569,13 @@ router.get('/dealers/small', async (req, res) => {
         const REP_ALIAS_MAP = getRepAliasMap();
 
         const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
+        baseMatch.systemStatus = { $nin: ['closed', 'bought_out', 'no_longer_in_service'] };
+
+        // Inside sales reps automatically exclude their personal excluded accounts
+        if (req.user && req.user.role === 'inside_rep' && req.user.excludedDealers && req.user.excludedDealers.length > 0) {
+            baseMatch.dealerId = { $nin: req.user.excludedDealers };
+        }
+
         if (statesParam && statesParam.length > 0) {
             baseMatch.statePrefix = { $in: statesParam };
         }

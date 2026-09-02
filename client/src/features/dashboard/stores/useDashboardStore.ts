@@ -204,7 +204,10 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
     })),
 
   setSearchQuery: (query: string) =>
-    set({ searchQuery: query }),
+    set((state) => ({
+      searchQuery: query,
+      filterVersion: state.filterVersion + 1,
+    })),
 
   setLatestReportDate: (latestDate: string) =>
     set((state) => {

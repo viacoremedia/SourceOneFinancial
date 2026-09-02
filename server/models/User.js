@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema({
         trim: true,
         default: null,
     },
+    // For inside reps: dealers excluded from their portfolio view & calculations
+    excludedDealers: [{
+        type: String,
+        uppercase: true,
+        trim: true,
+    }],
     status: {
         type: String,
         enum: ['invited', 'active', 'disabled'],

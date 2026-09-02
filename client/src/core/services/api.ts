@@ -632,6 +632,32 @@ export interface DealerProfileItem {
   dealerName: string;
   statePrefix?: string | null;
   assignedRep?: string | null;
+  systemStatus?: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service';
+  systemStatusReason?: string | null;
+  contacts?: Array<{
+    name: string;
+    title: string;
+    phone: string;
+    email: string;
+    isPrimary?: boolean;
+  }>;
+  badgerData?: {
+    badgerId?: number | null;
+    accountName?: string | null;
+    matchedCode?: string | null;
+    matchMethod?: string | null;
+    accountOwner?: string | null;
+    notes?: string | null;
+    lastCheckinDate?: string | null;
+    daysSinceLastCheckin?: number | null;
+    lastSyncedAt?: string | null;
+  } | null;
+  isExcludedByRep?: boolean;
+  dealerPhoneNumber?: string | null;
+  dealerAddress?: string | null;
+  dealerCity?: string | null;
+  dealerState?: string | null;
+  dealerPostalCode?: string | null;
   relationshipDemand: RelationshipDemandSegment;
   patternType?: string;
   confidenceScore: number;
@@ -955,6 +981,83 @@ export function getScorecardZipUrl(reportId: string): string {
   const token = localStorage.getItem('sourceone_token');
   const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
   return `${baseUrl}/analytics/pdf-scorecard/reports/${reportId}/download${tokenParam}`;
+}
+
+// ══════════════════════════════════════════════════
+// BADGER MAPS & DEALER LIFECYCLE APIS
+// ══════════════════════════════════════════════════
+
+export interface DealerContact {
+  name: string;
+  title: string;
+  phone: string;
+  email: string;
+  isPrimary?: boolean;
+}
+
+export interface DeadDealerItem {
+  _id: string;
+  dealerId: string;
+  dealerName: string;
+  statePrefix?: string;
+  dealerRepresentative?: string;
+  systemStatus: 'closed' | 'bought_out' | 'no_longer_in_service';
+  systemStatusReason?: string;
+  systemStatusChangedAt?: string;
+  systemStatusChangedBy?: string;
+  dealerPhoneNumber?: string;
+  dealerCity?: string;
+  dealerState?: string;
+}
+
+export async function syncBadgerAll(): Promise<{ success: boolean; message: string; status: any }> {
+  const { data } = await api.post('/dealers/sync-badger-all');
+  return data;
+}
+
+export async function getBadgerSyncStatus(): Promise<{ success: boolean; status: any }> {
+  const { data } = await api.get('/dealers/sync-badger-status');
+  return data;
+}
+
+export async function syncDealerBadger(dealerId: string): Promise<{ success: boolean; message: string; data: any }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/sync-badger`);
+  return data;
+}
+
+export async function setDealerSystemStatus(
+  dealerId: string,
+  status: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service',
+  reason?: string
+): Promise<{ success: boolean; message: string; dealer: any }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/system-status`, {
+    status,
+    reason
+  });
+  return data;
+}
+
+export async function getDeadDealers(): Promise<{ success: boolean; total: number; dealers: DeadDealerItem[] }> {
+  const { data } = await api.get('/dealers/dead');
+  return data;
+}
+
+export async function reviveDealer(dealerId: string): Promise<{ success: boolean; message: string; dealer: any }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/revive`);
+  return data;
+}
+
+export async function excludeDealer(
+  dealerId: string,
+  exclude?: boolean
+): Promise<{ success: boolean; excluded: boolean; excludedDealers: string[]; message: string }> {
+  const { data } = await api.post('/auth/exclude-dealer', { dealerId, exclude });
+  return data;
+}
+
+export async function getExcludedDealers(): Promise<{ success: boolean; excludedIds: string[]; dealers: any[] }> {
+  const { data } = await api.get('/auth/excluded-dealers');
+  return data;
 }
 
 export default api;
