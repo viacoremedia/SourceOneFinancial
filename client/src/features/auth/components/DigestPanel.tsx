@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import api from '../../../core/services/api';
+import api, { getRepMappings } from '../../../core/services/api';
 import styles from './DigestPanel.module.css';
 
 interface DigestData {
@@ -8,10 +8,13 @@ interface DigestData {
   totalDealers: number;
   totalGroups: number;
   totalSnapshotsToday: number;
+  repScoped?: boolean;
+  scopedRep?: string | null;
   status: {
     active: number;
     inactive30: number;
     inactive60: number;
+    inactive90: number;
     longInactive: number;
     neverActive: number;
   };
@@ -19,6 +22,7 @@ interface DigestData {
     active: number;
     inactive30: number;
     inactive60: number;
+    inactive90: number;
     longInactive: number;
   };
   events: {
@@ -53,12 +57,13 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   active: { label: 'Active', color: '#34d399' },
   '30d_inactive': { label: '30d Inactive', color: '#fbbf24' },
   '60d_inactive': { label: '60d Inactive', color: '#f97316' },
-  '90d_inactive': { label: '90d Inactive', color: '#ef4444' },
+  '90d_inactive': { label: '90d Inactive', color: '#ea580c' },
   '90d_plus_inactive': { label: '90d+ Inactive', color: '#ef4444' },
-  long_inactive: { label: '90d+ Inactive', color: '#ef4444' },
+  long_inactive: { label: 'Long Inactive', color: '#ef4444' },
   never_active: { label: 'Never Active', color: '#64748b' },
   inactive30: { label: '30d Inactive', color: '#fbbf24' },
   inactive60: { label: '60d Inactive', color: '#f97316' },
+  inactive90: { label: '90d Inactive', color: '#ea580c' },
   inactive90Plus: { label: '90d+ Inactive', color: '#ef4444' },
   neverActive: { label: 'Never Active', color: '#64748b' },
 };
@@ -71,7 +76,7 @@ function StatusBadge({ status }: { status: string }) {
     : (status || '—')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
-  const color = matched ? matched.color : clean.includes('90') || clean.includes('long') ? '#ef4444' : clean.includes('60') ? '#f97316' : clean.includes('30') ? '#fbbf24' : clean.includes('active') ? '#34d399' : '#94a3b8';
+  const color = matched ? matched.color : clean.includes('90') ? '#ea580c' : clean.includes('long') ? '#ef4444' : clean.includes('60') ? '#f97316' : clean.includes('30') ? '#fbbf24' : clean.includes('active') ? '#34d399' : '#94a3b8';
   return <span className={styles.statusBadge} style={{ color, fontWeight: 700 }}>{formattedLabel}</span>;
 }
 
@@ -80,6 +85,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
   const isInsideRep = user?.role === 'inside_rep';
   const assignedRep = user?.assignedRep;
 
+  const [repOptions, setRepOptions] = useState<string[]>([]);
   const [data, setData] = useState<DigestData | null>(null);
   const [dates, setDates] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -87,6 +93,12 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
   const [repFilter, setRepFilter] = useState<string>(isInsideRep && assignedRep ? assignedRep : '');
   const [flowFilter, setFlowFilter] = useState<string>('');
   const [activityMode, setActivityMode] = useState<'application' | 'approval' | 'booking'>('application');
+
+  useEffect(() => {
+    getRepMappings()
+      .then(res => setRepOptions(res.allReps || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (isInsideRep && assignedRep) {
@@ -108,12 +120,13 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
     }
   }, [open]);
 
-  // Fetch digest data when date changes
-  const fetchDigest = useCallback(async (date: string, mode: string) => {
+  // Fetch digest data when date, mode, or repFilter changes
+  const fetchDigest = useCallback(async (date: string, mode: string, rep: string) => {
     if (!date) return;
     setLoading(true);
     try {
-      const { data: res } = await api.get(`/reports/digest?date=${date}&activityMode=${mode}`);
+      const repQuery = rep ? `&rep=${encodeURIComponent(rep)}` : '';
+      const { data: res } = await api.get(`/reports/digest?date=${date}&activityMode=${mode}${repQuery}`);
       setData(res.data);
     } catch {
       setData(null);
@@ -123,8 +136,8 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
   }, []);
 
   useEffect(() => {
-    if (selectedDate && open) fetchDigest(selectedDate, activityMode);
-  }, [selectedDate, open, fetchDigest, activityMode]);
+    if (selectedDate && open) fetchDigest(selectedDate, activityMode, repFilter);
+  }, [selectedDate, open, fetchDigest, activityMode, repFilter]);
 
   if (!open) return null;
 
@@ -134,12 +147,12 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
     active: { in: 0, out: 0 },
     '30d_inactive': { in: 0, out: 0 },
     '60d_inactive': { in: 0, out: 0 },
+    '90d_inactive': { in: 0, out: 0 },
     long_inactive: { in: 0, out: 0 },
   };
 
   if (data) {
     for (const t of data.statusTransitions) {
-      if (repFilter && t.rep !== repFilter) continue;
       const key = `${t.from}→${t.to}`;
       if (!flowGroups[key]) flowGroups[key] = { from: t.from, to: t.to, count: 0 };
       flowGroups[key].count++;
@@ -150,22 +163,14 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
 
   const flowSummaryItems = Object.values(flowGroups).sort((a, b) => b.count - a.count);
 
-  // Extract unique reps from transitions
-  const allReps = data
-    ? [...new Set(data.statusTransitions.map(t => t.rep))].filter(r => r !== '—').sort()
-    : [];
-
   const filteredTransitions = data
     ? data.statusTransitions.filter(t => {
-        if (repFilter && t.rep !== repFilter) return false;
         if (flowFilter && `${t.from}→${t.to}` !== flowFilter) return false;
         return true;
       })
     : [];
 
-  const filteredAtRisk = data
-    ? data.atRiskDealers.filter(d => !repFilter || d.rep === repFilter)
-    : [];
+  const filteredAtRisk = data ? data.atRiskDealers : [];
 
   const activeRate = data && data.totalSnapshotsToday > 0
     ? Math.round((data.status.active / data.totalSnapshotsToday) * 100)
@@ -223,25 +228,46 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
           </div>
         </div>
 
-        {/* Activity Mode Toggle */}
-        <div className={styles.modeToggle}>
-          <span className={styles.modeLabel}>Status By</span>
-          {(['application', 'approval', 'booking'] as const).map(mode => (
-            <button
-              key={mode}
-              className={`${styles.modeBtn} ${activityMode === mode ? styles.modeBtnActive : ''}`}
-              onClick={() => setActivityMode(mode)}
-            >
-              {mode === 'application' ? 'App' : mode === 'approval' ? 'Appr' : 'Bkd'}
-            </button>
-          ))}
+        {/* Controls Bar: Mode Toggle + Rep Filter */}
+        <div className={styles.controlsBar}>
+          <div className={styles.modeToggle}>
+            <span className={styles.modeLabel}>Status By</span>
+            {(['application', 'approval', 'booking'] as const).map(mode => (
+              <button
+                key={mode}
+                className={`${styles.modeBtn} ${activityMode === mode ? styles.modeBtnActive : ''}`}
+                onClick={() => setActivityMode(mode)}
+              >
+                {mode === 'application' ? 'App' : mode === 'approval' ? 'Appr' : 'Bkd'}
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.repControls}>
+            {isInsideRep && assignedRep ? (
+              <span className={styles.lockedRepBadge}>
+                👤 {assignedRep}
+              </span>
+            ) : repOptions.length > 0 ? (
+              <select
+                className={styles.topRepSelect}
+                value={repFilter}
+                onChange={e => setRepFilter(e.target.value)}
+              >
+                <option value="">Company-Wide</option>
+                {repOptions.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            ) : null}
+          </div>
         </div>
 
         {loading && <div className={styles.loadingMsg}>Loading digest...</div>}
 
         {!loading && data && (
           <div className={styles.digestContent}>
-            {/* Status Cards */}
+            {/* Status Cards - 5 Standard Buckets */}
             <div className={styles.statusGrid}>
               <div className={styles.statusCard}>
                 <div className={styles.statusValue} style={{ color: '#34d399' }}>
@@ -283,6 +309,19 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                 )}
               </div>
               <div className={styles.statusCard}>
+                <div className={styles.statusValue} style={{ color: '#ea580c' }}>
+                  {(data.status.inactive90 || 0).toLocaleString()}
+                </div>
+                <div className={styles.statusLabel}>90d Inactive</div>
+                {data.hasYesterdayData && (
+                  <div className={styles.statusFlow}>
+                    {flows['90d_inactive'].in > 0 && <span className={styles.flowIn}>↑{flows['90d_inactive'].in}</span>}
+                    {flows['90d_inactive'].out > 0 && <span className={styles.flowOut}>↓{flows['90d_inactive'].out}</span>}
+                    {flows['90d_inactive'].in === 0 && flows['90d_inactive'].out === 0 && <span className={styles.flowNone}>—</span>}
+                  </div>
+                )}
+              </div>
+              <div className={styles.statusCard}>
                 <div className={styles.statusValue} style={{ color: '#ef4444' }}>
                   {data.status.longInactive.toLocaleString()}
                 </div>
@@ -300,7 +339,9 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
             {/* Active Rate */}
             <div className={styles.rateCard}>
               <div className={styles.rateHeader}>
-                <span className={styles.rateLabel}>Network Active Rate</span>
+                <span className={styles.rateLabel}>
+                  {data.repScoped && data.scopedRep ? `${data.scopedRep} Active Rate` : 'Network Active Rate'}
+                </span>
                 <span className={styles.rateValue} style={{
                   color: activeRate >= 50 ? '#34d399' : activeRate >= 30 ? '#fbbf24' : '#ef4444'
                 }}>{activeRate}%</span>
@@ -347,22 +388,15 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                   <h3 className={styles.sectionTitle}>
                     🔄 Status Changes ({filteredTransitions.length}{(repFilter || flowFilter) ? ` of ${data.statusTransitions.length}` : ''})
                   </h3>
-                  {isInsideRep && assignedRep ? (
+                  {repFilter ? (
                     <span style={{ fontSize: '0.78rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', padding: '4px 10px', borderRadius: '12px', fontWeight: 600 }}>
-                      Rep: {assignedRep}
+                      Rep: {repFilter}
                     </span>
-                  ) : allReps.length > 1 ? (
-                    <select
-                      className={styles.repFilter}
-                      value={repFilter}
-                      onChange={e => setRepFilter(e.target.value)}
-                    >
-                      <option value="">All Reps</option>
-                      {allReps.map(r => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
-                  ) : null}
+                  ) : (
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8', background: 'rgba(148, 163, 184, 0.08)', padding: '4px 10px', borderRadius: '12px' }}>
+                      Company-Wide
+                    </span>
+                  )}
                 </div>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>

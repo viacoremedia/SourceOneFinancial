@@ -165,7 +165,7 @@ router.get('/digest/dates', async (req, res) => {
 
 // ==========================================
 // GET /reports/digest — Get digest data as JSON
-// Query: ?date=2026-04-07 (optional, defaults to latest)
+// Query: ?date=2026-04-07 (optional, defaults to latest), ?activityMode=application, ?rep=Dan%20Zilberchtein
 // ==========================================
 router.get('/digest', async (req, res) => {
     try {
@@ -181,7 +181,13 @@ router.get('/digest', async (req, res) => {
             reportDate = latest ? latest.reportDate : new Date();
         }
 
-        const data = await collectDigestData(reportDate, req.query.activityMode || 'application');
+        // Inside sales reps are strictly scoped to their assigned rep
+        let repFilter = req.query.rep;
+        if (req.user && req.user.role === 'inside_rep' && req.user.assignedRep) {
+            repFilter = req.user.assignedRep;
+        }
+
+        const data = await collectDigestData(reportDate, req.query.activityMode || 'application', repFilter);
         res.json({ success: true, data });
     } catch (err) {
         console.error('Error fetching digest data:', err);

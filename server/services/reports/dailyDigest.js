@@ -12,15 +12,17 @@ const DailyDealerSnapshot = require('../../models/DailyDealerSnapshot');
 const DealerLocation = require('../../models/DealerLocation');
 const DealerGroup = require('../../models/DealerGroup');
 const SalesBudget = require('../../models/SalesBudget');
-const { resolveRepName } = require('../../config/repConfig');
+const { resolveRepName, getRepQuery } = require('../../config/repConfig');
 
 /**
  * Collect all data needed for the daily digest.
  * 
  * @param {Date} reportDate - The date of the ingested report
+ * @param {'application' | 'approval' | 'booking'} [activityMode='application']
+ * @param {string|null} [repFilter=null] - Optional sales rep filter (scopes all metrics to rep)
  * @returns {Promise<Object>} Collected metrics for template rendering
  */
-async function collectDigestData(reportDate, activityMode = 'application') {
+async function collectDigestData(reportDate, activityMode = 'application', repFilter = null) {
     // Normalize to midnight UTC for date comparisons
     const today = new Date(reportDate);
     today.setUTCHours(0, 0, 0, 0);
@@ -36,29 +38,53 @@ async function collectDigestData(reportDate, activityMode = 'application') {
         stateRepMap[b.state] = b.rep;
     }
 
-    // Determine whether to use pre-computed activityStatus or derive from daysSince
-    const useCustomMode = activityMode !== 'application';
+    // Determine rep location filter if scoped
+    let locIdsMatch = null;
+    let repScopedCount = 0;
+    let repScopedGroupsCount = 0;
+
+    if (repFilter && repFilter.trim() && repFilter !== 'all') {
+        const repQ = getRepQuery('dealerRepresentative', repFilter);
+        const locations = await DealerLocation.find(repQ).select('_id dealerGroup').lean();
+        locIdsMatch = locations.map(l => l._id);
+        repScopedCount = locations.length;
+        const groupIds = new Set(locations.map(l => l.dealerGroup?.toString()).filter(Boolean));
+        repScopedGroupsCount = groupIds.size;
+    }
+
+    const todayMatch = { reportDate: today };
+    const yesterdayMatch = { reportDate: yesterday };
+    if (locIdsMatch) {
+        todayMatch.dealerLocation = { $in: locIdsMatch };
+        yesterdayMatch.dealerLocation = { $in: locIdsMatch };
+    }
+
+    // Standard days-since field based on selected activity mode
     const daysSinceField = activityMode === 'approval'
         ? '$daysSinceLastApproval'
         : activityMode === 'booking'
             ? '$daysSinceLastBooking'
             : '$daysSinceLastApplication';
 
-    const statusSwitch = useCustomMode ? {
+    const daysFieldRaw = daysSinceField.slice(1);
+
+    // Derive 5 distinct buckets: active (<=30), 30d (31-60), 60d (61-90), 90d (91-120), long_inactive (>120), never_active (null)
+    const statusSwitch = {
         $switch: {
             branches: [
                 { case: { $eq: [daysSinceField, null] }, then: 'never_active' },
                 { case: { $lte: [daysSinceField, 30] }, then: 'active' },
                 { case: { $lte: [daysSinceField, 60] }, then: '30d_inactive' },
                 { case: { $lte: [daysSinceField, 90] }, then: '60d_inactive' },
+                { case: { $lte: [daysSinceField, 120] }, then: '90d_inactive' },
             ],
             default: 'long_inactive'
         }
-    } : '$activityStatus';
+    };
 
     // 1. Status breakdown for today
     const statusBreakdown = await DailyDealerSnapshot.aggregate([
-        { $match: { reportDate: today } },
+        { $match: todayMatch },
         { $addFields: { _derivedStatus: statusSwitch } },
         { $group: { _id: '$_derivedStatus', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
@@ -73,7 +99,7 @@ async function collectDigestData(reportDate, activityMode = 'application') {
 
     // 2. Status breakdown for yesterday (for day-over-day changes)
     const yesterdayBreakdown = await DailyDealerSnapshot.aggregate([
-        { $match: { reportDate: yesterday } },
+        { $match: yesterdayMatch },
         { $addFields: { _derivedStatus: statusSwitch } },
         { $group: { _id: '$_derivedStatus', count: { $sum: 1 } } },
     ]);
@@ -84,10 +110,9 @@ async function collectDigestData(reportDate, activityMode = 'application') {
     }
 
     // 3. Detect new events by comparing today vs yesterday snapshots
-    // Find dealers where lastApplicationDate changed
     const eventCounts = await DailyDealerSnapshot.aggregate([
         {
-            $match: { reportDate: today }
+            $match: todayMatch
         },
         {
             $lookup: {
@@ -158,17 +183,16 @@ async function collectDigestData(reportDate, activityMode = 'application') {
 
     const events = eventCounts[0] || { newApplications: 0, newApprovals: 0, newBookings: 0, reactivations: 0 };
 
-    // 4. Top 5 at-risk dealers (active but highest daysSinceLastApplication)
+    // 4. Top at-risk dealers (active but highest daysSince)
     const atRiskPipeline = [
         {
             $match: {
-                reportDate: today,
-                activityStatus: 'active',
-                daysSinceLastApplication: { $ne: null },
+                ...todayMatch,
+                [daysFieldRaw]: { $ne: null, $lte: 30 },
             }
         },
-        { $sort: { daysSinceLastApplication: -1 } },
-        { $limit: 5 },
+        { $sort: { [daysFieldRaw]: -1 } },
+        { $limit: locIdsMatch ? 15 : 5 },
         {
             $lookup: {
                 from: 'dealerlocations',
@@ -184,21 +208,35 @@ async function collectDigestData(reportDate, activityMode = 'application') {
                 dealerId: '$location.dealerId',
                 statePrefix: '$location.statePrefix',
                 dealerRepresentative: '$location.dealerRepresentative',
-                daysSinceLastApplication: 1,
-                activityStatus: 1,
+                daysSinceLastApplication: daysSinceField,
+                activityStatus: statusSwitch,
             }
         },
     ];
 
     const atRiskDealers = (await DailyDealerSnapshot.aggregate(atRiskPipeline))
         .map(d => ({ ...d, rep: resolveRepName(d.dealerRepresentative) || stateRepMap[d.statePrefix] || '—' }))
-        .sort((a, b) => a.rep.localeCompare(b.rep));
+        .sort((a, b) => a.rep.localeCompare(b.rep) || (b.daysSinceLastApplication - a.daysSinceLastApplication));
 
     // 5. Find dealers whose status actually changed (with names)
     let statusTransitions = [];
     if (yesterdayBreakdown.length > 0) {
+        const prevDaysField = daysSinceField.replace('$', '$prevSnap.');
+        const prevStatusSwitch = {
+            $switch: {
+                branches: [
+                    { case: { $eq: [prevDaysField, null] }, then: 'never_active' },
+                    { case: { $lte: [prevDaysField, 30] }, then: 'active' },
+                    { case: { $lte: [prevDaysField, 60] }, then: '30d_inactive' },
+                    { case: { $lte: [prevDaysField, 90] }, then: '60d_inactive' },
+                    { case: { $lte: [prevDaysField, 120] }, then: '90d_inactive' },
+                ],
+                default: 'long_inactive'
+            }
+        };
+
         statusTransitions = await DailyDealerSnapshot.aggregate([
-            { $match: { reportDate: today } },
+            { $match: todayMatch },
             {
                 $lookup: {
                     from: 'dailydealersnapshots',
@@ -220,21 +258,12 @@ async function collectDigestData(reportDate, activityMode = 'application') {
                 }
             },
             { $addFields: { prevSnap: { $arrayElemAt: ['$prev', 0] } } },
-            // Derive status for both today and yesterday based on activityMode
-            { $addFields: {
-                _todayStatus: statusSwitch,
-                _prevStatus: useCustomMode ? {
-                    $switch: {
-                        branches: [
-                            { case: { $eq: [daysSinceField.replace('$', '$prevSnap.'), null] }, then: 'never_active' },
-                            { case: { $lte: [daysSinceField.replace('$', '$prevSnap.'), 30] }, then: 'active' },
-                            { case: { $lte: [daysSinceField.replace('$', '$prevSnap.'), 60] }, then: '30d_inactive' },
-                            { case: { $lte: [daysSinceField.replace('$', '$prevSnap.'), 90] }, then: '60d_inactive' },
-                        ],
-                        default: 'long_inactive'
-                    }
-                } : '$prevSnap.activityStatus',
-            } },
+            {
+                $addFields: {
+                    _todayStatus: statusSwitch,
+                    _prevStatus: prevStatusSwitch,
+                }
+            },
             // Only keep rows where status actually changed
             {
                 $match: {
@@ -260,38 +289,43 @@ async function collectDigestData(reportDate, activityMode = 'application') {
                     dealerRepresentative: '$location.dealerRepresentative',
                     from: '$_prevStatus',
                     to: '$_todayStatus',
-                    daysSinceLastApplication: 1,
+                    daysSinceLastApplication: daysSinceField,
                 }
             },
             { $sort: { from: 1, to: 1, dealerName: 1 } },
-            { $limit: 50 }, // Cap to keep email reasonable
+            { $limit: 100 },
         ]);
         statusTransitions = statusTransitions
             .map(t => ({ ...t, rep: resolveRepName(t.dealerRepresentative) || stateRepMap[t.statePrefix] || '—' }))
             .sort((a, b) => a.rep.localeCompare(b.rep) || a.from.localeCompare(b.from));
     }
 
-    // 6. Network totals
-    const totalDealers = await DealerLocation.countDocuments();
-    const totalGroups = await DealerGroup.countDocuments();
+    // 6. Network/Portfolio totals
+    const totalDealers = locIdsMatch ? repScopedCount : await DealerLocation.countDocuments();
+    const totalGroups = locIdsMatch ? repScopedGroupsCount : await DealerGroup.countDocuments();
 
     return {
         reportDate: today,
         totalDealers,
         totalGroups,
         totalSnapshotsToday: totalToday,
+        repScoped: Boolean(locIdsMatch),
+        scopedRep: repFilter || null,
         status: {
             active: statusMap['active'] || 0,
             inactive30: statusMap['30d_inactive'] || 0,
             inactive60: statusMap['60d_inactive'] || 0,
-            longInactive: statusMap['long_inactive'] || 0,
+            inactive90: statusMap['90d_inactive'] || 0,
+            longInactive: (statusMap['long_inactive'] || 0) + (statusMap['never_active'] || 0),
             neverActive: statusMap['never_active'] || 0,
         },
         statusChanges: {
             active: (statusMap['active'] || 0) - (yesterdayMap['active'] || 0),
             inactive30: (statusMap['30d_inactive'] || 0) - (yesterdayMap['30d_inactive'] || 0),
             inactive60: (statusMap['60d_inactive'] || 0) - (yesterdayMap['60d_inactive'] || 0),
-            longInactive: (statusMap['long_inactive'] || 0) - (yesterdayMap['long_inactive'] || 0),
+            inactive90: (statusMap['90d_inactive'] || 0) - (yesterdayMap['90d_inactive'] || 0),
+            longInactive: ((statusMap['long_inactive'] || 0) + (statusMap['never_active'] || 0)) -
+                          ((yesterdayMap['long_inactive'] || 0) + (yesterdayMap['never_active'] || 0)),
         },
         events,
         atRiskDealers,
@@ -323,6 +357,7 @@ const STATUS_DISPLAY = {
     'active': { label: 'Active', color: '#34d399' },
     '30d_inactive': { label: '30d Inactive', color: '#fbbf24' },
     '60d_inactive': { label: '60d Inactive', color: '#f97316' },
+    '90d_inactive': { label: '90d Inactive', color: '#ea580c' },
     'long_inactive': { label: 'Long Inactive', color: '#ef4444' },
     'never_active': { label: 'Never Active', color: '#64748b' },
 };
@@ -348,7 +383,13 @@ async function generateDailyDigest(reportDate) {
     const subject = `📊 Source One Daily Digest — ${dateStr}`;
 
     // Compute gross in/out per status category from transitions
-    const flows = { active: { in: 0, out: 0 }, '30d_inactive': { in: 0, out: 0 }, '60d_inactive': { in: 0, out: 0 }, 'long_inactive': { in: 0, out: 0 } };
+    const flows = {
+        active: { in: 0, out: 0 },
+        '30d_inactive': { in: 0, out: 0 },
+        '60d_inactive': { in: 0, out: 0 },
+        '90d_inactive': { in: 0, out: 0 },
+        long_inactive: { in: 0, out: 0 }
+    };
     for (const t of data.statusTransitions) {
         if (flows[t.from]) flows[t.from].out++;
         if (flows[t.to]) flows[t.to].in++;
@@ -399,26 +440,31 @@ async function generateDailyDigest(reportDate) {
     </div>
 
     <!-- Summary Cards -->
-    <div style="display:flex;gap:8px;margin-bottom:24px;">
-      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:#34d399;">${data.status.active.toLocaleString()}</div>
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Active</div>
-        ${data.hasYesterdayData ? `<div style="font-size:12px;margin-top:4px;">${flowHtml('active')}</div>` : ''}
+    <div style="display:flex;gap:6px;margin-bottom:24px;">
+      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:#34d399;">${data.status.active.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Active</div>
+        ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('active')}</div>` : ''}
       </div>
-      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:#fbbf24;">${data.status.inactive30.toLocaleString()}</div>
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">30d Inactive</div>
-        ${data.hasYesterdayData ? `<div style="font-size:12px;margin-top:4px;">${flowHtml('30d_inactive')}</div>` : ''}
+      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:#fbbf24;">${data.status.inactive30.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">30d Inact</div>
+        ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('30d_inactive')}</div>` : ''}
       </div>
-      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:#f97316;">${data.status.inactive60.toLocaleString()}</div>
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">60d Inactive</div>
-        ${data.hasYesterdayData ? `<div style="font-size:12px;margin-top:4px;">${flowHtml('60d_inactive')}</div>` : ''}
+      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:#f97316;">${data.status.inactive60.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">60d Inact</div>
+        ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('60d_inactive')}</div>` : ''}
       </div>
-      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:#ef4444;">${data.status.longInactive.toLocaleString()}</div>
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Long Inactive</div>
-        ${data.hasYesterdayData ? `<div style="font-size:12px;margin-top:4px;">${flowHtml('long_inactive')}</div>` : ''}
+      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:#ea580c;">${data.status.inactive90.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">90d Inact</div>
+        ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('90d_inactive')}</div>` : ''}
+      </div>
+      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:#ef4444;">${data.status.longInactive.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Long Inact</div>
+        ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('long_inactive')}</div>` : ''}
       </div>
     </div>
 
