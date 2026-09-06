@@ -13,6 +13,7 @@ const EVENT_TYPES = [
     'ingestion_failed',   // CSV ingestion encountered an error
     'empty_payload',      // Request had no usable data
     'health_check',       // /webhook/health was called
+    'unauthorized_attempt', // Request failed token validation
 ];
 
 /**

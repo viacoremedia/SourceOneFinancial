@@ -38,6 +38,59 @@ function extractRequestMeta(req) {
 }
 
 // ==========================================
+// TOKEN AUTHENTICATION
+// ==========================================
+
+/**
+ * Extract token from Authorization header, custom headers, or query param.
+ */
+function extractToken(req) {
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+        const parts = authHeader.split(' ');
+        if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+            return parts[1].trim();
+        }
+        return authHeader.trim();
+    }
+    if (req.headers['x-webhook-token']) return String(req.headers['x-webhook-token']).trim();
+    if (req.headers['x-api-key']) return String(req.headers['x-api-key']).trim();
+    if (req.query && req.query.token) return String(req.query.token).trim();
+    return null;
+}
+
+/**
+ * Middleware to enforce webhook authentication.
+ */
+async function validateWebhookToken(req, res, next) {
+    const expectedToken = process.env.WEBHOOK_TOKEN;
+    if (!expectedToken) {
+        return next();
+    }
+
+    const providedToken = extractToken(req);
+    if (!providedToken || providedToken !== expectedToken) {
+        const requestMeta = extractRequestMeta(req);
+        await logWebhookEvent('unauthorized_attempt', {
+            ...requestMeta,
+            metadata: {
+                hasToken: !!providedToken,
+                tokenProvidedLength: providedToken ? providedToken.length : 0,
+            }
+        });
+
+        return res.status(401).json({
+            success: false,
+            error: 'Unauthorized',
+            message: 'Invalid or missing webhook authentication token.',
+            details: 'Please provide credentials via Authorization: Bearer <token>, x-webhook-token header, or token query parameter.'
+        });
+    }
+
+    next();
+}
+
+// ==========================================
 // MULTIPART PARSING
 // ==========================================
 
@@ -234,7 +287,7 @@ router.get('/logs', async (req, res) => {
 // ==========================================
 // POST /webhook — Receive data from Source One
 // ==========================================
-router.post('/', async (req, res) => {
+router.post('/', validateWebhookToken, async (req, res) => {
     const startTime = Date.now();
     const requestMeta = extractRequestMeta(req);
 
@@ -278,10 +331,13 @@ router.post('/', async (req, res) => {
 
             for (const file of files) {
                 const content = file.buffer.toString('utf8');
+                const hasValidOriginal = file.originalName && file.originalName !== 'unknown';
+                const fileName = hasValidOriginal 
+                    ? file.originalName 
+                    : (extractedName ? `${extractedName}${getExtension(file.mimeType)}` : 'upload.csv');
+
                 processedFiles.push({
-                    originalName: extractedName 
-                        ? `${extractedName}${getExtension(file.mimeType)}` 
-                        : file.originalName,
+                    originalName: fileName,
                     mimeType: file.mimeType,
                     content: content
                 });
@@ -374,117 +430,140 @@ router.post('/', async (req, res) => {
         // Detect if any files are CSVs that we know how to process
         let processingTriggered = false;
         const ingestionResults = [];
-        const csvFiles = processedFiles.filter(f =>
-            f.originalName.endsWith('.csv') ||
-            (f.mimeType && f.mimeType.includes('csv'))
-        );
+        const { parseCSV, detectParser } = require('../services/csvParserService');
+        const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
+        const { ingestApplicationCSV } = require('../services/applicationIngestionService');
+        const { ingestCommunicationCSV } = require('../services/communicationIngestionService');
+        const { ingestDealerInfoCSV } = require('../services/dealerInfoIngestionService');
 
-        if (csvFiles.length > 0) {
-            // Check if the CSV headers match a known parser
-            const { parseCSV, detectParser } = require('../services/csvParserService');
-            const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
-            const { ingestApplicationCSV } = require('../services/applicationIngestionService');
-            const { ingestCommunicationCSV } = require('../services/communicationIngestionService');
-            const { ingestDealerInfoCSV } = require('../services/dealerInfoIngestionService');
+        // Map parser names to their ingestion functions
+        const ingestionRouter = {
+            'dealer_information': ingestDealerInfoCSV,
+            'dealer_communication': ingestCommunicationCSV,
+            'main_application': ingestApplicationCSV,
+            'dealer_metrics': ingestDealerMetricsCSV,
+        };
 
-            // Map parser names to their ingestion functions
-            const ingestionRouter = {
-                'dealer_metrics': ingestDealerMetricsCSV,
-                'main_application': ingestApplicationCSV,
-                'dealer_communication': ingestCommunicationCSV,
-                'dealer_information': ingestDealerInfoCSV,
-            };
-
-            for (const csvFile of csvFiles) {
+        // Filter candidates: check filename, mimeType, or header matching
+        const candidateFiles = processedFiles.filter(f => {
+            if (f.originalName && f.originalName.toLowerCase().endsWith('.csv')) return true;
+            if (f.mimeType && (f.mimeType.toLowerCase().includes('csv') || f.mimeType.toLowerCase().includes('comma-separated'))) return true;
+            if (f.content && typeof f.content === 'string') {
                 try {
-                    const firstLine = csvFile.content.split('\n')[0];
-                    const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-                    const parserName = detectParser(headers);
+                    const cleaned = f.content.replace(/^\uFEFF/, '').trim();
+                    const firstLine = cleaned.split('\n')[0].replace(/\r$/, '').trim();
+                    const headerResult = parseCSV(firstLine + '\nstub');
+                    if (detectParser(headerResult.headers)) return true;
+                } catch (e) {}
+            }
+            return false;
+        });
 
-                    if (parserName) {
-                        processingTriggered = true;
-                        console.log(`  CSV detected as "${parserName}" format — triggering ingestion`);
-
-                        // ── LOG: Ingestion start ──
-                        await logWebhookEvent('ingestion_start', {
-                            ...requestMeta,
-                            fileName: csvFile.originalName,
-                            parserDetected: parserName,
-                        });
-
-                        // Route to the correct ingestion service
-                        const ingestFn = ingestionRouter[parserName];
-                        if (!ingestFn) {
-                            console.warn(`  No ingestion handler registered for parser "${parserName}"`);
-                            ingestionResults.push({
-                                file: csvFile.originalName,
-                                parser: parserName,
-                                status: 'skipped',
-                                reason: `No ingestion handler for parser "${parserName}"`
-                            });
-                            continue;
-                        }
-
-                        // Await inline — Vercel serverless kills the process after
-                        // res.send(), so setImmediate/fire-and-forget never completes.
-                        try {
-                            const result = await ingestFn(
-                                csvFile.content,
-                                payload._id,
-                                csvFile.originalName
-                            );
-                            console.log(`  Ingestion complete for "${csvFile.originalName}":`, JSON.stringify(result));
-
-                            // ── LOG: Ingestion complete ──
-                            await logWebhookEvent('ingestion_complete', {
-                                ...requestMeta,
-                                fileName: csvFile.originalName,
-                                parserDetected: parserName,
-                                durationMs: Date.now() - startTime,
-                                metadata: {
-                                    reportDate: result.reportDate || null,
-                                    dealersProcessed: result.dealersProcessed || result.recordsProcessed || 0,
-                                    newDealers: result.newDealers || result.newRecords || 0,
-                                    rowCount: result.rowCount || 0,
-                                }
-                            });
-
-                            ingestionResults.push({
-                                file: csvFile.originalName,
-                                parser: parserName,
-                                status: 'completed',
-                                ...result
-                            });
-                        } catch (ingestionError) {
-                            console.error(`  Ingestion FAILED for "${csvFile.originalName}":`, ingestionError.message);
-
-                            // ── LOG: Ingestion failed ──
-                            await logWebhookEvent('ingestion_failed', {
-                                ...requestMeta,
-                                fileName: csvFile.originalName,
-                                parserDetected: parserName,
-                                error: ingestionError.message,
-                                durationMs: Date.now() - startTime,
-                            });
-
-                            ingestionResults.push({
-                                file: csvFile.originalName,
-                                parser: parserName,
-                                status: 'failed',
-                                error: ingestionError.message
-                            });
-                        }
-                    }
-                } catch (detectError) {
-                    console.warn(`  Could not detect CSV format: ${detectError.message}`);
-
-                    // ── LOG: Parse error on CSV detection ──
-                    await logWebhookEvent('parse_error', {
-                        ...requestMeta,
-                        fileName: csvFile.originalName,
-                        error: detectError.message,
-                    });
+        // Determine parser for each candidate file using robust parseCSV
+        const detectedFiles = [];
+        for (const f of candidateFiles) {
+            try {
+                const cleaned = f.content.replace(/^\uFEFF/, '').trim();
+                const firstLine = cleaned.split('\n')[0].replace(/\r$/, '').trim();
+                const headerResult = parseCSV(firstLine + '\nstub_row');
+                const parserName = detectParser(headerResult.headers);
+                if (parserName) {
+                    detectedFiles.push({ file: f, parserName });
+                } else {
+                    console.warn(`  Unrecognized CSV headers in "${f.originalName}"`);
                 }
+            } catch (err) {
+                console.warn(`  Could not parse headers of "${f.originalName}": ${err.message}`);
+                await logWebhookEvent('parse_error', {
+                    ...requestMeta,
+                    fileName: f.originalName,
+                    error: err.message
+                });
+            }
+        }
+
+        // Sort detected files in dependency order:
+        // 1. dealer_information -> 2. dealer_communication -> 3. main_application -> 4. dealer_metrics
+        const ORDER_WEIGHT = {
+            'dealer_information': 1,
+            'dealer_communication': 2,
+            'main_application': 3,
+            'dealer_metrics': 4,
+        };
+        detectedFiles.sort((a, b) => (ORDER_WEIGHT[a.parserName] || 99) - (ORDER_WEIGHT[b.parserName] || 99));
+
+        for (const { file: csvFile, parserName } of detectedFiles) {
+            processingTriggered = true;
+            console.log(`  CSV detected as "${parserName}" format — triggering ingestion`);
+
+            // ── LOG: Ingestion start ──
+            await logWebhookEvent('ingestion_start', {
+                ...requestMeta,
+                fileName: csvFile.originalName,
+                parserDetected: parserName,
+            });
+
+            // Route to the correct ingestion service
+            const ingestFn = ingestionRouter[parserName];
+            if (!ingestFn) {
+                console.warn(`  No ingestion handler registered for parser "${parserName}"`);
+                ingestionResults.push({
+                    file: csvFile.originalName,
+                    parser: parserName,
+                    status: 'skipped',
+                    reason: `No ingestion handler for parser "${parserName}"`
+                });
+                continue;
+            }
+
+            // Await inline — Vercel serverless kills the process after
+            // res.send(), so setImmediate/fire-and-forget never completes.
+            try {
+                const result = await ingestFn(
+                    csvFile.content,
+                    payload._id,
+                    csvFile.originalName
+                );
+                console.log(`  Ingestion complete for "${csvFile.originalName}":`, JSON.stringify(result));
+
+                // ── LOG: Ingestion complete ──
+                await logWebhookEvent('ingestion_complete', {
+                    ...requestMeta,
+                    fileName: csvFile.originalName,
+                    parserDetected: parserName,
+                    durationMs: Date.now() - startTime,
+                    metadata: {
+                        reportDate: result.reportDate || null,
+                        dealersProcessed: result.dealersProcessed || result.recordsProcessed || 0,
+                        newDealers: result.newDealers || result.newRecords || 0,
+                        rowCount: result.rowCount || 0,
+                    }
+                });
+
+                ingestionResults.push({
+                    file: csvFile.originalName,
+                    parser: parserName,
+                    status: 'completed',
+                    ...result
+                });
+            } catch (ingestionError) {
+                console.error(`  Ingestion FAILED for "${csvFile.originalName}":`, ingestionError.message);
+
+                // ── LOG: Ingestion failed ──
+                await logWebhookEvent('ingestion_failed', {
+                    ...requestMeta,
+                    fileName: csvFile.originalName,
+                    parserDetected: parserName,
+                    error: ingestionError.message,
+                    durationMs: Date.now() - startTime,
+                });
+
+                ingestionResults.push({
+                    file: csvFile.originalName,
+                    parser: parserName,
+                    status: 'failed',
+                    error: ingestionError.message
+                });
             }
         }
 
@@ -597,12 +676,22 @@ router.get('/ingestion-log', async (req, res) => {
 // POST /webhook/reingest/:id — Re-trigger ingestion for a specific payload
 // Use this to manually re-process payloads that failed or were missed.
 // ==========================================
-router.post('/reingest/:id', async (req, res) => {
+router.post('/reingest/:id', validateWebhookToken, async (req, res) => {
     try {
         const WebhookPayload = require('../models/WebhookPayload');
         const FileIngestionLog = require('../models/FileIngestionLog');
-        const { detectParser } = require('../services/csvParserService');
+        const { parseCSV, detectParser } = require('../services/csvParserService');
         const { ingestDealerMetricsCSV } = require('../services/dealerMetricsIngestionService');
+        const { ingestApplicationCSV } = require('../services/applicationIngestionService');
+        const { ingestCommunicationCSV } = require('../services/communicationIngestionService');
+        const { ingestDealerInfoCSV } = require('../services/dealerInfoIngestionService');
+
+        const ingestionRouter = {
+            'dealer_information': ingestDealerInfoCSV,
+            'dealer_communication': ingestCommunicationCSV,
+            'main_application': ingestApplicationCSV,
+            'dealer_metrics': ingestDealerMetricsCSV,
+        };
 
         const payload = await WebhookPayload.findById(req.params.id).lean();
         if (!payload) {
@@ -614,31 +703,30 @@ router.post('/reingest/:id', async (req, res) => {
 
         const results = [];
         for (const file of (payload.files || [])) {
-            const isCSV = file.originalName.endsWith('.csv') ||
-                (file.mimeType && file.mimeType.includes('csv'));
-            if (!isCSV) continue;
+            if (!file.content || typeof file.content !== 'string') continue;
 
             try {
-                const firstLine = file.content.split('\n')[0];
-                const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-                const parserName = detectParser(headers);
+                const cleaned = file.content.replace(/^\uFEFF/, '').trim();
+                const firstLine = cleaned.split('\n')[0].replace(/\r$/, '').trim();
+                const headerResult = parseCSV(firstLine + '\nstub_row');
+                const parserName = detectParser(headerResult.headers);
 
-                if (!parserName) {
-                    results.push({ file: file.originalName, status: 'skipped', reason: 'Unknown format' });
+                if (!parserName || !ingestionRouter[parserName]) {
+                    results.push({ file: file.originalName, status: 'skipped', reason: `Unknown format or no handler for "${parserName}"` });
                     continue;
                 }
 
-                const result = await ingestDealerMetricsCSV(
+                const ingestFn = ingestionRouter[parserName];
+                const result = await ingestFn(
                     file.content,
                     payload._id,
                     file.originalName
                 );
                 results.push({
                     file: file.originalName,
+                    parser: parserName,
                     status: 'completed',
-                    reportDate: result.reportDate,
-                    dealersProcessed: result.dealersProcessed,
-                    processingTimeMs: result.processingTimeMs
+                    ...result
                 });
             } catch (err) {
                 results.push({ file: file.originalName, status: 'failed', error: err.message });

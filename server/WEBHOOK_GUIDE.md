@@ -1,77 +1,169 @@
-# Webhook Integration Guide – Source One Dealer Data
+# Webhook Integration Guide — Source One Dealer Data
 
-## Endpoint Details
+This document specifies the technical requirements, authentication credentials, and expected schemas for delivering automated daily/weekly report files to the Viacore Source One Platform.
 
-- **URL:** `https://source-one-data-transfer.vercel.app/webhook`
+---
+
+## 1. Webhook Endpoint Details
+
+- **Production URL:** `https://source-one-data-transfer.vercel.app/webhook`
 - **Method:** `POST`
-- **Content-Type:** `multipart/form-data`, `text/csv`, or raw binary
+- **Authentication:** Token-based (Required)
+- **Content-Type Supported:** 
+  - `multipart/form-data` (Recommended for scheduled multi-file or single-file exports)
+  - `text/csv` / `text/plain` (Direct raw CSV body delivery)
+  - `application/octet-stream` (Raw binary stream)
 
-## Payload Requirements
+---
 
-The endpoint accepts CSV file delivery in multiple formats:
+## 2. Authentication & Credentials
 
-1. **Multipart form-data** — Attach the CSV as a standard file upload field
-2. **Raw text/CSV** — Send the CSV content directly as the request body with `Content-Type: text/csv`
-3. **Binary** — Raw binary body with appropriate content-type
+All incoming webhook requests must supply the pre-shared authentication token.
 
-You may include additional metadata (e.g., `reportName`, `source`) as standard text fields within the form data.
+### Credential Value
+```
+so_wh_live_ecn_8f2b7a91c4e6d302
+```
 
-## Testing the Webhook
+### Supported Header Methods (Any of the following):
+1. **Standard Bearer Token (Recommended):**
+   ```http
+   Authorization: Bearer so_wh_live_ecn_8f2b7a91c4e6d302
+   ```
+2. **Custom Webhook Token Header:**
+   ```http
+   x-webhook-token: so_wh_live_ecn_8f2b7a91c4e6d302
+   ```
+3. **API Key Header:**
+   ```http
+   x-api-key: so_wh_live_ecn_8f2b7a91c4e6d302
+   ```
+4. **Query Parameter (Fallback):**
+   ```http
+   POST https://source-one-data-transfer.vercel.app/webhook?token=so_wh_live_ecn_8f2b7a91c4e6d302
+   ```
+
+Requests missing a valid token will receive `401 Unauthorized`.
+
+---
+
+## 3. Supported Report Tables & Column Schemas
+
+The webhook ingestion pipeline automatically detects which table is being delivered by inspecting CSV headers (case-insensitive, handling Windows/Excel BOM characters). You may upload files individually on their own schedule or together in a single multi-part batch.
+
+### Table 1: Master Dealer Information (`dealer_information`)
+- **Purpose:** Enriches dealer profiles, contact details, enrollment dates, and platform configuration flags.
+- **Key Identifying Headers:** `DEALERID`, `CLIENTDEALERID`, `ISACTIVE`, `ENROLLMENTDATE`, `DEALERNAME`
+
+### Table 2: Sales Communications (`dealer_communication`)
+- **Purpose:** Tracks sales representative dealer visits, touchpoints, call notes, and contact events.
+- **Key Identifying Headers:** `SOURCESYSTEMCOMMUNICATIONID`, `COMMUNICATIONTYPE`, `COMMUNICATIONEVENTDATETIME`, `COMMUNICATIONUSERFULLNAME`, `RECIPIENTORGANIZATIONNAME`
+
+### Table 3: Main Application Pipeline (`main_application`)
+- **Purpose:** Individual loan application records, underwriting stages, approvals, and booking metrics.
+- **Key Identifying Headers:** `APPLICATIONID`, `AMOUNTFINANCED`, `STATUS`, `DEALERNAME`, `APPLICATIONDATE DATE`
+
+*(Note: Legacy single-table `dealer_metrics` format remains supported for backwards compatibility).*
+
+---
+
+## 4. Transmission Examples
+
+### A. Multipart Form-Data (Recommended for multi-file daily batches)
+Attach each CSV as a file field. File field names can be arbitrary (`file`, `report`, `table`, etc.):
 
 ```bash
-# Multipart file upload
 curl -X POST "https://source-one-data-transfer.vercel.app/webhook" \
-  -F "file=@/path/to/your/test_file.csv" \
-  -F "source=omni-bi"
+  -H "Authorization: Bearer so_wh_live_ecn_8f2b7a91c4e6d302" \
+  -F "dealers=@/path/to/dealer_information.csv" \
+  -F "comms=@/path/to/salescomms.csv" \
+  -F "apps=@/path/to/main_application.csv"
+```
 
-# Raw CSV body
+### B. Single File Multipart Upload
+```bash
 curl -X POST "https://source-one-data-transfer.vercel.app/webhook" \
+  -H "Authorization: Bearer so_wh_live_ecn_8f2b7a91c4e6d302" \
+  -F "file=@/path/to/daily_report.csv"
+```
+
+### C. Raw Text/CSV Direct Body Upload
+When sending raw CSV in the HTTP body:
+```bash
+curl -X POST "https://source-one-data-transfer.vercel.app/webhook" \
+  -H "Authorization: Bearer so_wh_live_ecn_8f2b7a91c4e6d302" \
   -H "Content-Type: text/csv" \
-  -H "X-Filename: daily_report.csv" \
-  --data-binary @/path/to/your/test_file.csv
+  -H "X-Filename: daily_applications.csv" \
+  --data-binary @/path/to/daily_applications.csv
 ```
 
-## Expected Responses
+---
 
-| Status | Meaning |
-|--------|---------|
-| **200 OK** | Webhook processed and data saved successfully |
-| **400 Bad Request** | Empty payload — no data or files provided |
-| **500 Internal Server Error** | Unexpected processing error |
+## 5. Expected API Responses
 
-## Diagnostic Endpoints
+| Status Code | Response Body | Description |
+|---|---|---|
+| **200 OK** | `{"success": true, "message": "Webhook processed and saved successfully", "filesReceived": 3, "processing": true, "ingestion": [...]}` | Payload persisted to `WebhookPayload` and all tables parsed & ingested |
+| **401 Unauthorized** | `{"success": false, "error": "Unauthorized", "message": "Invalid or missing webhook authentication token."}` | Token missing or incorrect |
+| **400 Bad Request** | `{"success": false, "error": "Empty Payload", "message": "No data or files were provided in the request."}` | Empty body or missing files |
+| **500 Internal Error**| `{"success": false, "error": "Internal Server Error", "details": "..."}` | Unexpected processing error |
 
-### Health Check
-```
+---
+
+## 6. Diagnostic & Monitoring Endpoints
+
+### Health Check (Public / Uptime Monitoring)
+```http
 GET https://source-one-data-transfer.vercel.app/webhook/health
 ```
-Returns server status, database connectivity, last webhook received, and event counts for the last 24 hours.
+Returns system timestamp, database connectivity status, last received delivery, and 24-hour event counts.
 
-### Event Logs
+### Event Logs (Auditing)
+```http
+GET https://source-one-data-transfer.vercel.app/webhook/logs?limit=50
 ```
-GET https://source-one-data-transfer.vercel.app/webhook/logs
-```
-Returns persistent webhook event history. Query parameters:
-- `?limit=50` — Number of entries (max 200)
-- `?eventType=request_received` — Filter by event type
-- `?since=2026-04-01` — Filter from date
-- `?until=2026-04-14` — Filter to date
-
-### Recent Payloads
-```
-GET https://source-one-data-transfer.vercel.app/webhook
-```
-Returns the most recent raw webhook payloads (for debugging content).
+Returns queryable audit trail including `request_received`, `parse_success`, `ingestion_complete`, `ingestion_failed`, and `unauthorized_attempt`.
 
 ### Ingestion History
+```http
+GET https://source-one-data-transfer.vercel.app/webhook/ingestion-log?limit=20
 ```
-GET https://source-one-data-transfer.vercel.app/webhook/ingestion-log
+Returns detailed row counts, processing durations, and status per processed CSV.
+
+---
+
+## 7. Partner Email Template (Reply to Andrew Bowgen & Tim Kim)
+
+```markdown
+Hi Andrew, Tim,
+
+Great to hear from you, and welcome aboard, Tim! We are thrilled to get the daily automated reports connected to Viacore.
+
+Our receiving webhook is re-enabled, hardened, and ready for your daily distribution. Here are the integration details:
+
+### Endpoint
+- **URL:** https://source-one-data-transfer.vercel.app/webhook
+- **Method:** POST
+- **Authentication:** Bearer Token
+
+### Credentials
+- **Token:** so_wh_live_ecn_8f2b7a91c4e6d302
+- **Header:** `Authorization: Bearer so_wh_live_ecn_8f2b7a91c4e6d302`
+  *(Alternatively, you can pass `x-webhook-token: so_wh_live_ecn_8f2b7a91c4e6d302`)*
+
+### Supported Formats & Tables
+You can send the three report tables either as separate daily files or together in a single multipart POST:
+1. **Master Dealer Information** (`dealer_information_...csv`)
+2. **Sales Communications** (`salescomms_...csv`)
+3. **Main Application Pipeline** (`Main_data_...csv`)
+
+Our ingestion engine automatically detects the table format from the headers, logs every delivery to our audit database, and updates the dashboard live.
+
+Feel free to send a test delivery anytime. You can also verify the service status at:
+https://source-one-data-transfer.vercel.app/webhook/health
+
+Looking forward to our call next week to finalize the distribution schedule!
+
+Best regards,
+Josh
 ```
-Returns CSV processing results with status, row counts, and timing.
-
-## Troubleshooting
-
-1. **No data arriving?** → Hit `/webhook/health` to confirm the server is up and check `lastReceived`
-2. **Data arriving but not processing?** → Check `/webhook/logs?eventType=parse_error` for format issues
-3. **Ingestion failing?** → Check `/webhook/logs?eventType=ingestion_failed` for error details
-4. **Re-process a failed payload?** → `POST /webhook/reingest/:payloadId`
