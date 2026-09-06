@@ -61,7 +61,8 @@ export async function getGroups(
   trend?: string,
   status?: string | null,
   rep?: string,
-  drd?: string | null
+  drd?: string | null,
+  signal?: AbortSignal
 ): Promise<DealerGroup[]> {
   const params: Record<string, string> = {};
   if (states && states.length > 0) params.states = states.join(',');
@@ -72,7 +73,7 @@ export async function getGroups(
   if (status) params.status = status;
   if (rep) params.rep = rep;
   if (drd) params.drd = drd;
-  const { data } = await api.get('/analytics/groups', { params });
+  const { data } = await api.get('/analytics/groups', { params, signal });
   return data.groups;
 }
 
@@ -130,6 +131,7 @@ export interface SmallDealerParams {
   endDate?: string;
   trend?: string;
   drd?: string | null;
+  signal?: AbortSignal;
 }
 
 export interface DealerStatusBreakdown {
@@ -176,8 +178,14 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.endDate) queryParams.endDate = params.endDate;
   if (params.trend) queryParams.trend = params.trend;
   if (params.drd) queryParams.drd = params.drd;
-  const { data } = await api.get('/analytics/dealers/small', { params: queryParams });
-  return { dealers: data.dealers, statusBreakdown: data.statusBreakdown || null, statusTransitions: data.statusTransitions || [], pagination: data.pagination };
+  const { data } = await api.get('/analytics/dealers/small', { params: queryParams, signal: params.signal });
+  return {
+    dealers: data.dealers,
+    statusBreakdown: data.statusBreakdown || null,
+    statusTransitions: data.statusTransitions || [],
+    comparisonLabel: data.comparisonLabel,
+    pagination: data.pagination,
+  };
 }
 
 // ── Single Dealer Trend ──

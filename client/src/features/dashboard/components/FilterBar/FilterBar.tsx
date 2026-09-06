@@ -154,6 +154,7 @@ export function FilterBar({
     let activeCount = 0;
     let inactive30 = 0;
     let inactive60 = 0;
+    let inactive90 = 0;
     let longInactive = 0;
 
     for (const g of filteredGroups) {
@@ -162,6 +163,7 @@ export function FilterBar({
         activeCount += g.summary.activeCount;
         inactive30 += g.summary.inactive30Count;
         inactive60 += g.summary.inactive60Count;
+        inactive90 += g.summary.inactive90Count ?? 0;
         longInactive += g.summary.longInactiveCount;
       }
     }
@@ -177,7 +179,7 @@ export function FilterBar({
       activePercent,
       inactive30,
       inactive60,
-      inactive90: 0,
+      inactive90,
       longInactive,
     };
   }, [filteredGroups]);
@@ -611,6 +613,7 @@ export function FilterBar({
                     { key: 'active', label: `Active (${stats.activeCount})` },
                     { key: '30d_inactive', label: `30d Inactive (${stats.inactive30})` },
                     { key: '60d_inactive', label: `60d Inactive (${stats.inactive60})` },
+                    { key: '90d_inactive', label: `90d Inactive (${stats.inactive90 || 0})` },
                     { key: 'long_inactive', label: `Long Inactive (${stats.longInactive})` },
                   ].map((s) => (
                     <button

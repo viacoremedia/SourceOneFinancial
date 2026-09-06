@@ -1,1 +1,214 @@
-Welcome to the Source One Dealer Analytics Platform. Today we're going to walk through every feature, control, and workflow across this system, step by step, so you feel completely confident navigating it on your own. At its core, this platform continuously unifies three data streams into a single operational view: First, the Application Stream. Every credit application ever submitted, its underwriting decision, FICO score, lender assignment, approval status, and funded close date. Second, the Dealership Directory. Every active and historical dealer rooftop in the country, organized into parent dealer groups, mapped to assigned sales representatives and state territories. And third, the Field Communication Log. Every in-person visit, phone call, and email our road reps have logged with a dealership. By joining these three streams in real time, the platform surfaces things you can't easily see in a standard reporting dashboard , like which dealerships only produce volume after a rep visits in person, which approved deals are going unfunded, and where territory churn is happening right now. Let's start at the top of the screen with the Executive KPI Banner. Right below the header is the Executive KPI Banner. This gives you a five-second pulse on network health for whatever date range you have selected. Across the seven cards from left to right: Apps shows total credit applications submitted in this period, with a trend pill showing the percentage change compared to the prior period. Approvals shows total applications that received an underwriting approval. Funded Booked Volume is our cash production number , total dollar volume and deal count funded and closed during this calendar window, regardless of when the customer originally applied. App Booked Volume is our cohort origination number , dollar volume originating strictly from applications submitted within this period. This lets you track how deals from a specific submission window mature over time. Look-to-Book is booked deals from this period's applications divided by total applications. It measures overall pipeline conversion. Approval-to-Book is booked deals divided by approved applications. This is your pure closing pull-through rate , taking out underwriting declines to measure how well the dealer closes once they receive an approval. And Average FICO is the weighted average primary credit score across all applications in the window. Every one of these KPIs is reactive: change the date range or filter to a specific rep or state, and the entire banner recalculates on the fly. Directly above the main table is the Filter Bar. This is your surgical tool for narrowing down your view. The Rep Filter lets you select any field rep from the dropdown. The colored dot next to each name reflects their live territory Heat Index status , green for strong, amber for average, orange for overburdened, and red for underperforming. The State Filter automatically narrows to only the states in the selected rep's territory, or lets you pick any state across the nation. The Portfolio Filter lets you toggle between all accounts and the House portfolio , S-One House , which are dealerships not assigned to a specific field rep. The Relationship D R D Filter narrows the table by behavioral demand profile , High T L C, Autonomous, Comfort Stop, or Discovery Queue. Below the dropdowns, you have the status cohort chips with live dealer counts: Active: submitted an application in the last 30 days. 30-day Inactive: last activity was 31 to 60 days ago. 60-day Inactive: 61 to 90 days. 90-day Inactive and Long Inactive: 90 or more days of silence. Click any chip to filter the table to that cohort instantly. When you select a rep, a summary banner appears showing their assigned territory states as clickable chips along with their annual budget total. And below the status chips, you will see Transition Pills. These highlight dealerships that changed status between periods , for example, Active to 30-day Inactive shows how many dealers that were active last period have just gone quiet. Click any transition pill to isolate those exact accounts in the table. Between the filters and the table is the Rolling Average Strip , a compact data ticker showing five network-wide health metrics: Average App Days: average number of days since the last application across all dealers. Average Approval Days: average days since the last approval. Average Booking Days: average days since the last funded deal. Average Contact Days: average days since the last logged communication with a dealer. Visit Response: average days between an in-person field visit and the dealer's next application submission. Each metric is color-coded from green to red based on recency. The small delta badge shows the change compared to the prior window , a green down-arrow means days are decreasing and performance is improving, while a red up-arrow means recency is slipping. You can adjust the rolling window size to 7, 14, 30, 60, or 90 days to smooth out single-day volatility, or toggle Active Only to focus these averages strictly on active producers. Next to the rolling averages is the Status By selector. This controls how the entire platform defines an active dealer: In Application mode, activity is based on credit application submissions. In Approval mode, it is based on underwriting approvals. In Booking mode, it is based on funded contracts. Switching modes updates all status chips, heatmap colors, and cohort counts across the dashboard in real time. Now let's examine the Dealer Performance Table. From left to right: Dealer shows the dealership's legal D B A name, location ID code, and state prefix. Rep shows the assigned Source One field sales representative. Status shows the live activity cohort , Active, 30-day Inactive, 60-day Inactive, or Long Inactive. Days Since App, Days Since Approval, and Days Since Booking are heatmapped recency counters showing the exact number of days elapsed since the dealership last submitted an app, received an approval, or funded a deal. Next are the production columns: Apps is total credit applications submitted in the selected range. Approvals is total applications approved by underwriting. App Booked Deals and App Booked Volume show deals and dollar volume originated strictly from applications submitted in this period. Funded Booked Deals and Funded Booked Volume show total deals and dollar volume funded during this calendar period regardless of application date. Look-to-Book percentage measures booked deals from this period's apps divided by total applications. Approval-to-Book percentage measures booked deals divided by approved applications. And Average FICO shows the average credit score across all submitted applications. At the top of the table, you have three primary views: The Groups tab nests multi-store dealer enterprises together. A group with fourteen locations appears as a single collapsible row showing consolidated totals. Click the arrow to expand and see all individual rooftop locations underneath. The Dealers tab shows independent, single-point dealerships. And the All Dealers tab gives you a flat, unnested directory of every location in the country. When you are on the Groups tab, look at the Sort Target toggle in the toolbar. When Groups is selected, clicking a column header sorts the parent enterprise rows by their total volume. When you switch to Locations, the parent groups stay pinned and clicking a header sorts the child locations inside each group from highest to lowest. You can also use Multi-Column Sorting on any view. Click your primary sort column , like Funded Volume , then hold the Shift key and click a secondary column, like Average FICO. The table now sorts by volume first and breaks ties by credit score. Click the multi-sort pill in the toolbar anytime to reset. The live search box performs instant server-side filtering with infinite scroll pagination as you type. In the top date controls, you can select This Month, Last Month, Year-to-Date, All Time, or a Custom calendar range. The Trend Mode toggle controls the comparison badges: Month-over-Month compares the selected period against the immediate prior equivalent period. Year-over-Year compares against the exact same calendar dates from the previous year, helping you separate seasonal dips from real performance problems. Here is a quick practical workflow: if you are a territory rep preparing your call list, select your name in the Rep dropdown, click the 30-day Inactive chip, and sort by Funded Volume descending. In ten seconds, you have a prioritized list of your historically highest-producing accounts that have gone quiet. When you click any dealership in the table, the Dealer Analytics Drawer slides open. At the top is a sticky KPI bar summarizing this dealer's production, volume, and conversion rates alongside directional trend badges. Below the header is the D R D Classification Badge. D R D stands for Dealer Relationship Demand. It analyzes field visit logs and submission velocity to categorize every dealership into one of four behavioral profiles: Strategic High T L C represents dealerships that produce strong volume, but only when a sales rep visits in person. After a visit, applications spike; within 45 days, if no one returns, production decays back to baseline. The system flags these accounts with urgency indicators like Overdue when they need a follow-up visit. Autonomous represents self-sufficient dealerships that consistently submit applications through the portal regardless of whether a rep visits. These accounts can be serviced effectively through phone and email. Comfort Stop represents accounts that receive frequent field visits but produce minimal funding yield , less than thirty-five thousand dollars per visit. This alerts management to redirect drive time toward higher-yield opportunities. And Discovery Queue represents new or low-sample dealerships undergoing initial data collection. Below the diagnostic matrix is the Cause and Effect Timeline spanning 2024 to the present. It overlays in-person rep visits as purple pins directly against monthly application bars and funded booking bars, letting you see visit lift patterns visually. Underneath the chart is the System Decision Audit, showing the exact mathematical thresholds used to classify the dealer. If a manager has unique qualitative context, they can click Override D R D Segment, select a new classification, and submit a required audit note. Inside the drawer, you also have three additional tabs: Historical Month over Month gives you a month-by-month financial ledger for this specific dealer from 2025 to the present, tracking active status, submissions, approvals, cohort app-booked volume, funded production, and Look-to-Book ratios with trend badges. Application History is a searchable log of every loan application submitted by this store. Click any application row to open the Application Detail Drawer, displaying over thirty-five fields across five structured sections: Dealer and Sales Rep Information Financial Terms and Structure, including amount financed, term, A P R, down payment, L T V, invoice, backend, dealer reserve dollar amount and percentage, and dealer minimum rate Credit and Risk Profile, including primary FICO Auto Eight, co-FICO, D T I, P T I, lender, underwriter, and program type Collateral and Vehicle Information Pipeline Turnaround Performance, including time to decision, time to book, and decision-to-contract duration The fourth tab is Communication History, providing a chronological C R M timeline of every in-person visit, phone call, and email logged for this dealership. Click any interaction to review the full field report and follow-up notes. Now let's open the Rep Scorecard from the top header navigation. The Rep Scorecard provides a balanced comparison leaderboard for all sales representatives. Rather than evaluating reps strictly on raw volume, the Heat Index calculates a 0-to-100 territory health score balancing ten operational factors: Average Days Since Application: 15% Active Dealer Ratio: 15% Average Contact Days: 15% Average Days Since Approval: 10% Average Days Since Booking: 10% Reactivation Rate: 10% Churn Net: 5% Look-to-Book percentage: 7.5% Approval-to-Book percentage: 7.5% Applications Per Active Dealer: 5% Hover over any Heat Index cell to inspect the exact formula breakdown and weighted contribution for each factor. Sales managers can click the Configurator button to simulate custom weights. To protect reps in smaller or newer territories, the scorecard applies Bayesian Smoothing: if a rep has fewer than eight applications or five approvals in a period, their conversion ratios are blended with the network average so small sample sizes never unfairly penalize their score. Click any representative's row to expand their territory breakdown state by state. Next is the Visit Impact and Reactivation Diagnostic Engine. This tool features two dedicated views: The first tab is Relationship Demand and Allocation, providing a high-level strategic overview of our dealer segments, visit distribution, and volume allocation across the entire company. The second tab is the Visit Reactivation Diagnostic, which measures the return on investment of field travel by analyzing whether visits to inactive dealerships successfully bring them back to life. You select a visit timeframe , Year-to-Date, last 30 days, or last 60 days , and set a conversion window of 14, 30, or 60 days. The system evaluates every visit made to a dealer that was inactive at the time of the visit, and checks whether that dealer submitted an application and booked a deal within the conversion window. The Rep Performance Table tracks: Total visits and inactive dealers visited Reactivated dealer count and reactivation rate Average days to reactivation Growth visit percentage Total reactivated dollar volume generated Click any rep to expand their per-dealer visit breakdown, and click any reactivated dealer to open the Reactivation Drawer showing their timeline and exact economic volume lift. Clicking Underwriters in the navigation opens the Underwriter Performance Scorecard. This provides full transparency into decision velocity, loan placement, and credit approval quality: Total applications reviewed, approvals, conditional approvals, and declines Approval Rate and Decline Rate percentages Win Rate, measuring the percentage of approved applications that successfully convert into funded loans Average underwriting turnaround speed in hours Average applicant FICO score Unique lenders utilized Cohort and cash-production deal counts and funded volumes And interactive Lender Distribution bars, showing the exact percentage breakdown between internal Source One financing programs and partner lenders Clicking any underwriter's row filters the system directly to their complete application portfolio. When preparing for executive reviews or one-on-one coaching, use the Automated P D F Scorecard Generator by clicking P D F Reports in the header. Select your financial period, rolling activity window, and visit attribution options, then click Generate. Within seconds, the server compiles a boardroom-ready P D F package: First, a 3-page Company Executive Overview with network KPIs, master rep rankings, and national D R D routing distribution. Second, 5-page individual Rep Scorecards with complete Heat Index breakdowns, peer rankings, twelve-month submission velocity sparklines, visit attribution metrics, and an urgent High T L C Overdue Visit priority list. You can preview every report directly in the built-in viewer, download individual P D Fs, or export the entire package as a single zip archive. Now let's examine the Daily Digest. Click Daily Digest in the top navigation. The Daily Digest is your Day-over-Day Activity Status Change and Churn Monitor. Every night when data ingests, the system compares yesterday's dealer status snapshot against today's to identify exactly which dealerships are shifting cohorts. At the top, use the Historical Date Navigator or the Older and Newer buttons to inspect status movements on any day in history. The Status By toggle lets you evaluate daily changes by applications, approvals, or bookings. Across the top cards, you see active counts for each status cohort along with flow arrows: up-arrows indicate dealers flowing into that status since yesterday, and down-arrows indicate dealers flowing out. The Network Active Rate gauge tracks the percentage of our dealer network currently active. The Status Flow Summary provides clickable transition pills , like Active to 30-day Inactive , allowing you to filter the changes table below to specific cohort movements. The Status Changes Table lists every dealership whose status changed on that day, complete with a Rep Filter dropdown. And the At-Risk Dealers Table flags dealerships approaching an inactivity threshold , such as 28 or 29 days without an app , giving reps an early-warning intervention list before accounts officially go dormant. Finally, Settings allows administrators to manage user access and permission roles. And in the bottom-right corner of your screen is the floating Report Bug button. If you ever spot an unexpected calculation, an edge case, or have an idea for a feature that would improve your daily workflow, click that button. It automatically captures your current page route, screen context, and browser console diagnostic logs so you can send a note directly to our engineering team. That concludes the complete walkthrough of the Source One Dealer Analytics Platform. Thank you for watching, dive into your territory data, and let's continue driving Source One forward!
+Chapter 1: Introduction & The 3 Core Data Sources
+
+Welcome to the Source One Dealer Analytics Platform. In this walkthrough, we’re going to cover all the core features and workflows across the system so you feel completely comfortable using it day to day.
+
+To understand how the platform works, it helps to know the three data sources powering everything you see:
+
+First is Dealership Information — who the dealer is, their rooftop location, state, and assigned sales rep.
+
+Second is Loan Applications — every deal submitted, the underwriting decision, credit score, and funded close date.
+
+And third is Field Visits and Communications — the in-person visits, phone calls, and notes logged by reps in the field.
+
+What brings all of this together is one piece of glue: the Dealer ID, like T X 400 or A Z 260. Because every application and visit is tagged with that Dealer ID, the platform connects the dots automatically. It tracks how long it's been since a dealer submitted a deal, shows who is going quiet, and calculates Visit Lift so you can see if rep visits are actually driving new business.
+
+Let’s jump right into the features.
+
+
+Chapter 2: The Bug & Feature Reporter
+
+Before we get into the dashboard, there's an important tool to know about: the Bug and Feature Reporter.
+
+We built this so you have a direct line to our engineering team. If you ever spot an unexpected number, run into an edge case with a dealership, or have an idea that would make your job easier, click the reporter.
+
+You don’t have to take screenshots or explain your technical setup — it automatically captures the page you’re on, your active filters, and console diagnostic logs. Just type a quick note, hit submit, and our team will review it.
+
+
+Chapter 3: The Executive Network Performance Banner
+
+Next up is the Executive Network Performance Banner. This gives you a quick five-second pulse on how the network is doing for whatever date range and filters you have selected.
+
+Starting with the metrics:
+
+Apps shows total credit applications submitted, along with a percentage trend compared to your prior period.
+
+Approvals shows deals approved by underwriting.
+
+Then you have two different ways of looking at booked volume, and understanding the difference is key:
+
+Funded Booked Volume is our cash production. It counts loans that actually funded during this calendar period, no matter when the customer first applied.
+
+App Booked Volume is our cohort number. It looks strictly at applications submitted during this window and tracks what those specific deals ended up producing.
+
+Next is Look-to-Book, which divides booked deals by total applications to measure overall pipeline conversion.
+
+Approval-to-Book is your pure closing pull-through rate — it removes underwriting declines to show how well approved deals convert into funded loans.
+
+And Average FICO shows the average credit score across all submitted applications.
+
+Every single card here is dynamic: whenever you change your date range, pick a sales rep, or isolate a state, the entire banner updates right away.
+
+
+Chapter 4: The Dealer Performance Table — Views, Filters & Smart Trends
+
+Now let's dive into the Dealer Performance Table.
+
+You have three primary views to work with:
+
+The Dealer Groups tab groups multi-location enterprise dealers together, showing consolidated totals across all their rooftops, with an arrow to expand and view each individual store.
+
+The Independent Dealers tab isolates single-point stores.
+
+And All Dealers gives you a flat directory of every rooftop nationwide.
+
+To narrow down your view, you can use the filter controls:
+
+The Rep filter lets you focus on any specific sales representative, or view all reps across the company.
+
+The State filter lets you isolate specific states or focus on a rep's assigned territory.
+
+The Portfolio filter lets you toggle between assigned field accounts and the S-One House portfolio.
+
+And the Relationship D R D filter lets you segment dealers by behavioral demand.
+
+Below that, you have the Status Cohorts, which group dealerships by activity:
+
+Active means they submitted business within the last thirty days.
+
+Then you have 30-day Inactive, 60-day Inactive, and Long Inactive for ninety or more days without activity. Clicking any cohort filters the table immediately.
+
+Right alongside those chips is the Status By selector. This is really useful because it lets you define dealer activity by Application recency, Approval recency, or Booking recency. If you want to see who hasn't funded a loan in sixty days, switch this to Booking, and the entire table and cohort counts adjust right away.
+
+You also have Status Transitions, which track day-over-day movement to show you who just activated or went dormant.
+
+The date engine is smart as well: Month-to-Date compares against this exact point last month or last year, and thirty-day windows compare against the prior thirty days.
+
+Here’s a quick practical workflow: select your name in the Rep filter, click the 30-day Inactive cohort, and sort by Funded Volume descending. In ten seconds, you have a prioritized call list of your historically best accounts that have recently gone quiet.
+
+
+Chapter 5: Table Columns, Field Metrics & Multi-Sort
+
+Looking inside the table itself, the Search Box lets you quickly find any dealer by name, location ID, or city.
+
+In each Dealer cell, you see the store name, location ID, and state, along with badges for the assigned Rep, live Activity Status, and D R D Segment.
+
+Next are the recency columns: Days Since App, Days Since Approval, and Days Since Booking. These are heatmapped from green to red, so you can immediately see which accounts are slipping.
+
+Then you have three columns powered directly by field data:
+
+Last Visit shows the date of the last rep visit and how many days have passed.
+
+Visit Lift measures the percentage surge in applications after an in-person visit compared to baseline.
+
+And Dollar per Visit shows the funded volume return on investment per rep visit.
+
+These sit alongside your core volume numbers: Apps, Approvals, App Booked, Funded Booked, Look-to-Book, Approval-to-Book, and Average FICO.
+
+To organize the data, you can use Multi-Column Sorting: click your primary column, like Funded Volume, then hold the Shift key and click a second column, like Average FICO. The table sorts by volume first and uses credit score to break ties.
+
+And if you're on the Dealer Groups tab, you can toggle whether you're sorting the parent groups or the individual locations inside each group.
+
+
+Chapter 6: The Dealer Profile Analytics Drawer
+
+Clicking on any dealership name opens the Dealer Analytics Drawer for a complete look at that store.
+
+First is the D R D Diagnostic Profile, which classifies every dealer into one of four behavioral categories based on how they respond to rep visits:
+
+Strategic High T L C accounts generate strong volume, but only when a rep visits in person. When visits stop, their volume drops off, so the system flags them with Overdue alerts when it’s time to go back.
+
+Autonomous dealers are self-sufficient. They submit steady volume through the portal regardless of visits, meaning you can service them effectively by phone or email.
+
+Comfort Stops are accounts receiving frequent visits but producing low returns — under thirty-five thousand dollars per visit. This tells management to reallocate drive time.
+
+And Discovery Queue represents newer stores where the system is still collecting data.
+
+Right below that, the Cause and Effect Timeline overlays purple pins for rep visits directly against monthly application bars and funded volume lines, letting you visually confirm if visits trigger production.
+
+Managers can also click Override to adjust a dealer's classification with an audit note.
+
+The drawer has three other tabs:
+
+Historical Month over Month gives you a monthly financial ledger for this specific store from 2025 to present.
+
+Application History lets you review every loan application submitted. Clicking any deal opens the Loan Detail Drawer, showing over thirty-five fields including interest rates, loan terms, dealer reserve dollars, FICO Auto Eight scores, and underwriting turnaround times.
+
+And Communication History gives you a chronological C R M log of every visit, phone call, and field note.
+
+
+Chapter 7: Historical Month-over-Month Ledger
+
+The Historical Month-over-Month tool in the main navigation gives you that same ledger view across the entire company.
+
+You can slice the data by sales rep, state, dealer group, or individual store to review performance across multiple years.
+
+It tracks submissions, approvals, cohort originations, funded cash, and Look-to-Book conversion side by side.
+
+This is the fastest way to spot seasonal trends, evaluate territory health over time, and see exactly when a market or account started growing or slowing down.
+
+
+Chapter 8: Visit Impact & Reactivation Diagnostic Engine
+
+Now let's look at the Visit Impact module. This tool helps you measure the actual return on investment of windshield time by seeing whether rep visits to inactive dealers bring them back to life.
+
+On the Visit Reactivation tab, choose an evaluation window — like Year-to-Date or the last sixty days — and pick a conversion window of fourteen, thirty, or sixty days.
+
+The engine looks at every visit made to a dealer that was inactive at the time, and checks whether that store submitted an app and funded a deal within your window.
+
+It shows you how many inactive dealers were visited, how many reactivated, the average days it took, and total reactivated volume produced. You can click any rep to see their store-by-store visit log, or click a dealer to see their volume lift timeline.
+
+The Relationship Demand and Allocation tab connects this to our D R D segments, showing where reps are spending drive time versus where funded volume actually comes from — so you can keep reps focused on High T L C stores instead of over-visiting Comfort Stops.
+
+
+Chapter 9: Rep Scorecard & The Territory Heat Index
+
+Next is the Rep Scorecard.
+
+Instead of judging sales reps strictly on raw volume, the platform calculates the Territory Heat Index — a balanced zero-to-one-hundred health score based on ten key operational metrics:
+
+Application recency, active dealer ratio, contact frequency, approval and booking recency, reactivation rate, net churn, Look-to-Book and Approval-to-Book closing percentages, and applications per active store.
+
+You can hover over any rep's Heat Index score to see the exact formula and factor breakdown.
+
+To keep things fair across different territories, the system uses Bayesian Smoothing: if a rep manages a newer territory or has a small deal sample in a given month, their conversion ratios are gently blended with network averages so a single deal doesn't skew their score.
+
+You can also click any rep's row to expand their performance state by state.
+
+
+Chapter 10: Underwriter Performance Scorecard
+
+Clicking over to Underwriters opens the Underwriter Performance Scorecard.
+
+This gives leadership clear visibility into credit decision speed and deal placement across the underwriting team:
+
+It tracks applications reviewed, approvals, declines, and Win Rate — the percentage of approved applications that convert into funded deals.
+
+You also see average decision turnaround speed in hours, average applicant credit scores, and total funded volume.
+
+In the Lender Distribution column, colored bars show the exact portfolio split between internal Source One financing programs and external partner lenders.
+
+You can click any underwriter to filter the system directly to their complete application pipeline.
+
+
+Chapter 11: Daily Digest: Activity Churn & Day-over-Day Monitor
+
+Every night when data is ingested, the system compares yesterday’s snapshot against today’s to track every change across the network. You can monitor this in the Daily Digest.
+
+Use the date controls to look at today or any historical date.
+
+The summary cards show live dealer counts for each cohort along with flow arrows: green arrows for stores activating into that status, and red arrows for stores slipping out.
+
+The Network Active Rate gauge tracks the percentage of our overall dealer network currently active.
+
+Below that, the Status Changes Table lists every dealership that changed cohorts today.
+
+And the At-Risk Dealers Table flags stores sitting at twenty-eight or twenty-nine days of inactivity. This gives reps an actionable early-warning list to call today before accounts officially go dark.
+
+
+Chapter 12: System Settings & Access Controls
+
+Finally, Settings gives administrators control over user accounts, permissions, and role assignments.
+
+It ensures sales reps, underwriters, and leadership have access tailored to their responsibilities while keeping proprietary data secure.
+
+And that wraps up the walkthrough. By bringing together loan applications, territory mapping, and field visit logs around the Dealer ID, this system gives you the clarity you need to manage your accounts effectively. Thanks for watching, and enjoy using the platform!

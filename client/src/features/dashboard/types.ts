@@ -44,6 +44,14 @@ export interface DealerGroup {
   createdAt: string;
   summary: GroupSummary | null;
   stats?: DealerStats;
+  drd?: {
+    minDaysSinceLastVisit: number | null;
+    latestVisitDate: string | null;
+    avgLift: number | null;
+    maxLift: number | null;
+    yieldPerVisit: number | null;
+    totalVisits: number;
+  } | null;
 }
 
 export interface MetricTrend {
@@ -303,6 +311,12 @@ export interface TableColumn {
   groupOnly?: boolean; // only shown in group mode
   dealerOnly?: boolean; // only shown in dealer/all mode
   format?: (value: unknown) => string;
+}
+
+export type SortDir = 'asc' | 'desc';
+export interface SortColumn {
+  key: string;
+  dir: SortDir;
 }
 
 // ── Grouped data for the table ──

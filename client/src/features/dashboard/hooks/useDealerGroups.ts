@@ -16,12 +16,17 @@ export function useDealerGroups(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Immutable serialization for stable dependency tracking
   const statesKey = states && states.length > 0 ? [...states].sort().join(',') : '';
   const modeKey = activityMode || 'application';
 
   const fetch = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
@@ -34,14 +39,18 @@ export function useDealerGroups(
         trend,
         status,
         rep,
-        drd
+        drd,
+        controller.signal
       );
       // Discard stale out-of-order responses
       if (currentRequestId === requestIdRef.current) {
         setGroups(data);
         setIsLoading(false);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+        return;
+      }
       if (currentRequestId === requestIdRef.current) {
         setError(err instanceof Error ? err.message : 'Failed to load dealer groups');
         setIsLoading(false);

@@ -25,6 +25,8 @@ import type {
   ActivityStatus,
   BestWorst,
   TableColumn,
+  SortColumn,
+  SortDir,
 } from '../../types';
 
 import { resolveRepDisplayName } from '../../../../core/utils/repNames';
@@ -203,7 +205,8 @@ interface DealerTableProps {
   maxReportDate?: string;
   onExpandGroup: (slug: string) => void;
   onLoadMore?: () => void;
-  onDealerSortChange?: (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => void;
+  dealerSort?: SortColumn[];
+  onDealerSortChange?: (sortStack: SortColumn[]) => void;
   onDealerSearch?: (query: string) => void;
   onSelectDealer?: (dealerId: string) => void;
   onSelectGroup?: (groupSlug: string) => void;
@@ -211,13 +214,6 @@ interface DealerTableProps {
   onCustomDateChange?: (start?: string, end?: string) => void;
   onTrendChange?: (trend: TrendPeriod) => void;
   comparisonLabel?: string;
-}
-
-type SortDir = 'asc' | 'desc';
-
-interface SortColumn {
-  key: string;
-  dir: SortDir;
 }
 
 // ── DRD Segment Badge Helper ──
@@ -481,9 +477,11 @@ function daysSinceDate(dateStr: string | null | undefined): number | null {
   return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: string | null): number {
+function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: string | null): number | string {
   const s = group.summary;
   switch (key) {
+    case 'name':
+      return group.name || '';
     case 'daysSinceLastApplication':
       return s?.daysSinceApp?.best ?? 99999;
     case 'daysSinceLastApproval':
@@ -491,11 +489,11 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
     case 'daysSinceLastBooking':
       return s?.daysSinceBooking?.best ?? 99999;
     case 'lastVisit':
-      return s?.drd?.minDaysSinceLastVisit ?? 99999;
+      return group.drd?.minDaysSinceLastVisit ?? s?.drd?.minDaysSinceLastVisit ?? 99999;
     case 'postVisitLift':
-      return s?.drd?.avgLift ?? -99999;
+      return group.drd?.avgLift ?? s?.drd?.avgLift ?? -99999;
     case 'yieldPerVisit':
-      return s?.drd?.yieldPerVisit ?? -99999;
+      return group.drd?.yieldPerVisit ?? s?.drd?.yieldPerVisit ?? -99999;
     case 'activityStatus': {
       if (!s || s.locationCount === 0) return -1;
       return s.activeCount / s.locationCount;
@@ -507,6 +505,7 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
         case 'active': return s.activeCount;
         case '30d_inactive': return s.inactive30Count;
         case '60d_inactive': return s.inactive60Count;
+        case '90d_inactive': return s.inactive90Count ?? 0;
         case 'long_inactive': return s.longInactiveCount;
         case 'reactivated': return s.reactivatedCount;
         default: return s.locationCount;
@@ -545,7 +544,7 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
   const snap = loc.latestSnapshot;
   switch (key) {
     case 'name':
-      return loc.dealerName;
+      return loc.dealerName || '';
     case 'daysSinceLastApplication':
       return snap?.daysSinceLastApplication ?? 99999;
     case 'daysSinceLastApproval':
@@ -593,14 +592,18 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
 function compareGroups(a: DealerGroup, b: DealerGroup, sortStack: SortColumn[], statusFilter?: string | null): number {
   for (const { key, dir } of sortStack) {
     let cmp = 0;
-    if (key === 'name') {
-      cmp = a.name.localeCompare(b.name);
+    const aVal = getGroupSortValue(a, key, statusFilter);
+    const bVal = getGroupSortValue(b, key, statusFilter);
+    if (typeof aVal === 'string' || typeof bVal === 'string') {
+      cmp = String(aVal || '').localeCompare(String(bVal || ''));
     } else {
-      cmp = getGroupSortValue(a, key, statusFilter) - getGroupSortValue(b, key, statusFilter);
+      const numA = Number.isFinite(aVal) ? (aVal as number) : 0;
+      const numB = Number.isFinite(bVal) ? (bVal as number) : 0;
+      cmp = numA - numB;
     }
     if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
   }
-  return 0;
+  return (a.name || '').localeCompare(b.name || '');
 }
 
 /** Multi-column sort comparator for locations */
@@ -609,14 +612,16 @@ function compareLocations(a: DealerLocation, b: DealerLocation, sortStack: SortC
     let cmp = 0;
     const aVal = getLocationSortValue(a, key);
     const bVal = getLocationSortValue(b, key);
-    if (typeof aVal === 'string' && typeof bVal === 'string') {
-      cmp = aVal.localeCompare(bVal);
+    if (typeof aVal === 'string' || typeof bVal === 'string') {
+      cmp = String(aVal || '').localeCompare(String(bVal || ''));
     } else {
-      cmp = (aVal as number) - (bVal as number);
+      const numA = Number.isFinite(aVal) ? (aVal as number) : 0;
+      const numB = Number.isFinite(bVal) ? (bVal as number) : 0;
+      cmp = numA - numB;
     }
     if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
   }
-  return 0;
+  return (a.dealerName || '').localeCompare(b.dealerName || '');
 }
 
 function multiSortLocations(locations: DealerLocation[], sortStack: SortColumn[]): DealerLocation[] {
@@ -640,6 +645,7 @@ export function DealerTable({
   isPrefetching,
   onExpandGroup,
   onLoadMore,
+  dealerSort: dealerSortProp,
   onDealerSortChange,
   onDealerSearch,
   onSelectDealer,
@@ -678,14 +684,15 @@ export function DealerTable({
   const [groupSortStack, setGroupSortStack] = useState<SortColumn[]>([{ key: 'locationCount', dir: 'desc' }]);
   const [childSortStack, setChildSortStack] = useState<SortColumn[]>([{ key: 'name', dir: 'asc' }]);
   const [sortTarget, setSortTarget] = useState<'groups' | 'locations'>('groups');
-  // Single/multi-column sort for dealer/all tabs (server-side)
-  const [dealerSort, setDealerSort] = useState<SortColumn[]>([{ key: 'apps', dir: 'desc' }]);
+  // Internal sort fallback when dealerSort prop is not passed
+  const [internalDealerSort, setInternalDealerSort] = useState<SortColumn[]>([{ key: 'apps', dir: 'desc' }]);
+  const activeDealerSort = dealerSortProp || internalDealerSort;
 
-  // Reset search, sort, and expanded groups when tab mode changes
+  // Reset search and expanded groups when tab mode changes
   useEffect(() => {
     setSearchInput('');
     setCommittedQuery('');
-    setDealerSort([{ key: 'apps', dir: 'desc' }]);
+    setInternalDealerSort([{ key: 'apps', dir: 'desc' }]);
     setExpandedSlugs(new Set());
   }, [mode]);
 
@@ -708,93 +715,55 @@ export function DealerTable({
     [groupLocations, onExpandGroup]
   );
 
-  // Debounce ref: delays single-click so we can detect double-click first
-  const sortClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Multi-column stack helper:
-  // - If column exists in stack, toggle direction
-  // - shouldAppend=false (single click): REPLACE stack with this column
-  // - shouldAppend=true  (double click): APPEND column to stack
   const STAT_KEYS = new Set([
     'apps', 'approvals', 'inHouse', 'leadBooked', 'leadBookedDollars', 
     'booked', 'bookedDollars', 'lookToBook', 'approvalToBook', 'avgFico',
     'postVisitLift', 'yieldPerVisit'
   ]);
 
-  const updateStack = (stack: SortColumn[], key: string, shouldAppend: boolean): SortColumn[] => {
+  const updateStack = (stack: SortColumn[], key: string, isMulti: boolean): SortColumn[] => {
     const defaultDir: SortDir = STAT_KEYS.has(key) ? 'desc' : 'asc';
     const idx = stack.findIndex((s) => s.key === key);
+
+    if (!isMulti) {
+      if (stack.length === 1 && idx === 0) {
+        return [{ key, dir: stack[0].dir === 'asc' ? 'desc' : 'asc' }];
+      }
+      return [{ key, dir: defaultDir }];
+    }
+
     if (idx !== -1) {
-      // Already in stack → toggle direction
       const updated = [...stack];
       updated[idx] = { ...updated[idx], dir: updated[idx].dir === 'asc' ? 'desc' : 'asc' };
       return updated;
     }
-    if (shouldAppend) {
-      // Double-click → append for multi-sort
-      return [...stack, { key, dir: defaultDir }];
-    }
-    // Single click → replace entire stack
-    return [{ key, dir: defaultDir }];
+    return [...stack, { key, dir: defaultDir }];
   };
 
-  // Shared sort executor (used by both single-click and double-click paths)
-  const performSort = useCallback(
-    (key: string, shouldAppend: boolean) => {
-      if (mode !== 'groups' && onDealerSortChange) {
-        setDealerSort((prev) => {
-          const stack = updateStack(prev, key, shouldAppend);
-          onDealerSortChange(
-            stack.map(s => s.key),
-            stack.map(s => s.dir)
-          );
-          return stack;
-        });
+  const handleColumnClick = useCallback(
+    (key: string, isMulti: boolean) => {
+      if (mode !== 'groups') {
+        const next = updateStack(activeDealerSort, key, isMulti);
+        setInternalDealerSort(next);
+        onDealerSortChange?.(next);
       } else {
         if (sortTarget === 'locations') {
-          setChildSortStack((prev) => updateStack(prev, key, shouldAppend));
+          setChildSortStack((prev) => updateStack(prev, key, isMulti));
         } else {
-          setGroupSortStack((prev) => updateStack(prev, key, shouldAppend));
+          setGroupSortStack((prev) => updateStack(prev, key, isMulti));
         }
       }
     },
-    [mode, onDealerSortChange, sortTarget]
+    [mode, onDealerSortChange, sortTarget, activeDealerSort]
   );
 
-  // Single-click handler (debounced 250ms to allow double-click detection)
-  const handleSort = useCallback(
-    (key: string) => {
-      if (sortClickTimer.current) clearTimeout(sortClickTimer.current);
-      sortClickTimer.current = setTimeout(() => {
-        performSort(key, false);
-        sortClickTimer.current = null;
-      }, 250);
-    },
-    [performSort]
-  );
-
-  // Double-click handler: cancels pending single-click, appends to multi-sort
-  const handleDoubleClickSort = useCallback(
-    (key: string) => {
-      if (sortClickTimer.current) {
-        clearTimeout(sortClickTimer.current);
-        sortClickTimer.current = null;
-      }
-      performSort(key, true);
-    },
-    [performSort]
-  );
-
-  // Remove a single column from the active sort stack
   const removeFromSort = useCallback(
     (key: string) => {
-      if (mode !== 'groups' && onDealerSortChange) {
-        setDealerSort((prev) => {
-          const next = prev.filter(s => s.key !== key);
-          if (next.length === 0) return prev; // can't remove last
-          onDealerSortChange(next.map(s => s.key), next.map(s => s.dir));
-          return next;
-        });
+      if (mode !== 'groups') {
+        const next = activeDealerSort.filter(s => s.key !== key);
+        if (next.length === 0) return;
+        setInternalDealerSort(next);
+        onDealerSortChange?.(next);
       } else if (sortTarget === 'locations') {
         setChildSortStack((prev) => {
           const next = prev.filter(s => s.key !== key);
@@ -807,7 +776,7 @@ export function DealerTable({
         });
       }
     },
-    [mode, onDealerSortChange, sortTarget]
+    [mode, onDealerSortChange, sortTarget, activeDealerSort]
   );
 
   // Filter groups
@@ -825,23 +794,31 @@ export function DealerTable({
     return sorted;
   }, [filteredGroups, groupSortStack, statusFilter]);
 
-  // Instant client-side filtering on loaded items while server search resolves
+  // Instant client-side filtering and sorting on loaded items while server search/sort resolves
   const sortedDealers = useMemo(() => {
-    const q = committedQuery.trim();
-    if (!q) return smallDealers;
-    const lower = q.toLowerCase();
-    return smallDealers.filter((d) => {
-      const name = (d.dealerName || '').toLowerCase();
-      const code = (d.dealerId || d.clientDealerId || '').toLowerCase();
-      const state = (d.statePrefix || '').toLowerCase();
-      const rep = (d.dealerRepresentative || '').toLowerCase();
-      return name.includes(lower) || code.includes(lower) || state.includes(lower) || rep.includes(lower);
-    });
-  }, [smallDealers, committedQuery]);
+    let result = smallDealers;
+    const q = (committedQuery || searchInput).trim();
+    if (q) {
+      const lower = q.toLowerCase();
+      result = result.filter((d) => {
+        const name = (d.dealerName || '').toLowerCase();
+        const code = (d.dealerId || d.clientDealerId || '').toLowerCase();
+        const state = (d.statePrefix || '').toLowerCase();
+        const rep = (d.dealerRepresentative || '').toLowerCase();
+        return name.includes(lower) || code.includes(lower) || state.includes(lower) || rep.includes(lower);
+      });
+    }
+    if (activeDealerSort && activeDealerSort.length > 0) {
+      const sorted = [...result];
+      sorted.sort((a, b) => compareLocations(a, b, activeDealerSort));
+      return sorted;
+    }
+    return result;
+  }, [smallDealers, committedQuery, searchInput, activeDealerSort]);
 
   // Which sort to display in the headers
   const displayStack: SortColumn[] = mode !== 'groups'
-    ? dealerSort
+    ? activeDealerSort
     : sortTarget === 'locations' ? childSortStack : groupSortStack;
 
   // Filter columns based on mode (hide groupOnly columns in dealer mode, hide dealerOnly in groups mode)
@@ -1109,9 +1086,10 @@ export function DealerTable({
             <button
               className={styles.sortClearBtn}
               onClick={() => {
-                if (mode !== 'groups' && onDealerSortChange) {
-                  setDealerSort([dealerSort[0]]);
-                  onDealerSortChange([dealerSort[0].key], [dealerSort[0].dir]);
+                if (mode !== 'groups') {
+                  const next = [activeDealerSort[0]];
+                  setInternalDealerSort(next);
+                  onDealerSortChange?.(next);
                 } else if (sortTarget === 'locations') {
                   setChildSortStack([childSortStack[0]]);
                 } else {
@@ -1365,9 +1343,9 @@ export function DealerTable({
                       key={col.key}
                       style={{ textAlign: col.align, width: col.width, minWidth: col.minWidth }}
                       className={isSorted ? styles.thSorted : ''}
-                      onClick={() => col.sortable && handleSort(col.key)}
-                      onDoubleClick={() => col.sortable && handleDoubleClickSort(col.key)}
-                      title={col.description ? `${col.description}${col.sortable ? ' · Click to sort' : ''}` : (col.sortable ? 'Click to sort · Double-click to add multi-sort' : undefined)}
+                      onClick={(e) => col.sortable && handleColumnClick(col.key, e.shiftKey || e.ctrlKey || e.metaKey)}
+                      onDoubleClick={() => col.sortable && handleColumnClick(col.key, true)}
+                      title={col.description ? `${col.description}${col.sortable ? ' · Click to sort (Shift-click for multi-sort)' : ''}` : (col.sortable ? 'Click to sort · Shift-click for multi-sort' : undefined)}
                     >
                       {col.label}
                       {isSorted && (
@@ -1675,6 +1653,14 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
       })();
 
   // Compute filtered active count for status badge
+  const displayedLocations = useMemo(() => {
+    if (!statusFilter) return locations;
+    return locations.filter((loc) => {
+      const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
+      return locStatus === statusFilter;
+    });
+  }, [locations, statusFilter, deriveStatusFn]);
+
   let filteredActive: number | undefined;
   let filteredTotal: number | undefined;
   if (hasFilteredLocs) {
@@ -1729,11 +1715,11 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             {showSkeleton ? <SkeletonCell /> : (
               locations.length > 0
                 ? renderGroupLastVisit(locations)
-                : (s?.drd?.minDaysSinceLastVisit != null || s?.drd?.latestVisitDate
+                : ((group.drd?.minDaysSinceLastVisit != null || s?.drd?.minDaysSinceLastVisit != null || group.drd?.latestVisitDate || s?.drd?.latestVisitDate)
                     ? renderLastVisitCell({
-                        lastVisitDate: s.drd.latestVisitDate,
-                        daysSinceLastVisit: s.drd.minDaysSinceLastVisit,
-                        totalVisits: s.drd.totalVisits,
+                        lastVisitDate: group.drd?.latestVisitDate ?? s?.drd?.latestVisitDate,
+                        daysSinceLastVisit: group.drd?.minDaysSinceLastVisit ?? s?.drd?.minDaysSinceLastVisit,
+                        totalVisits: group.drd?.totalVisits ?? s?.drd?.totalVisits,
                         segment: 'high_tlc'
                       })
                     : <span style={{ color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Never</span>)
@@ -1745,7 +1731,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             {showSkeleton ? <SkeletonCell /> : (
               locations.length > 0
                 ? renderGroupLift(locations)
-                : renderPostVisitLiftCell(s?.drd?.avgLift)
+                : renderPostVisitLiftCell(group.drd?.avgLift ?? s?.drd?.avgLift)
             )}
           </td>
         )}
@@ -1754,7 +1740,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
             {showSkeleton ? <SkeletonCell /> : (
               locations.length > 0
                 ? renderGroupYield(locations)
-                : renderYieldPerVisitCell(s?.drd?.yieldPerVisit)
+                : renderYieldPerVisitCell(group.drd?.yieldPerVisit ?? s?.drd?.yieldPerVisit)
             )}
           </td>
         )}
@@ -1783,7 +1769,7 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
           {showSkeleton ? <SkeletonCell /> : (group.stats?.avgFico ? <span style={{ fontWeight: 600, color: '#f8fafc' }}>{group.stats.avgFico}</span> : '—')}
         </td>
       </tr>
-      {isExpanded && locations.map((loc) => {
+      {isExpanded && displayedLocations.map((loc) => {
         const repDisplay = getRepDisplayForDealer(loc.dealerRepresentative, loc.repName, loc.statePrefix, stateRepMap);
         const hasRep = repDisplay && repDisplay !== '—';
         const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;

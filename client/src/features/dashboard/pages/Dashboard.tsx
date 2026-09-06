@@ -19,7 +19,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
 import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
-import type { DealerLocation, RollingWindow, HeatClass } from '../types';
+import type { DealerLocation, RollingWindow, HeatClass, SortColumn } from '../types';
 
 // Map frontend sort keys to server sort keys
 const SORT_KEY_MAP: Record<string, string> = {
@@ -198,6 +198,7 @@ function DashboardContent() {
         case 'active': return g.summary.activeCount > 0;
         case '30d_inactive': return g.summary.inactive30Count > 0;
         case '60d_inactive': return g.summary.inactive60Count > 0;
+        case '90d_inactive': return (g.summary.inactive90Count ?? 0) > 0;
         case 'long_inactive': return g.summary.longInactiveCount > 0;
         default: return true;
       }
@@ -214,9 +215,11 @@ function DashboardContent() {
   const [totalAllDealers, setTotalAllDealers] = useState(0);
   const [dealerStatusBreakdown, setDealerStatusBreakdown] = useState<DealerStatusBreakdown | null>(null);
   const [statusTransitions, setStatusTransitions] = useState<{ from: string; to: string; count: number }[]>([]);
+  const [dealerSortStack, setDealerSortStack] = useState<SortColumn[]>([{ key: 'apps', dir: 'desc' }]);
   const pageRef = useRef(1);
   const sortStateRef = useRef({ sorts: ['apps'], dirs: ['desc'] as ('asc' | 'desc')[] });
   const requestIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scopeForTab = (tab: TabId): 'ungrouped' | 'all' | undefined =>
     tab === 'all' ? 'all' : tab === 'dealers' ? 'ungrouped' : undefined;
@@ -228,6 +231,11 @@ function DashboardContent() {
       append: boolean, status: string | null,
       scope: 'ungrouped' | 'all', states?: string[]
     ) => {
+      if (!append) {
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = new AbortController();
+      }
+      const signal = abortControllerRef.current?.signal;
       const currentRequestId = ++requestIdRef.current;
       if (page === 1) {
         setSmallDealersLoading(true);
@@ -246,6 +254,7 @@ function DashboardContent() {
           endDate,
           trend,
           drd: drdFilter || undefined,
+          signal,
         });
 
         // Guard against out-of-order race responses
@@ -263,12 +272,17 @@ function DashboardContent() {
           if (result.statusTransitions) {
             setStatusTransitions(result.statusTransitions);
           }
-          setComparisonLabel(result.comparisonLabel);
+          if (result.comparisonLabel !== undefined) {
+            setComparisonLabel(result.comparisonLabel);
+          }
           setHasMore(result.pagination.hasMore);
           setTotal(result.pagination.totalCount);
           pageRef.current = page;
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+          return;
+        }
         console.error('Failed to load dealers:', err);
       } finally {
         if (currentRequestId === requestIdRef.current) {
@@ -291,14 +305,15 @@ function DashboardContent() {
     return undefined;
   }, [selectedState]);
 
-  // Load first page when a flat-dealer tab activates
+  // Load first page when a flat-dealer tab activates and hasn't been loaded yet for this filterVersion
   useEffect(() => {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
-    if (loadedTabs.current.has(activeTab) || smallDealersLoading) return;
+    if (loadedTabs.current.has(activeTab)) return;
     loadedTabs.current.add(activeTab);
+    pageRef.current = 1;
     fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
-  }, [activeTab, smallDealersLoading, fetchDealers, statusFilter, explicitStates]);
+  }, [activeTab, fetchDealers, statusFilter, explicitStates]);
 
   // Fetch transition data for the groups tab
   useEffect(() => {
@@ -321,18 +336,13 @@ function DashboardContent() {
     })();
   }, [activeTab, explicitStates, activityMode, selectedRep]);
 
-  // Re-fetch flat tabs when target server params change
-  const refetchFlatTab = useCallback(() => {
+  // Re-fetch flat tabs whenever store filter version changes
+  useEffect(() => {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
     pageRef.current = 1;
     fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
-  }, [activeTab, fetchDealers, statusFilter, explicitStates]);
-
-  // Re-fetch flat tabs whenever store filter version changes
-  useEffect(() => {
-    refetchFlatTab();
-  }, [filterVersion, refetchFlatTab]);
+  }, [filterVersion]);
 
   // Rep change handler with state cleanup
   const handleRepChange = useCallback((rep: string) => {
@@ -376,7 +386,9 @@ function DashboardContent() {
     const scope = scopeForTab(tab);
     if (scope) {
       pageRef.current = 1;
+      setDealerSortStack([{ key: 'apps', dir: 'desc' }]);
       sortStateRef.current = { sorts: ['apps'], dirs: ['desc'] };
+      loadedTabs.current.add(tab);
       fetchDealers(1, ['apps'], ['desc'], false, statusFilter, scope, explicitStates);
     }
   }, [setTab, fetchDealers, statusFilter, explicitStates]);
@@ -392,13 +404,15 @@ function DashboardContent() {
 
   // Sort change from DealerTable
   const handleDealerSortChange = useCallback(
-    (sortKeys: string[], sortDirs: ('asc' | 'desc')[]) => {
+    (newSortStack: SortColumn[]) => {
       const scope = scopeForTab(activeTab);
       if (!scope) return;
-      const serverKeys = sortKeys.map(k => SORT_KEY_MAP[k] || 'dealerName');
-      sortStateRef.current = { sorts: serverKeys, dirs: sortDirs };
+      setDealerSortStack(newSortStack);
+      const serverKeys = newSortStack.map(s => SORT_KEY_MAP[s.key] || s.key);
+      const serverDirs = newSortStack.map(s => s.dir);
+      sortStateRef.current = { sorts: serverKeys, dirs: serverDirs };
       pageRef.current = 1;
-      fetchDealers(1, serverKeys, sortDirs, false, statusFilter, scope, explicitStates);
+      fetchDealers(1, serverKeys, serverDirs, false, statusFilter, scope, explicitStates);
     },
     [fetchDealers, activeTab, statusFilter, explicitStates]
   );
@@ -430,22 +444,13 @@ function DashboardContent() {
     if (!dealerStatusBreakdown) return undefined;
     switch (statusFilter) {
       case 'active': return dealerStatusBreakdown.active;
-      case '30d_inactive': return dealerStatusBreakdown.inactive30;
-      case '60d_inactive': return dealerStatusBreakdown.inactive60;
+      case '30d_inactive': return dealerStatusBreakdown.inactive30 ?? dealerStatusBreakdown.inactive30d;
+      case '60d_inactive': return dealerStatusBreakdown.inactive60 ?? dealerStatusBreakdown.inactive60d;
+      case '90d_inactive': return dealerStatusBreakdown.inactive90 ?? dealerStatusBreakdown.inactive90d;
       case 'long_inactive': return dealerStatusBreakdown.longInactive;
       default: return totalSmallDealers || undefined;
     }
   }, [statusFilter, totalSmallDealers, dealerStatusBreakdown]);
-
-  const filteredSmallDealers = useMemo(() => {
-    if (!statusFilter) return smallDealers;
-    return smallDealers.filter((loc) => loc.latestSnapshot?.activityStatus === statusFilter);
-  }, [smallDealers, statusFilter]);
-
-  const filteredAllDealers = useMemo(() => {
-    if (!statusFilter) return allDealers;
-    return allDealers.filter((loc) => loc.latestSnapshot?.activityStatus === statusFilter);
-  }, [allDealers, statusFilter]);
 
   const handleRepStateChange = useCallback((rep: string, state: string) => {
     setRep(rep);
@@ -553,7 +558,7 @@ function DashboardContent() {
         mode={activeTab}
         groups={filteredGroups}
         groupLocations={groupLocations}
-        smallDealers={activeTab === 'all' ? filteredAllDealers : filteredSmallDealers}
+        smallDealers={activeTab === 'all' ? allDealers : smallDealers}
         isLoading={activeTab === 'groups' ? groupsLoading : smallDealersLoading}
         isLoadingMore={smallDealersLoadingMore}
         hasMore={hasMore}
@@ -566,6 +571,7 @@ function DashboardContent() {
         maxReportDate={overview?.latestReportDate}
         onExpandGroup={handleExpandGroup}
         onLoadMore={handleLoadMore}
+        dealerSort={dealerSortStack}
         onDealerSortChange={handleDealerSortChange}
         onDealerSearch={handleDealerSearch}
         onSelectDealer={handleOpenDealerDrawer}
