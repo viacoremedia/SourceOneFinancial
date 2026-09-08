@@ -741,6 +741,48 @@ router.post('/reingest/:id', validateWebhookToken, async (req, res) => {
 });
 
 // ==========================================
+// POST /webhook/rebuild — Manually trigger snapshot & rollup rebuild
+// Rebuilds the last N months of DailyDealerSnapshots and MonthlyDealerRollups.
+// ==========================================
+router.post('/rebuild', validateWebhookToken, async (req, res) => {
+    try {
+        const { rebuildRecentSnapshots } = require('../services/snapshotGeneratorService');
+        const monthsBack = req.body.monthsBack ? parseInt(req.body.monthsBack, 10) : 3;
+        const fromDate = req.body.fromDate || req.query.fromDate || null;
+        const toDate = req.body.toDate || req.query.toDate || null;
+
+        console.log(`[Webhook] Manual rebuild requested: monthsBack=${monthsBack}, fromDate=${fromDate || 'auto'}, toDate=${toDate || 'auto'}`);
+
+        const result = await rebuildRecentSnapshots({
+            monthsBack,
+            fromDate,
+            toDate
+        });
+
+        if (result.skipped) {
+            return res.status(409).json({
+                success: false,
+                message: 'A snapshot rebuild is already currently running.',
+                result
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Snapshots and monthly rollups rebuilt successfully.',
+            result
+        });
+    } catch (error) {
+        console.error('Error during manual rebuild:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Snapshot rebuild failed',
+            details: error.message
+        });
+    }
+});
+
+// ==========================================
 // GET /webhook/:id — View full payload by ID
 // ==========================================
 router.get('/:id', async (req, res) => {

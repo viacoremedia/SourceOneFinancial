@@ -14,6 +14,9 @@ const EVENT_TYPES = [
     'empty_payload',      // Request had no usable data
     'health_check',       // /webhook/health was called
     'unauthorized_attempt', // Request failed token validation
+    'snapshot_rebuild_start',    // Automated snapshot & rollup rebuild started
+    'snapshot_rebuild_complete', // Automated snapshot & rollup rebuild finished successfully
+    'snapshot_rebuild_failed',   // Snapshot & rollup rebuild encountered an error
 ];
 
 /**

@@ -191,9 +191,71 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
 
         const processingTimeMs = Date.now() - startTime;
         console.log(`  application ingestion: upserted ${totalUpserted} new, updated ${totalModified} existing`);
-        console.log(`  application ingestion: completed in ${processingTimeMs}ms — ${bulkOps.length} records`);
+        console.log(`  application ingestion: completed CSV parsing in ${processingTimeMs}ms — ${bulkOps.length} records`);
 
-        // Step 5: Update ingestion log
+        // Step 5: Automatically trigger 3-month snapshot and monthly rollup rebuild
+        let rebuildResult = null;
+        try {
+            const { rebuildRecentSnapshots } = require('./snapshotGeneratorService');
+            const WebhookLog = require('../models/WebhookLog');
+
+            await WebhookLog.create({
+                eventType: 'snapshot_rebuild_start',
+                fileName,
+                metadata: {
+                    sourcePayload: webhookPayloadId,
+                    monthsBack: 3
+                }
+            }).catch(() => {});
+
+            rebuildResult = await rebuildRecentSnapshots({
+                monthsBack: 3,
+                webhookPayloadId
+            });
+
+            await WebhookLog.create({
+                eventType: 'snapshot_rebuild_complete',
+                fileName,
+                durationMs: rebuildResult.totalDurationMs,
+                metadata: {
+                    sourcePayload: webhookPayloadId,
+                    fromDate: rebuildResult.fromDate,
+                    toDate: rebuildResult.toDate,
+                    totalSnapshots: rebuildResult.snapshots?.totalSnapshots,
+                    totalRollups: rebuildResult.rollups?.totalRebuilt
+                }
+            }).catch(() => {});
+
+        } catch (rebuildErr) {
+            console.error(`  application ingestion: snapshot rebuild failed (non-fatal): ${rebuildErr.message}`);
+            try {
+                const WebhookLog = require('../models/WebhookLog');
+                await WebhookLog.create({
+                    eventType: 'snapshot_rebuild_failed',
+                    fileName,
+                    error: rebuildErr.message,
+                    metadata: { sourcePayload: webhookPayloadId }
+                }).catch(() => {});
+            } catch (_) {}
+        }
+
+        // Step 6: Run automated post-ingestion reports (non-fatal)
+        try {
+            const { runPostIngestionReports } = require('./reportService');
+            const reportDate = rebuildResult?.toDate ? new Date(rebuildResult.toDate) : new Date();
+            await runPostIngestionReports({
+                rowCount: rows.length,
+                dealersProcessed: bulkOps.length,
+                newDealers: totalUpserted,
+                processingTimeMs
+            }, reportDate);
+        } catch (reportErr) {
+            console.error(`  application ingestion: post-ingestion reports failed (non-fatal): ${reportErr.message}`);
+        }
+
+        const totalOverallMs = Date.now() - startTime;
+
+        // Step 7: Update ingestion log with completion details
         if (ingestionLog) {
             await FileIngestionLog.updateOne(
                 { _id: ingestionLog._id },
@@ -203,8 +265,9 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
                         rowCount: rows.length,
                         dealersProcessed: bulkOps.length,
                         newDealers: totalUpserted,
+                        reportDate: rebuildResult?.toDate ? new Date(rebuildResult.toDate) : null,
                         errorReason: errors.length > 0 ? errors.slice(0, 10).join('; ') : null,
-                        processingTimeMs,
+                        processingTimeMs: totalOverallMs,
                         completedAt: new Date()
                     }
                 }
@@ -218,7 +281,8 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
             updatedRecords: totalModified,
             skipped,
             errors,
-            processingTimeMs
+            processingTimeMs: totalOverallMs,
+            rebuild: rebuildResult
         };
 
     } catch (err) {

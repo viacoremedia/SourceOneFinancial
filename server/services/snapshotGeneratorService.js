@@ -22,6 +22,11 @@ const DealerLocation = require('../models/DealerLocation');
 const Application = require('../models/Application');
 const DealerCommunication = require('../models/DealerCommunication');
 const MonthlyDealerRollup = require('../models/MonthlyDealerRollup');
+const { rebuildRollupsForRange } = require('./rollupService');
+const { clearLatestDateCache } = require('../utils/dateUtils');
+
+// Concurrency guard to prevent concurrent rebuild runs
+let isRebuildingSnapshots = false;
 
 /**
  * Format a Date object to YYYY-MM-DD string in UTC
@@ -223,11 +228,24 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
 
     console.log(`Generating snapshots across ${dateList.length} date(s) for ${dealers.length} dealer(s)...`);
 
-    // 5. Generate snapshots and bulkWrite in batches
+    // 5. Generate snapshots and bulkWrite in parallel batches
     let totalSnapshots = 0;
-    const BATCH_SIZE = 2500;
-    let bulkOps = [];
+    const BATCH_SIZE = 3500;
+    const CONCURRENCY = 4;
+    let pendingBatches = [];
+    let currentBatch = [];
     let dateIdx = 0;
+
+    async function flushBatches() {
+        if (pendingBatches.length === 0) return;
+        const toRun = pendingBatches.splice(0, pendingBatches.length);
+        const results = await Promise.all(
+            toRun.map(batch => DailyDealerSnapshot.bulkWrite(batch, { ordered: false }))
+        );
+        for (const res of results) {
+            totalSnapshots += (res.upsertedCount || 0) + (res.modifiedCount || 0);
+        }
+    }
 
     for (const reportDate of dateList) {
         dateIdx++;
@@ -318,7 +336,7 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
                 daysFromVisitToNextApp
             };
 
-            bulkOps.push({
+            currentBatch.push({
                 updateOne: {
                     filter: { dealerLocation: dealer._id, reportDate },
                     update: { $set: snapshotDoc },
@@ -326,18 +344,20 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
                 }
             });
 
-            if (bulkOps.length >= BATCH_SIZE) {
-                const res = await DailyDealerSnapshot.bulkWrite(bulkOps, { ordered: false });
-                totalSnapshots += (res.upsertedCount || 0) + (res.modifiedCount || 0);
-                bulkOps = [];
+            if (currentBatch.length >= BATCH_SIZE) {
+                pendingBatches.push(currentBatch);
+                currentBatch = [];
+                if (pendingBatches.length >= CONCURRENCY) {
+                    await flushBatches();
+                }
             }
         }
     }
 
-    if (bulkOps.length > 0) {
-        const res = await DailyDealerSnapshot.bulkWrite(bulkOps, { ordered: false });
-        totalSnapshots += (res.upsertedCount || 0) + (res.modifiedCount || 0);
+    if (currentBatch.length > 0) {
+        pendingBatches.push(currentBatch);
     }
+    await flushBatches();
 
     const durationMs = Date.now() - startTime;
     console.log(`\n✓ SNAPSHOT GENERATION COMPLETE`);
@@ -349,7 +369,105 @@ async function generateSnapshotsForRange({ fromDate = '2025-01-01', toDate = new
     return { totalSnapshots, daysProcessed: dateList.length, durationMs };
 }
 
+/**
+ * High-level orchestration function to rebuild recent snapshots and rollups.
+ * Typically triggered automatically upon ingestion of a new main_application CSV,
+ * or manually via POST /webhook/rebuild or CLI.
+ * 
+ * Anchors to the latest application date or today, and computes backwards
+ * to cover the requested number of calendar months (defaults to 3 months).
+ * 
+ * @param {Object} options
+ * @param {number} [options.monthsBack=3] - Number of months back to cover
+ * @param {Date|string} [options.fromDate] - Explicit start date override
+ * @param {Date|string} [options.toDate] - Explicit end date override
+ * @param {string} [options.webhookPayloadId] - Source payload ObjectId for traceability
+ * @returns {Promise<{
+ *   success: boolean,
+ *   skipped?: boolean,
+ *   reason?: string,
+ *   fromDate: string,
+ *   toDate: string,
+ *   snapshots: Object,
+ *   rollups: Object,
+ *   totalDurationMs: number
+ * }>}
+ */
+async function rebuildRecentSnapshots({ monthsBack = 3, fromDate = null, toDate = null, webhookPayloadId = null } = {}) {
+    if (isRebuildingSnapshots) {
+        console.warn('⚠️ [SnapshotService] Snapshot rebuild already in progress — skipping duplicate concurrent invocation.');
+        return { success: false, skipped: true, reason: 'Rebuild already in progress' };
+    }
+
+    isRebuildingSnapshots = true;
+    const overallStartTime = Date.now();
+
+    try {
+        // Resolve toDate: use provided, or latest application date in DB, or today
+        let targetEnd = toDate ? new Date(toDate) : null;
+        if (!targetEnd) {
+            const latestApp = await Application.findOne({ applicationDate: { $ne: null } })
+                .sort({ applicationDate: -1 })
+                .select('applicationDate')
+                .lean();
+            targetEnd = latestApp && latestApp.applicationDate ? new Date(latestApp.applicationDate) : new Date();
+        }
+        targetEnd.setUTCHours(0, 0, 0, 0);
+
+        // Resolve fromDate: use provided, or go back to the 1st of the month `monthsBack` months ago
+        let targetStart = fromDate ? new Date(fromDate) : null;
+        if (!targetStart) {
+            targetStart = new Date(Date.UTC(
+                targetEnd.getUTCFullYear(),
+                targetEnd.getUTCMonth() - monthsBack,
+                1
+            ));
+        }
+        targetStart.setUTCHours(0, 0, 0, 0);
+
+        console.log(`\n================================================================`);
+        console.log(`  REBUILDING RECENT SNAPSHOTS & ROLLUPS`);
+        console.log(`  Window: ${toDateKey(targetStart)} to ${toDateKey(targetEnd)} (${monthsBack} months back)`);
+        console.log(`================================================================`);
+
+        // Step 1: Rebuild DailyDealerSnapshots for the date range
+        const snapResult = await generateSnapshotsForRange({
+            fromDate: targetStart,
+            toDate: targetEnd
+        });
+
+        // Step 2: Rebuild MonthlyDealerRollups for all months touched by this range
+        const rollupResult = await rebuildRollupsForRange(targetStart, targetEnd);
+
+        // Step 3: Clear date cache so all subsequent queries see the fresh data
+        clearLatestDateCache();
+
+        const totalDurationMs = Date.now() - overallStartTime;
+        console.log(`\n================================================================`);
+        console.log(`  ✓ AUTOMATED REBUILD FINISHED IN ${(totalDurationMs / 1000).toFixed(2)}s`);
+        console.log(`  Snapshots Processed: ${snapResult.totalSnapshots.toLocaleString()}`);
+        console.log(`  Rollups Rebuilt:     ${rollupResult.totalRebuilt.toLocaleString()}`);
+        console.log(`================================================================\n`);
+
+        return {
+            success: true,
+            fromDate: toDateKey(targetStart),
+            toDate: toDateKey(targetEnd),
+            snapshots: snapResult,
+            rollups: rollupResult,
+            totalDurationMs
+        };
+
+    } catch (err) {
+        console.error(`❌ [SnapshotService] Rebuild failed after ${Date.now() - overallStartTime}ms:`, err.message);
+        throw err;
+    } finally {
+        isRebuildingSnapshots = false;
+    }
+}
+
 module.exports = {
     generateSnapshotsForRange,
+    rebuildRecentSnapshots,
     computeActivityStatus
 };
