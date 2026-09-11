@@ -81,34 +81,34 @@ a:hover {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-slate-700);
+  background: var(--color-slate-300);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-slate-600);
+  background: var(--color-slate-400);
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-slate-700) transparent;
-}
-
-[data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: var(--color-slate-300);
-}
-[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-slate-400);
-}
-[data-theme="light"] * {
   scrollbar-color: var(--color-slate-300) transparent;
 }
 
-::selection {
-  background: var(--color-teal-500);
-  color: var(--color-navy-950);
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--color-slate-700);
 }
-[data-theme="light"] ::selection {
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-slate-600);
+}
+[data-theme="dark"] * {
+  scrollbar-color: var(--color-slate-700) transparent;
+}
+
+::selection {
   background: var(--accent-primary);
   color: white;
+}
+[data-theme="dark"] ::selection {
+  background: var(--color-teal-500);
+  color: var(--color-navy-950);
 }
 
 table {

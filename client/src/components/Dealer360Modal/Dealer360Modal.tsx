@@ -203,6 +203,65 @@ export function Dealer360Modal() {
                   </span>
                 )}
                 {loc?.groupName && <span>Group: <strong>{loc.groupName}</strong></span>}
+                {loc?.businessType && (
+                  <span>
+                    Type:{' '}
+                    <strong style={{ textTransform: 'capitalize' }}>
+                      {loc.businessType === 'franchise' ? '🏢 Franchise' : loc.businessType === 'broker' ? 'Broker' : 'Independent'}
+                    </strong>
+                  </span>
+                )}
+                {loc?.tags && loc.tags.length > 0 && (
+                  <span style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
+                    Tags:{' '}
+                    {loc.tags.map((t) => (
+                      <span
+                        key={t}
+                        style={{
+                          background: 'rgba(45, 212, 191, 0.12)',
+                          color: '#2dd4bf',
+                          border: '1px solid rgba(45, 212, 191, 0.25)',
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '11px',
+                          fontWeight: 600
+                        }}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {loc?.fundingParent && (
+                  <span
+                    style={{
+                      background: 'rgba(14, 165, 233, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(14, 165, 233, 0.3)',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}
+                  >
+                    🏢 Funds via {loc.fundingParent.dealerName} ({loc.fundingParent.clientDealerId || loc.fundingParent.dealerId})
+                  </span>
+                )}
+                {(loc?.isFundingParent || (loc?.fundingChildren && loc.fundingChildren.length > 0)) && (
+                  <span
+                    style={{
+                      background: 'rgba(168, 85, 247, 0.15)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}
+                  >
+                    🏢 Central Funder ({loc?.fundingChildren?.length || 0} stores)
+                  </span>
+                )}
               </div>
             </div>
             <button className={styles.closeBtn} onClick={closeDealer360} title="Close">✕</button>
@@ -493,7 +552,7 @@ export function Dealer360Modal() {
                                     </span>
                                     <span className={styles.timelineDate}>{formattedDate}</span>
                                   </div>
-                                  {e.notes && <div style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '6px', lineHeight: '1.4' }}>{e.notes}</div>}
+                                  {e.notes && <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.4' }}>{e.notes}</div>}
                                 </div>
                               );
                             }
@@ -515,9 +574,9 @@ export function Dealer360Modal() {
                                   <span className={styles.timelineDate}>{formattedDate}</span>
                                 </div>
                                 <div className={styles.timelineMeta}>
-                                  <span>Status: <strong style={{ color: isBooked ? '#34d399' : (e.status || '').includes('Approval') ? '#38bdf8' : '#ef4444' }}>{e.status}</strong></span>
-                                  <span>Amount: <strong style={{ color: isBooked ? '#34d399' : '#f8fafc' }}>{e.amountFinanced ? `$${e.amountFinanced.toLocaleString()}` : '$0'}</strong></span>
-                                  {e.fico && <span>FICO: <strong>{e.fico}</strong></span>}
+                                  <span>Status: <strong style={{ color: isBooked ? '#16a34a' : (e.status || '').includes('Approval') ? '#2563eb' : '#dc2626' }}>{e.status}</strong></span>
+                                  <span>Amount: <strong style={{ color: isBooked ? '#16a34a' : 'var(--text-primary)' }}>{e.amountFinanced ? `$${e.amountFinanced.toLocaleString()}` : '$0'}</strong></span>
+                                  {e.fico && <span>FICO: <strong style={{ color: 'var(--text-primary)' }}>{e.fico}</strong></span>}
 
                                   {e.attribution && targetVisit && e.timestamp >= targetVisit.timestamp && (
                                     <span className={styles.attributionBadge} title={`Visit took place on ${new Date(e.attribution.visitDate).toLocaleDateString()}`}>
@@ -630,10 +689,10 @@ export function Dealer360Modal() {
                 {/* TAB 2: MONTHLY TRENDS (MOM) */}
                 {activeTab === 'mom' && (
                   <div>
-                    <h4 style={{ color: '#38bdf8', marginBottom: '12px' }}>Monthly Performance Breakdown</h4>
+                    <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px' }}>Monthly Performance Breakdown</h4>
                     <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
                       <thead>
-                        <tr style={{ background: '#090d16', color: '#94a3b8', textAlign: 'left' }}>
+                        <tr style={{ background: 'var(--bg-surface-raised, #090d16)', color: 'var(--text-secondary, #94a3b8)', textAlign: 'left' }}>
                           <th style={{ padding: '10px' }}>Month</th>
                           <th style={{ padding: '10px' }}>Apps</th>
                           <th style={{ padding: '10px' }}>Booked Dollars</th>
@@ -641,10 +700,10 @@ export function Dealer360Modal() {
                       </thead>
                       <tbody>
                         {overviewData.sparkline.slice().reverse().map((s) => (
-                          <tr key={s.month} style={{ borderBottom: '1px solid #1e293b' }}>
-                            <td style={{ padding: '10px', fontWeight: 600 }}>{s.month}</td>
-                            <td style={{ padding: '10px', color: '#f8fafc' }}>{s.apps}</td>
-                            <td style={{ padding: '10px', color: s.bookedDollars > 0 ? '#34d399' : '#64748b', fontWeight: 600 }}>
+                          <tr key={s.month} style={{ borderBottom: '1px solid var(--border-subtle, #1e293b)' }}>
+                            <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-primary)' }}>{s.month}</td>
+                            <td style={{ padding: '10px', color: 'var(--text-primary)' }}>{s.apps}</td>
+                            <td style={{ padding: '10px', color: s.bookedDollars > 0 ? '#16a34a' : 'var(--text-muted, #64748b)', fontWeight: 600 }}>
                               {formatDollar(s.bookedDollars)}
                             </td>
                           </tr>
@@ -668,7 +727,7 @@ export function Dealer360Modal() {
                         ) : (
                           <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
                             <thead>
-                              <tr style={{ background: '#090d16', color: '#94a3b8', textAlign: 'left' }}>
+                              <tr style={{ background: 'var(--bg-surface-raised, #090d16)', color: 'var(--text-secondary, #94a3b8)', textAlign: 'left' }}>
                                 <th style={{ padding: '8px' }}>Date</th>
                                 <th style={{ padding: '8px' }}>Rep</th>
                                 <th style={{ padding: '8px' }}>Type</th>
@@ -684,20 +743,20 @@ export function Dealer360Modal() {
                                 const isCall = item.type.toLowerCase().includes('call');
 
                                 return (
-                                  <tr key={item.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                                    <td style={{ padding: '8px', color: '#38bdf8', whiteSpace: 'nowrap', fontWeight: 600 }}>{formattedDate}</td>
-                                    <td style={{ padding: '8px', fontWeight: 600 }}>{item.repName}</td>
+                                  <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle, #1e293b)' }}>
+                                    <td style={{ padding: '8px', color: '#1e40af', whiteSpace: 'nowrap', fontWeight: 600 }}>{formattedDate}</td>
+                                    <td style={{ padding: '8px', fontWeight: 600, color: 'var(--text-primary)' }}>{item.repName}</td>
                                     <td style={{ padding: '8px' }}>
                                       <span style={{
                                         padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
-                                        background: isVisit ? 'rgba(52, 211, 153, 0.15)' : isCall ? 'rgba(56, 189, 248, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-                                        color: isVisit ? '#34d399' : isCall ? '#38bdf8' : '#cbd5e1',
-                                        border: `1px solid ${isVisit ? 'rgba(52, 211, 153, 0.3)' : isCall ? 'rgba(56, 189, 248, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`
+                                        background: isVisit ? 'rgba(16, 185, 129, 0.15)' : isCall ? 'rgba(56, 189, 248, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                                        color: isVisit ? '#059669' : isCall ? '#0284c7' : 'var(--text-secondary)',
+                                        border: `1px solid ${isVisit ? 'rgba(16, 185, 129, 0.3)' : isCall ? 'rgba(56, 189, 248, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`
                                       }}>
                                         {isVisit ? '🟢 In-Person Visit' : isCall ? '📞 Phone Call' : item.type}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '8px', color: '#cbd5e1' }}>{item.result || (item as any).notes || item.feedback || '—'}</td>
+                                    <td style={{ padding: '8px', color: 'var(--text-primary)' }}>{item.result || (item as any).notes || item.feedback || '—'}</td>
                                   </tr>
                                 );
                               })}
@@ -723,7 +782,7 @@ export function Dealer360Modal() {
                         ) : (
                           <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
                             <thead>
-                              <tr style={{ background: '#090d16', color: '#94a3b8', textAlign: 'left' }}>
+                              <tr style={{ background: 'var(--bg-surface-raised, #090d16)', color: 'var(--text-secondary, #94a3b8)', textAlign: 'left' }}>
                                 <th style={{ padding: '8px' }}>App ID</th>
                                 <th style={{ padding: '8px' }}>Date</th>
                                 <th style={{ padding: '8px' }}>Status</th>
@@ -742,22 +801,22 @@ export function Dealer360Modal() {
                                 const ficoVal = app.fico || app.creditScore || '—';
 
                                 return (
-                                  <tr key={app.id || app.applicationId} style={{ borderBottom: '1px solid #1e293b' }}>
-                                    <td style={{ padding: '8px', fontWeight: 700, color: '#38bdf8' }}>{app.applicationId}</td>
-                                    <td style={{ padding: '8px', color: '#94a3b8' }}>{formattedAppDate}</td>
+                                  <tr key={app.id || app.applicationId} style={{ borderBottom: '1px solid var(--border-subtle, #1e293b)' }}>
+                                    <td style={{ padding: '8px', fontWeight: 700, color: '#1e40af' }}>{app.applicationId}</td>
+                                    <td style={{ padding: '8px', color: 'var(--text-secondary)' }}>{formattedAppDate}</td>
                                     <td style={{ padding: '8px' }}>
                                       <span style={{
                                         padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700,
-                                        background: app.status === 'Booked' ? 'rgba(52, 211, 153, 0.15)' : (app.status || '').includes('Approval') ? 'rgba(56, 189, 248, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                        color: app.status === 'Booked' ? '#34d399' : (app.status || '').includes('Approval') ? '#38bdf8' : '#ef4444'
+                                        background: app.status === 'Booked' ? 'rgba(16, 185, 129, 0.15)' : (app.status || '').includes('Approval') ? 'rgba(56, 189, 248, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                        color: app.status === 'Booked' ? '#059669' : (app.status || '').includes('Approval') ? '#0284c7' : '#dc2626'
                                       }}>
                                         {app.status || 'Pending'}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '8px', fontWeight: 600, color: app.status === 'Booked' ? '#34d399' : '#f8fafc' }}>
+                                    <td style={{ padding: '8px', fontWeight: 600, color: app.status === 'Booked' ? '#059669' : 'var(--text-primary)' }}>
                                       {formattedAmount}
                                     </td>
-                                    <td style={{ padding: '8px', color: '#94a3b8' }}>{ficoVal}</td>
+                                    <td style={{ padding: '8px', color: 'var(--text-primary)' }}>{ficoVal}</td>
                                   </tr>
                                 );
                               })}

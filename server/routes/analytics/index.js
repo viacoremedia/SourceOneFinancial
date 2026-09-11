@@ -225,6 +225,7 @@ router.get('/executive-summary', async (req, res) => {
         const stateFilter = req.query.state || req.query.states || null;
         const repFilter = req.query.rep || null;
         const groupSlugFilter = req.query.groupSlug || null;
+        const scopeFilter = req.query.scope || req.query.mode || null;
 
         const maxReportDate = await getMaxReportDate();
         const year = maxReportDate.getUTCFullYear();
@@ -246,13 +247,23 @@ router.get('/executive-summary', async (req, res) => {
 
         const statusFilter = req.query.status || req.query.statusFilter || null;
         const drdFilter = req.query.drd || req.query.drdSegment || null;
+        const businessTypeFilter = req.query.businessType || null;
+        const tagsFilter = req.query.tags
+            ? (Array.isArray(req.query.tags) ? req.query.tags : String(req.query.tags).split(',').map(t => t.trim()).filter(Boolean))
+            : null;
 
         const REP_ALIAS_MAP = getRepAliasMap();
 
         let filterDealerIds = null;
 
-        if (statusFilter || stateFilter || repFilter || groupSlugFilter || (drdFilter && drdFilter !== 'all')) {
+        const isScopeRestricted = scopeFilter && scopeFilter !== 'all';
+        if (isScopeRestricted || statusFilter || stateFilter || repFilter || groupSlugFilter || businessTypeFilter || (tagsFilter && tagsFilter.length > 0) || (drdFilter && drdFilter !== 'all')) {
             const locMatch = {};
+            if (scopeFilter === 'groups') {
+                locMatch.dealerGroup = { $ne: null };
+            } else if (scopeFilter === 'small' || scopeFilter === 'dealers' || scopeFilter === 'ungrouped') {
+                locMatch.dealerGroup = null;
+            }
             if (groupSlugFilter) {
                 const grp = await DealerGroup.findOne({ slug: groupSlugFilter }).lean();
                 if (grp) locMatch.dealerGroup = grp._id;
@@ -266,6 +277,12 @@ router.get('/executive-summary', async (req, res) => {
                 const handles = getRepHandles(repFilter);
                 const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
                 locMatch.dealerRepresentative = { $in: handleRegexes };
+            }
+            if (businessTypeFilter) {
+                locMatch.businessType = businessTypeFilter;
+            }
+            if (tagsFilter && tagsFilter.length > 0) {
+                locMatch.tags = { $in: tagsFilter };
             }
 
             let matchingLocs = await DealerLocation.find(locMatch).select('_id clientDealerId dealerId').lean();
@@ -369,7 +386,8 @@ router.get('/executive-summary', async (req, res) => {
             endDate: maxReportDate,
             rep: repFilter,
             state: stateFilter,
-            groupSlug: groupSlugFilter
+            groupSlug: groupSlugFilter,
+            dealerIds: filterDealerIds
         });
         const mtdActualBookedDollars = mtdStats.bookedDollars;
         const mtdPace = Math.round((mtdActualBookedDollars / daysElapsedCurrentMonth) * daysInCurrentMonth);
@@ -381,7 +399,8 @@ router.get('/executive-summary', async (req, res) => {
             endDate: maxReportDate,
             rep: repFilter,
             state: stateFilter,
-            groupSlug: groupSlugFilter
+            groupSlug: groupSlugFilter,
+            dealerIds: filterDealerIds
         });
         const ytdActualBookedDollars = ytdStats.bookedDollars;
 
@@ -399,7 +418,8 @@ router.get('/executive-summary', async (req, res) => {
             endDate: janPriorMonthEnd,
             rep: repFilter,
             state: stateFilter,
-            groupSlug: groupSlugFilter
+            groupSlug: groupSlugFilter,
+            dealerIds: filterDealerIds
         }) : { bookedDollars: 0 };
 
         const yearToDatePacedTotal = priorMonthsStats.bookedDollars + mtdPace;
@@ -451,6 +471,11 @@ router.get('/historical/mom', async (req, res) => {
         const repFilter = req.query.rep || null;
         const groupSlugFilter = req.query.groupSlug || null;
         const dealerFilter = req.query.dealerId || req.query.dealer || null;
+        const businessTypeFilter = req.query.businessType || null;
+        const tagsFilter = req.query.tags
+            ? (Array.isArray(req.query.tags) ? req.query.tags : String(req.query.tags).split(',').map(t => t.trim()).filter(Boolean))
+            : null;
+        const industryFilter = req.query.industry || null;
         const now = await getLatestDataDate();
         const currentYear = now.getUTCFullYear();
         const currentMonth = now.getUTCMonth(); // 0-indexed
@@ -463,7 +488,7 @@ router.get('/historical/mom', async (req, res) => {
         let filterDealerLocationIds = null;
         let filterDealerIds = null;
 
-        if (stateFilter || repFilter || groupSlugFilter || dealerFilter) {
+        if (stateFilter || repFilter || groupSlugFilter || dealerFilter || businessTypeFilter || (tagsFilter && tagsFilter.length > 0) || industryFilter) {
             const locMatch = {};
             if (dealerFilter) {
                 const isObjId = mongoose.Types.ObjectId.isValid(dealerFilter);
@@ -493,10 +518,23 @@ router.get('/historical/mom', async (req, res) => {
                 const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
                 locMatch.dealerRepresentative = { $in: handleRegexes };
             }
+            if (businessTypeFilter) {
+                locMatch.businessType = businessTypeFilter;
+            }
+            if (tagsFilter && tagsFilter.length > 0) {
+                locMatch.tags = { $in: tagsFilter };
+            }
+            if (industryFilter) {
+                locMatch.industry = industryFilter;
+            }
 
             const locs = await DealerLocation.find(locMatch).select('_id clientDealerId dealerId').lean();
             filterDealerLocationIds = locs.map(l => l._id);
             filterDealerIds = locs.map(l => (l.clientDealerId || l.dealerId || '').trim().toUpperCase()).filter(Boolean);
+            if (filterDealerIds.length === 0) {
+                filterDealerIds = ['__NO_MATCH__'];
+                filterDealerLocationIds = [new mongoose.Types.ObjectId()];
+            }
         }
 
         // Build list of months from 2025-01 through current month
@@ -1058,9 +1096,11 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
 // ==========================================
 router.get('/groups', async (req, res) => {
     try {
-        // Optional state/rep filters
+        // Optional state/rep/businessType/tags filters
         const statesParam = req.query.states;
         const repParam = req.query.rep || req.query.salesRep || null;
+        const businessTypeParam = req.query.businessType || null;
+        const tagsParam = req.query.tags ? req.query.tags.split(',').map(t => t.trim()).filter(Boolean) : null;
         const targetStates = statesParam
             ? String(statesParam).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
             : null;
@@ -1069,9 +1109,9 @@ router.get('/groups', async (req, res) => {
 
         const REP_ALIAS_MAP = getRepAliasMap();
 
-        // If filtering by states or rep, get matching location IDs
+        // If filtering by states, rep, businessType, or tags, get matching location IDs
         let filteredLocationIds = null;
-        if ((targetStates && targetStates.length > 0) || repParam) {
+        if ((targetStates && targetStates.length > 0) || repParam || businessTypeParam || (tagsParam && tagsParam.length > 0)) {
             const locMatch = { dealerGroup: { $ne: null } };
             if (targetStates && targetStates.length > 0) {
                 locMatch.statePrefix = { $in: targetStates };
@@ -1080,6 +1120,12 @@ router.get('/groups', async (req, res) => {
                 const handles = getRepHandles(repParam);
                 const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
                 locMatch.dealerRepresentative = { $in: handleRegexes };
+            }
+            if (businessTypeParam) {
+                locMatch.businessType = businessTypeParam;
+            }
+            if (tagsParam && tagsParam.length > 0) {
+                locMatch.tags = { $in: tagsParam };
             }
 
             const matchingLocations = await DealerLocation.find(locMatch).select('_id').lean();
@@ -1565,11 +1611,16 @@ router.get('/dealers/small', async (req, res) => {
         const activityMode = req.query.activityMode || 'application'; // 'application' | 'approval' | 'booking'
         const searchQuery = req.query.search ? String(req.query.search).trim() : '';
         const transitionParam = req.query.transition || null; // e.g. "active→30d_inactive"
+        const businessTypeParam = req.query.businessType || null;
+        const tagsParam = req.query.tags ? req.query.tags.split(',').map(t => t.trim()).filter(Boolean) : null;
 
         const REP_ALIAS_MAP = getRepAliasMap();
 
         const baseMatch = scope === 'all' ? {} : { dealerGroup: null };
         baseMatch.systemStatus = { $nin: ['closed', 'bought_out', 'no_longer_in_service'] };
+
+        // Satellite stores roll up under their Central Funder and are excluded from top-level table rows
+        baseMatch.fundingParent = null;
 
         // Inside sales reps automatically exclude their personal excluded accounts
         if (req.user && req.user.role === 'inside_rep' && req.user.excludedDealers && req.user.excludedDealers.length > 0) {
@@ -1584,12 +1635,55 @@ router.get('/dealers/small', async (req, res) => {
             const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
             baseMatch.dealerRepresentative = { $in: handleRegexes };
         }
+        if (businessTypeParam) {
+            baseMatch.businessType = businessTypeParam;
+        }
+        if (tagsParam && tagsParam.length > 0) {
+            baseMatch.tags = { $in: tagsParam };
+        }
+
+        let parentSatelliteMap = new Map();
+        let searchOr = null;
+
         if (searchQuery) {
-            baseMatch.dealerName = { $regex: searchQuery, $options: 'i' };
+            const searchRegex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+            // Search for any satellite stores matching name, ID, or city
+            const matchedSatellites = await DealerLocation.find({
+                fundingParent: { $ne: null },
+                $or: [
+                    { dealerName: searchRegex },
+                    { dealerId: searchRegex },
+                    { clientDealerId: searchRegex },
+                    { dealerCity: searchRegex }
+                ]
+            }).select('_id dealerName dealerId clientDealerId dealerCity dealerState fundingParent').lean();
+
+            const parentIdsFromSatellites = [];
+            for (const s of matchedSatellites) {
+                if (s.fundingParent) {
+                    parentIdsFromSatellites.push(s.fundingParent);
+                    parentSatelliteMap.set(s.fundingParent.toString(), {
+                        dealerName: s.dealerName,
+                        dealerId: s.dealerId || s.clientDealerId,
+                        city: s.dealerCity,
+                        state: s.dealerState
+                    });
+                }
+            }
+
+            searchOr = [
+                { dealerName: searchRegex },
+                { dealerId: searchRegex },
+                { clientDealerId: searchRegex },
+                { dealerCity: searchRegex },
+                ...(parentIdsFromSatellites.length > 0 ? [{ _id: { $in: parentIdsFromSatellites } }] : [])
+            ];
         }
 
         // Optional DRD segment filter
         const drdParam = req.query.drd || req.query.drdSegment || null;
+        let drdOr = null;
         if (drdParam && drdParam !== 'all') {
             const drdQuery = drdParam === 'overridden'
                 ? { 'manualOverride.isOverridden': true }
@@ -1597,10 +1691,19 @@ router.get('/dealers/small', async (req, res) => {
             const matchingProfiles = await DealerProfile.find(drdQuery).select('dealerLocation clientDealerId').lean();
             const matchingLocIds = matchingProfiles.map(p => p.dealerLocation).filter(Boolean);
             const matchingClientIds = matchingProfiles.map(p => p.clientDealerId).filter(Boolean);
-            baseMatch.$or = [
+            drdOr = [
                 { _id: { $in: matchingLocIds } },
                 { clientDealerId: { $in: matchingClientIds } }
             ];
+        }
+
+        // Combine searchOr and drdOr cleanly into baseMatch
+        if (searchOr && drdOr) {
+            baseMatch.$and = [{ $or: searchOr }, { $or: drdOr }];
+        } else if (searchOr) {
+            baseMatch.$or = searchOr;
+        } else if (drdOr) {
+            baseMatch.$or = drdOr;
         }
 
         // Map activityMode to the daysSince field for derived status
@@ -2177,6 +2280,82 @@ router.get('/dealers/small', async (req, res) => {
             } : null;
         }
 
+        // Populate fundingChildrenDetails for Central Funder parent stores with real snapshot, stats, and DRD
+        const parentDealers = dealers.filter(d => d.isFundingParent && Array.isArray(d.fundingChildren) && d.fundingChildren.length > 0);
+        if (parentDealers.length > 0) {
+            const allChildIds = parentDealers.flatMap(d => d.fundingChildren);
+            const childLocations = await DealerLocation.find({ _id: { $in: allChildIds } })
+                .select('_id dealerId clientDealerId dealerName dealerCity dealerState statePrefix dealerRepresentative systemStatus businessType tags')
+                .lean();
+
+            // 1. Fetch latest snapshot for child stores
+            let childSnapshots = [];
+            if (latestDate) {
+                childSnapshots = await DailyDealerSnapshot.find({
+                    dealerLocation: { $in: allChildIds },
+                    reportDate: latestDate
+                }).lean();
+            }
+            const childSnapMap = new Map(childSnapshots.map(s => [s.dealerLocation.toString(), s]));
+
+            // 2. Fetch stats for child stores
+            const allChildKeys = childLocations.map(c => (c.clientDealerId || c.dealerId || '').trim().toUpperCase()).filter(Boolean);
+            const childStatsMap = await getDealerStatsMap({
+                dealerIds: allChildKeys,
+                startDate,
+                endDate
+            });
+
+            // 3. Fetch DRD profiles for child stores
+            const childDrdProfiles = await DealerProfile.find({
+                $or: [
+                    { dealerLocation: { $in: allChildIds } },
+                    { clientDealerId: { $in: allChildKeys } }
+                ]
+            }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride lastVisitDate daysSinceLastVisit postVisitBookedLiftPct lifetimeYieldPerVisit lifetimeStats').lean();
+
+            const childDrdMap = new Map();
+            for (const p of childDrdProfiles) {
+                if (p.dealerLocation) childDrdMap.set(p.dealerLocation.toString(), p);
+                if (p.clientDealerId) childDrdMap.set(p.clientDealerId.trim().toUpperCase(), p);
+            }
+
+            // Attach snapshot, stats, and DRD to each child
+            for (const c of childLocations) {
+                c.latestSnapshot = childSnapMap.get(c._id.toString()) || null;
+                const k = (c.clientDealerId || c.dealerId || '').trim().toUpperCase();
+                c.stats = childStatsMap.get(k) || { apps: 0, approvals: 0, inHouse: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 };
+                const p = childDrdMap.get(c._id.toString()) || (k ? childDrdMap.get(k) : null);
+                c.drd = p ? {
+                    segment: p.relationshipDemand,
+                    urgencyStatus: p.urgencyStatus,
+                    isOverridden: Boolean(p.manualOverride?.isOverridden),
+                    lastVisitDate: p.lastVisitDate || null,
+                    daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
+                    postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
+                    yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
+                    totalVisits: p.lifetimeStats?.totalVisits || 0
+                } : null;
+            }
+
+            const childMap = new Map(childLocations.map(c => [c._id.toString(), c]));
+            for (const pd of parentDealers) {
+                pd.fundingChildrenDetails = (pd.fundingChildren || [])
+                    .map(cid => childMap.get(cid.toString()))
+                    .filter(Boolean);
+            }
+        }
+
+        // Attach matchedViaChild if matched by satellite search
+        if (parentSatelliteMap.size > 0) {
+            for (const dealer of dealers) {
+                const matchInfo = parentSatelliteMap.get(dealer._id.toString());
+                if (matchInfo) {
+                    dealer.matchedViaChild = matchInfo;
+                }
+            }
+        }
+
         res.status(200).json({
             success: true,
             dealers,
@@ -2464,7 +2643,11 @@ router.get('/dealers/search', async (req, res) => {
                 ]
             };
         }
-        const dealers = await DealerLocation.find(match, '_id dealerName dealerId clientDealerId statePrefix')
+        const dealers = await DealerLocation.find(match, '_id dealerName dealerId clientDealerId statePrefix dealerCity dealerState isFundingParent fundingParent fundingChildren')
+            .populate({
+                path: 'fundingParent',
+                select: '_id dealerName dealerId clientDealerId statePrefix'
+            })
             .sort({ dealerName: 1 })
             .limit(limit)
             .lean();
@@ -2693,7 +2876,11 @@ router.get('/dealer-360/:dealerId', async (req, res) => {
         let location = null;
 
         if (mongoose.Types.ObjectId.isValid(dealerId)) {
-            location = await DealerLocation.findById(dealerId).populate('dealerGroup', 'name slug').lean();
+            location = await DealerLocation.findById(dealerId)
+                .populate('dealerGroup', 'name slug isCustom')
+                .populate('fundingParent', 'dealerName dealerId clientDealerId statePrefix')
+                .populate('fundingChildren', 'dealerName dealerId clientDealerId statePrefix')
+                .lean();
         }
         if (!location) {
             location = await DealerLocation.findOne({
@@ -2702,7 +2889,11 @@ router.get('/dealer-360/:dealerId', async (req, res) => {
                     { dealerId: dealerId },
                     { omniDealerId: dealerId }
                 ]
-            }).populate('dealerGroup', 'name slug').lean();
+            })
+                .populate('dealerGroup', 'name slug isCustom')
+                .populate('fundingParent', 'dealerName dealerId clientDealerId statePrefix')
+                .populate('fundingChildren', 'dealerName dealerId clientDealerId statePrefix')
+                .lean();
         }
 
         if (!location) {
@@ -2798,6 +2989,26 @@ router.get('/dealer-360/:dealerId', async (req, res) => {
                 repName,
                 groupName: location.dealerGroup ? location.dealerGroup.name : null,
                 groupSlug: location.dealerGroup ? location.dealerGroup.slug : null,
+                businessType: location.businessType || 'non-franchise',
+                tags: location.tags || [],
+                industry: location.industry || null,
+                systemStatus: location.systemStatus || 'active',
+                systemStatusReason: location.systemStatusReason || null,
+                isFundingParent: Boolean(location.isFundingParent || (location.fundingChildren && location.fundingChildren.length > 0)),
+                fundingParent: location.fundingParent ? {
+                    _id: location.fundingParent._id,
+                    dealerName: location.fundingParent.dealerName,
+                    dealerId: location.fundingParent.dealerId,
+                    clientDealerId: location.fundingParent.clientDealerId,
+                    statePrefix: location.fundingParent.statePrefix
+                } : null,
+                fundingChildren: (location.fundingChildren || []).map(child => ({
+                    _id: child._id,
+                    dealerName: child.dealerName,
+                    dealerId: child.dealerId,
+                    clientDealerId: child.clientDealerId,
+                    statePrefix: child.statePrefix
+                })),
             },
             status: latestSnap ? latestSnap.activityStatus : (daysSinceApp != null && daysSinceApp <= 30 ? 'active' : 'inactive'),
             recencies: {

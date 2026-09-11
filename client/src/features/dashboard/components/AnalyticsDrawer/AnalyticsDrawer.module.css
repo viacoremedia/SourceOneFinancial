@@ -1352,3 +1352,404 @@
   color: #f8fafc;
   font-weight: 600;
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR ANALYTICS DRAWER
+   ============================================ */
+[data-theme="light"] .drawer {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+}
+
+[data-theme="light"] .dragHandle {
+  background: #cbd5e1;
+}
+
+[data-theme="light"] .header {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dealerCodeBadge,
+[data-theme="light"] .stateBadge,
+[data-theme="light"] .groupBadge,
+[data-theme="light"] .badge {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .repInfo {
+  color: #475569;
+}
+
+[data-theme="light"] .closeBtn {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .drawerTabs {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .tabBtn {
+  color: #475569;
+}
+
+[data-theme="light"] .tabBtn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+[data-theme="light"] .tabBtnActive {
+  background: #1e40af !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .stickyStatsBar {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .stickyDateTag {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .stickyComparisonTag {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .recencyPill {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .stickyMetricCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .stickyMetricLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .stickyMetricValue {
+  color: #0f172a;
+}
+
+[data-theme="light"] .compactKpiCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .compactKpiLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .compactKpiValue {
+  color: #0f172a;
+}
+
+[data-theme="light"] .compactKpiSub {
+  color: #475569;
+}
+
+[data-theme="light"] .card,
+[data-theme="light"] .kpiCard,
+[data-theme="light"] .metricCard,
+[data-theme="light"] .cycleCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .cycleSummaryText {
+  color: #334155;
+}
+
+[data-theme="light"] .cycleMetricVal {
+  color: #0f172a;
+}
+
+[data-theme="light"] .table th,
+[data-theme="light"] .momTableHeader th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .table td,
+[data-theme="light"] .momTableCell {
+  color: #0f172a;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .momTableRow:hover td {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .filterControls {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .filterLabel {
+  color: #475569;
+}
+
+[data-theme="light"] .selectInput {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .dealerSelectBtn {
+  background: #ffffff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+[data-theme="light"] .trendToggle {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .toggleBtn {
+  color: #475569;
+}
+
+[data-theme="light"] .toggleActive {
+  background: #1e40af;
+  color: #ffffff;
+}
+
+[data-theme="light"] .summaryCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .cardScope {
+  color: #64748b;
+}
+
+[data-theme="light"] .cardValue {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cardSub {
+  color: #64748b;
+}
+
+[data-theme="light"] .cardDetails {
+  color: #475569;
+}
+
+[data-theme="light"] .tableWrapper {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .table th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom-color: #cbd5e1;
+  box-shadow: 0 1px 0 #cbd5e1;
+}
+
+[data-theme="light"] .table th:first-child {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .table td {
+  color: #0f172a;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .table td:first-child {
+  background: #ffffff;
+}
+
+[data-theme="light"] .table tr:hover td {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .table tr:hover td:first-child {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .totalsRow {
+  background: #eff6ff !important;
+  border-bottom: 2px solid #1e40af !important;
+}
+
+[data-theme="light"] .totalsRow td {
+  background: #eff6ff !important;
+  color: #1e40af !important;
+  font-weight: 700;
+}
+
+[data-theme="light"] .totalsRow td:first-child {
+  background: #eff6ff !important;
+  color: #1e40af !important;
+}
+
+[data-theme="light"] .chartCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .chartTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .hoverMetricsBar {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+[data-theme="light"] .appIdCell {
+  color: #1e40af;
+}
+
+[data-theme="light"] .clickableRow:hover {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .cyclesSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .cyclesTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .auditBox {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .auditTitle {
+  color: #1e40af;
+}
+
+[data-theme="light"] .confidencePill {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .auditBullet {
+  color: #334155;
+}
+
+[data-theme="light"] .contactsSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .contactsTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .contactCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .contactName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .contactTitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .tableSection {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .sectionTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .decisionAuditBox {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+[data-theme="light"] .decisionAuditBox .auditTitle {
+  color: #0369a1;
+}
+
+[data-theme="light"] .rationaleItem {
+  color: #1e293b;
+}
+
+[data-theme="light"] .chartSection {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .chartTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .tableWrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .table th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+
+[data-theme="light"] .table td {
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+[data-theme="light"] .table th:first-child,
+[data-theme="light"] .table td:first-child {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .totalsRow td:first-child {
+  background: #eff6ff !important;
+}
+
+[data-theme="light"] .totalsRow {
+  background: #eff6ff !important;
+  border-bottom: 2px solid #1e40af !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .totalsRow td {
+  color: #0f172a !important;
+}
+
+

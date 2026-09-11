@@ -17,7 +17,10 @@ import {
   EyeOff,
   Eye,
   Copy,
-  Check
+  Check,
+  Tag,
+  Building,
+  Layers
 } from 'lucide-react';
 import { 
   getDealerRelationshipDrawer,
@@ -319,10 +322,30 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   {urgencyLabel}
                 </span>
               )}
+              {profile?.businessType && (
+                <span className={styles.businessTypeBadge} title={`Business Type: ${profile.businessType}`}>
+                  <Building size={11} />
+                  <span>{profile.businessType === 'franchise' ? 'Franchise' : profile.businessType === 'broker' ? 'Broker' : 'Independent'}</span>
+                </span>
+              )}
+              {profile?.dealerGroup && (
+                <span className={styles.groupBadge} title={`Dealer Group: ${profile.dealerGroup.name}`}>
+                  <Layers size={11} />
+                  <span>{profile.dealerGroup.name}</span>
+                </span>
+              )}
               {profile?.systemStatus && profile.systemStatus !== 'active' && (
                 <span style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize' }}>
                   🚫 {profile.systemStatus.replace(/_/g, ' ')}
                 </span>
+              )}
+              {profile?.tags && profile.tags.length > 0 && (
+                profile.tags.map((t) => (
+                  <span key={t} className={styles.tagChipItem}>
+                    <Tag size={10} />
+                    <span>{t}</span>
+                  </span>
+                ))
               )}
             </div>
 
@@ -402,6 +425,44 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
           </div>
         ) : profile ? (
           <div className={styles.drawerContent}>
+            {/* Funding Hierarchy Banners */}
+            {profile?.fundingParent && (
+              <div className={styles.hierarchyBanner}>
+                <div className={styles.hierarchyBannerTitle}>
+                  <Building size={15} />
+                  <span>Central Funding Hierarchy (Satellite Location)</span>
+                </div>
+                <div className={styles.hierarchyBannerDesc}>
+                  This dealership does not fund deals under its own account. All contracts and loan originations fund through central master account:
+                  <div style={{ marginTop: '6px', fontWeight: 600, color: '#38bdf8' }}>
+                    🏢 {profile.fundingParent.dealerName} ({profile.fundingParent.clientDealerId || profile.fundingParent.dealerId}{profile.fundingParent.statePrefix ? ` - ${profile.fundingParent.statePrefix}` : ''})
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(profile?.isFundingParent || (profile?.fundingChildren && profile.fundingChildren.length > 0)) && (
+              <div className={styles.hierarchyBanner}>
+                <div className={styles.hierarchyBannerTitle}>
+                  <Layers size={15} />
+                  <span>Central Funding Hub · {profile.fundingChildren?.length || 0} Satellite Store(s)</span>
+                </div>
+                <div className={styles.hierarchyBannerDesc}>
+                  This master account acts as the centralized funding umbrella for the following affiliated rooftop locations:
+                </div>
+                <div className={styles.childStoresList}>
+                  {profile.fundingChildren?.map((child) => (
+                    <div key={child._id} className={styles.childStoreChip}>
+                      <span style={{ fontWeight: 600 }}>{child.dealerName}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                        ({child.clientDealerId || child.dealerId}{child.statePrefix ? ` - ${child.statePrefix}` : ''})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* KPI Metric Strip */}
             <div className={styles.kpiGrid}>
               <div className={styles.kpiCard}>
@@ -436,7 +497,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
               <div className={styles.kpiCard}>
                 <span className={styles.kpiLabel}>Yield / Visit</span>
-                <span className={styles.kpiValue} style={{ color: (profile.lifetimeYieldPerVisit || 0) > 50000 ? '#34d399' : '#cbd5e1' }}>
+                <span className={styles.kpiValue} style={{ color: (profile.lifetimeYieldPerVisit || 0) > 50000 ? '#059669' : 'var(--text-primary, #0f172a)' }}>
                   {formatDollar(profile.lifetimeYieldPerVisit || 0)}
                 </span>
                 <span className={styles.kpiSub}>
@@ -451,48 +512,48 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, 1fr)',
                 gap: '12px',
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(56, 189, 248, 0.22)',
+                background: 'var(--bg-card-subtle, #f8fafc)',
+                border: '1px solid var(--border-subtle, #e2e8f0)',
                 borderRadius: '10px',
                 padding: '12px 16px',
                 marginBottom: '18px'
               }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Apps Submitted</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Apps Submitted</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {profile.pipelineStats.totalApplications}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
                     {profile.pipelineStats.totalDeclined} declined / wdn
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Approvals</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#38bdf8' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Approvals</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#0284c7' }}>
                     {profile.pipelineStats.totalApproved}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 500 }}>
+                  <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 500 }}>
                     {profile.pipelineStats.approvalRatePct}% approval rate
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Look-to-Book</div>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: profile.pipelineStats.lookToBookPct > 15 ? '#34d399' : '#f59e0b' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Look-to-Book</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: profile.pipelineStats.lookToBookPct > 15 ? '#059669' : '#d97706' }}>
                     {profile.pipelineStats.lookToBookPct}%
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
                     {profile.pipelineStats.totalBookings} booked loans
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Top Lender / UW</div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Top Lender / UW</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {profile.pipelineStats.topLender || 'Standard Tier'}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
                     UW: {profile.pipelineStats.topUnderwriter || 'Assigned'}
                   </div>
                 </div>
@@ -503,15 +564,15 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
             <div className={styles.contactsSection}>
               <div className={styles.contactsHeader}>
                 <div className={styles.contactsTitle}>
-                  <Phone size={15} color="#38bdf8" />
+                  <Phone size={15} color="#0284c7" />
                   <span>Dealer Contacts</span>
                   {profile.contacts && profile.contacts.length > 0 && (
-                    <span style={{ fontSize: '11px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 7px', borderRadius: '999px', fontWeight: 600 }}>
+                    <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0284c7', padding: '1px 7px', borderRadius: '999px', fontWeight: 600 }}>
                       {profile.contacts.length} Contacts
                     </span>
                   )}
                   {profile.badgerData?.badgerId && (
-                    <span style={{ fontSize: '11px', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8', padding: '2px 8px', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '11px', background: 'var(--bg-surface, #ffffff)', color: 'var(--text-secondary, #64748b)', border: '1px solid var(--border-subtle, #e2e8f0)', padding: '2px 8px', borderRadius: '6px' }}>
                       Badger Account: #{profile.badgerData.badgerId} {profile.badgerData.accountName ? `(${profile.badgerData.accountName})` : ''}
                     </span>
                   )}
@@ -519,7 +580,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
               </div>
 
               {badgerSyncMsg && (
-                <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#4ade80' : '#f87171' }}>
+                <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
                   {badgerSyncMsg}
                 </div>
               )}
@@ -531,7 +592,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                       <div className={styles.contactNameRow}>
                         <span className={styles.contactName}>{c.name || 'Contact'}</span>
                         {c.isPrimary && (
-                          <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                          <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                             PRIMARY
                           </span>
                         )}
@@ -602,12 +663,12 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
             <div
               style={{
                 background: profile.manualOverride?.isOverridden
-                  ? 'rgba(234, 179, 8, 0.08)'
-                  : 'rgba(30, 41, 59, 0.5)',
+                  ? '#fefce8'
+                  : 'var(--bg-card-subtle, #f8fafc)',
                 border: `1px solid ${
                   profile.manualOverride?.isOverridden
-                    ? 'rgba(234, 179, 8, 0.35)'
-                    : 'rgba(255, 255, 255, 0.08)'
+                    ? '#fef08a'
+                    : 'var(--border-subtle, #e2e8f0)'
                 }`,
                 borderRadius: '8px',
                 padding: '14px 16px',
@@ -628,9 +689,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   {profile.manualOverride?.isOverridden ? (
                     <Lock size={16} color="#eab308" />
                   ) : (
-                    <Unlock size={16} color="#94a3b8" />
+                    <Unlock size={16} color="var(--text-muted, #94a3b8)" />
                   )}
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
                     DRD Human Reconciliation Status
                   </span>
                   {profile.manualOverride?.isOverridden ? (
@@ -692,9 +753,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                       setOverrideReason(profile.manualOverride?.reason || '');
                     }}
                     style={{
-                      background: 'rgba(56, 189, 248, 0.15)',
-                      border: '1px solid rgba(56, 189, 248, 0.35)',
-                      color: '#38bdf8',
+                      background: '#eff6ff',
+                      border: '1px solid #93c5fd',
+                      color: '#1e40af',
                       padding: '4px 10px',
                       borderRadius: '5px',
                       fontSize: '0.76rem',
@@ -710,24 +771,24 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
               {profile.manualOverride?.isOverridden && (
                 <div
                   style={{
-                    background: 'rgba(0, 0, 0, 0.25)',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    background: 'var(--bg-card-subtle, #f8fafc)',
+                    border: '1px solid var(--border-subtle, #e2e8f0)',
                     padding: '10px 12px',
                     borderRadius: '6px',
                     fontSize: '0.8rem',
-                    color: '#cbd5e1',
+                    color: 'var(--text-secondary, #334155)',
                     marginBottom: '8px',
                   }}
                 >
                   <div style={{ marginBottom: '4px' }}>
-                    <strong style={{ color: '#facc15' }}>Active Override: </strong>
+                    <strong style={{ color: '#d97706' }}>Active Override: </strong>
                     <span>Classified as <strong>{profile.relationshipDemand?.replace(/_/g, ' ').toUpperCase()}</strong> (system calculated {profile.manualOverride.originalSegment || 'unclassified'})</span>
                   </div>
                   <div style={{ marginBottom: '4px' }}>
                     <strong>Reason: </strong>
-                    <span style={{ fontStyle: 'italic', color: '#e2e8f0' }}>"{profile.manualOverride.reason}"</span>
+                    <span style={{ fontStyle: 'italic', color: 'var(--text-primary, #0f172a)' }}>"{profile.manualOverride.reason}"</span>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
                     By {profile.manualOverride.overriddenBy?.name || profile.manualOverride.overriddenBy?.email || 'Authorized Manager'} • {profile.manualOverride.overriddenAt ? new Date(profile.manualOverride.overriddenAt).toLocaleString() : 'Recently'}
                   </div>
                 </div>
@@ -739,12 +800,12 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   style={{
                     marginTop: '12px',
                     padding: '12px',
-                    background: 'rgba(15, 23, 42, 0.75)',
-                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    background: 'var(--bg-card-subtle, #f8fafc)',
+                    border: '1px solid var(--border-subtle, #e2e8f0)',
                     borderRadius: '6px',
                   }}
                 >
-                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: '#38bdf8', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary, #0f172a)', marginBottom: '8px' }}>
                     Select Target Classification & Document Required Reason:
                   </div>
 
@@ -762,22 +823,22 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                         style={{
                           padding: '8px',
                           borderRadius: '6px',
-                          border: overrideSegment === opt.key ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                          background: overrideSegment === opt.key ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                          color: overrideSegment === opt.key ? '#38bdf8' : '#cbd5e1',
+                          border: overrideSegment === opt.key ? '1.5px solid #1e40af' : '1px solid var(--border-subtle, #e2e8f0)',
+                          background: overrideSegment === opt.key ? '#eff6ff' : 'var(--bg-surface, #ffffff)',
+                          color: overrideSegment === opt.key ? '#1e40af' : 'var(--text-primary, #0f172a)',
                           textAlign: 'left',
                           cursor: 'pointer',
                         }}
                       >
                         <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>{opt.label}</div>
-                        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>{opt.desc}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>{opt.desc}</div>
                       </button>
                     ))}
                   </div>
 
                   <div style={{ marginBottom: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
-                      Reason for Manual Override <span style={{ color: '#f87171' }}>* (Required for audit logging)</span>:
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary, #475569)', marginBottom: '4px' }}>
+                      Reason for Manual Override <span style={{ color: '#ef4444' }}>* (Required for audit logging)</span>:
                     </label>
                     <textarea
                       value={overrideReason}
@@ -787,10 +848,10 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                       style={{
                         width: '100%',
                         padding: '8px 10px',
-                        background: 'rgba(0, 0, 0, 0.4)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        background: 'var(--bg-input, #ffffff)',
+                        border: '1px solid var(--border-default, #cbd5e1)',
                         borderRadius: '5px',
-                        color: '#f8fafc',
+                        color: 'var(--text-primary, #0f172a)',
                         fontSize: '0.8rem',
                         outline: 'none',
                         resize: 'vertical',
@@ -799,7 +860,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   </div>
 
                   {overrideActionError && (
-                    <div style={{ color: '#f87171', fontSize: '0.78rem', marginBottom: '8px' }}>
+                    <div style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '8px' }}>
                       ⚠️ {overrideActionError}
                     </div>
                   )}
@@ -810,8 +871,8 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                       onClick={() => setOverrideModalOpen(false)}
                       style={{
                         background: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        color: '#94a3b8',
+                        border: '1px solid var(--border-default, #cbd5e1)',
+                        color: 'var(--text-secondary, #64748b)',
                         padding: '5px 12px',
                         borderRadius: '4px',
                         fontSize: '0.78rem',
@@ -1030,16 +1091,17 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                       top: 10,
                       left: '50%',
                       transform: 'translateX(-50%)',
-                      background: 'rgba(15, 23, 42, 0.95)',
-                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      background: 'var(--bg-surface-raised, rgba(15, 23, 42, 0.95))',
+                      border: '1px solid var(--border-subtle, rgba(56, 189, 248, 0.4))',
                       borderRadius: '8px',
                       padding: '8px 14px',
                       fontSize: '0.78rem',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '12px',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                      zIndex: 10
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                      zIndex: 10,
+                      color: 'var(--text-primary)'
                     }}
                   >
                     <span><strong>{hoveredMonth.monthKey}</strong></span>
@@ -1270,21 +1332,21 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
       {/* Flag Lifecycle Status Modal */}
       {lifecycleModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
-            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Skull size={18} color="#f87171" />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-surface, #ffffff)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '12px', padding: '24px', width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.15)' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Skull size={18} color="#ef4444" />
               <span>Flag Dealership Lifecycle Status</span>
             </h3>
-            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', lineHeight: '1.4' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary, #64748b)', lineHeight: '1.4' }}>
               Set system-wide status for <strong>{profile?.dealerName || clientDealerId}</strong>. Dead accounts (closed/bought out/out of service) are removed from all views and archived in the Admin Graveyard.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>Lifecycle Status</label>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', fontWeight: 600 }}>Lifecycle Status</label>
               <select
                 value={lifecycleStatus}
                 onChange={(e: any) => setLifecycleStatus(e.target.value)}
-                style={{ background: '#1e293b', border: '1px solid #475569', color: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
+                style={{ background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-primary, #0f172a)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
               >
                 <option value="active">🟢 Active (Normal Operation)</option>
                 <option value="closed">🚫 Closed Dealership</option>
@@ -1293,19 +1355,19 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
               </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>Reason / Notes</label>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', fontWeight: 600 }}>Reason / Notes</label>
               <textarea
                 value={lifecycleReason}
                 onChange={(e) => setLifecycleReason(e.target.value)}
                 placeholder="Details (e.g. bought out by larger group, facility permanently closed)..."
                 rows={3}
-                style={{ background: '#1e293b', border: '1px solid #475569', color: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', resize: 'vertical' }}
+                style={{ background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-primary, #0f172a)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', resize: 'vertical' }}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
               <button
                 onClick={() => setLifecycleModalOpen(false)}
-                style={{ background: 'transparent', border: '1px solid #475569', color: '#cbd5e1', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                style={{ background: 'transparent', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-secondary, #64748b)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
               >
                 Cancel
               </button>

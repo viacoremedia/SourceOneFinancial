@@ -301,3 +301,68 @@
   color: #94a3b8;
   font-size: 13px;
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR DEALER DRAWER
+   ============================================ */
+[data-theme="light"] .drawer {
+  background: #ffffff;
+  border-top-color: #cbd5e1;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+}
+
+[data-theme="light"] .header {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .subtitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn {
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .table th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .table td {
+  color: #0f172a;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .table tr:hover td {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .pagination {
+  background: #ffffff;
+  border-top-color: #e2e8f0;
+}
+
+[data-theme="light"] .pageBtn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .pageBtn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #1e40af;
+}
+

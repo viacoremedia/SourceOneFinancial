@@ -857,3 +857,570 @@
     gap: 16px;
   }
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR BADGER QUICK MODAL
+   ============================================ */
+[data-theme="light"] .drawerOverlay {
+  background-color: rgba(15, 23, 42, 0.4);
+}
+
+[data-theme="light"] .drawerContainer {
+  background: #ffffff;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+[data-theme="light"] .header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dealerBadge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+[data-theme="light"] .metaRow {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeButton {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeButton:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .tabNav {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .tabBtn {
+  color: #64748b;
+}
+
+[data-theme="light"] .tabBtn:hover {
+  color: #0f172a;
+}
+
+[data-theme="light"] .tabBtnActive {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-bottom-color: #1d4ed8;
+}
+
+[data-theme="light"] .tabCount {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .tabBtnActive .tabCount {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .body {
+  background: #ffffff;
+}
+
+[data-theme="light"] .sectionCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .sectionHeader {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sectionTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .historyCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .historyCard:hover {
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .userName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .historyDate {
+  color: #64748b;
+}
+
+[data-theme="light"] .historyNotes {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #0284c7;
+  color: #1e293b;
+}
+
+[data-theme="light"] .fieldLabel {
+  color: #1e293b;
+}
+
+[data-theme="light"] .charCount {
+  color: #64748b;
+}
+
+[data-theme="light"] .select,
+[data-theme="light"] .textarea {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+[data-theme="light"] .checkinComposer {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .checkinComposerTitle {
+  color: #0284c7;
+}
+
+[data-theme="light"] .logVisitHeaderBtn {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+[data-theme="light"] .noteCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .noteCard:hover {
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .noteAuthor {
+  color: #0f172a;
+}
+
+[data-theme="light"] .noteCardHeader {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .noteText {
+  color: #1e293b;
+}
+
+[data-theme="light"] .notepadEmpty {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .notepadComposer {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .composerPreview {
+  background: #f1f5f9;
+  border: 1px dashed #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .auditCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .auditCardBody {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+}
+
+[data-theme="light"] .auditHeaderCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .sortToggleBtn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .toggleCollapseBtn {
+  color: #64748b;
+}
+
+[data-theme="light"] .toggleCollapseBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* ======================================================
+   CONDENSED BADGER CONTACTS STRIP (ALL-IN-ONE ROSTER)
+   ====================================================== */
+.contactsBarContainer {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.contactsBarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.contactsBarTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.contactsIcon {
+  color: #38bdf8;
+}
+
+.contactsCountBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.contactsBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.syncSuccessMsg {
+  font-size: 11px;
+  font-weight: 600;
+  color: #10b981;
+}
+
+.syncErrorMsg {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f87171;
+}
+
+.syncContactsBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(2, 132, 199, 0.15);
+  border: 1px solid rgba(2, 132, 199, 0.35);
+  color: #38bdf8;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.syncContactsBtn:hover:not(:disabled) {
+  background: rgba(2, 132, 199, 0.25);
+  border-color: #38bdf8;
+}
+
+.syncContactsBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.collapseContactsBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.collapseContactsBtn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.contactsChipsRow {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.contactChip {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 200px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.contactChipPrimary {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(14, 116, 144, 0.12);
+}
+
+.contactChipTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.contactChipName {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.primaryBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  letter-spacing: 0.03em;
+}
+
+.contactChipTitle {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contactChipLinks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.contactActionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.contactActionPill:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
+}
+
+.contactCopyBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 3px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.contactCopyBtn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.contactsEmptyState {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 4px 0;
+}
+
+.inlineSyncBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inlineSyncBtn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+/* Light Mode Overrides for Contacts Strip */
+[data-theme="light"] .contactsBarContainer {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .contactsBarTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .contactsIcon {
+  color: #0284c7;
+}
+
+[data-theme="light"] .contactsCountBadge {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+[data-theme="light"] .syncContactsBtn {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .syncContactsBtn:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+[data-theme="light"] .collapseContactsBtn {
+  color: #64748b;
+}
+
+[data-theme="light"] .collapseContactsBtn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .contactChip {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .contactChipPrimary {
+  border-color: #bfdbfe;
+  background: #f0fdf4;
+}
+
+[data-theme="light"] .contactChipName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .primaryBadge {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .contactChipTitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .contactActionPill {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #0284c7;
+}
+
+[data-theme="light"] .contactActionPill:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .contactCopyBtn {
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .contactCopyBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .contactsEmptyState {
+  color: #64748b;
+}
+
+[data-theme="light"] .inlineSyncBtn {
+  border-color: #bfdbfe;
+  color: #0284c7;
+}
+
+[data-theme="light"] .inlineSyncBtn:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+[data-theme="light"] .syncSuccessMsg {
+  color: #059669;
+}
+
+[data-theme="light"] .syncErrorMsg {
+  color: #dc2626;
+}
+
+

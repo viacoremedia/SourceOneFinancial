@@ -736,3 +736,339 @@
   background: rgba(245, 158, 11, 0.2);
 }
 
+.businessTypeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(14, 165, 233, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  text-transform: capitalize;
+}
+
+.groupBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+.tagChipItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(45, 212, 191, 0.1);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.2);
+}
+
+.hierarchyBanner {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hierarchyBannerTitle {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hierarchyBannerDesc {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.childStoresList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.childStoreChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: #f1f5f9;
+}
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR RELATIONSHIP DRAWER
+   ============================================ */
+[data-theme="light"] .drawerContainer {
+  background: #ffffff;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -12px 0 36px rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+}
+
+[data-theme="light"] .drawerHeader {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .dealerTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .metaItem {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn {
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .tabNav {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .tabButton {
+  color: #64748b;
+}
+
+[data-theme="light"] .tabButtonActive {
+  background: #ffffff;
+  color: #1e40af;
+  border-bottom-color: #1e40af;
+}
+
+[data-theme="light"] .kpiCard,
+[data-theme="light"] .metricCard,
+[data-theme="light"] .secondaryKpiCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .kpiValue,
+[data-theme="light"] .kpiVal,
+[data-theme="light"] .secondaryKpiVal {
+  color: #0f172a;
+}
+
+[data-theme="light"] .kpiLabel,
+[data-theme="light"] .kpiLbl,
+[data-theme="light"] .secondaryKpiLbl {
+  color: #64748b;
+}
+
+[data-theme="light"] .kpiSub {
+  color: #475569;
+}
+
+[data-theme="light"] .drawerContainer {
+  background: #ffffff;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -12px 0 36px rgba(0, 0, 0, 0.12);
+  color: #0f172a;
+}
+
+[data-theme="light"] .drawerHeader {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .dealerName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .repInfo {
+  color: #334155;
+}
+
+[data-theme="light"] .stateBadge {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .closeBtn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+[data-theme="light"] .auditBox {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+[data-theme="light"] .auditBox::before {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+}
+
+[data-theme="light"] .auditTitle {
+  color: #15803d;
+}
+
+[data-theme="light"] .confidencePill {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+[data-theme="light"] .auditBullet {
+  color: #1e293b;
+}
+
+[data-theme="light"] .auditBulletIcon {
+  color: #10b981;
+}
+
+[data-theme="light"] .contactsSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .contactsTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .contactCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .contactCardPrimary {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+[data-theme="light"] .contactName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .contactTitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .contactActionBtn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #0284c7;
+}
+
+[data-theme="light"] .contactActionBtn:hover {
+  background: #e2e8f0;
+  color: #0369a1;
+}
+
+[data-theme="light"] .chartSection {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .chartTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .innerTabsNav {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .innerTabBtn {
+  color: #475569;
+}
+
+[data-theme="light"] .innerTabBtn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+[data-theme="light"] .innerTabBtnActive {
+  background: #1e40af !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .cycleCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .cycleTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cycleSummaryText {
+  color: #334155;
+}
+
+[data-theme="light"] .cycleMetricValue,
+[data-theme="light"] .cycleMetricVal {
+  color: #0f172a;
+}
+
+[data-theme="light"] .cycleMetricLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .hierarchyBanner {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+[data-theme="light"] .hierarchyText {
+  color: #475569;
+}
+
+[data-theme="light"] .childStoreChip {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .activityItem {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .activityItem:hover {
+  background: #f8fafc;
+}
+
+
+

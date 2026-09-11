@@ -76,6 +76,29 @@ const dealerProfileSchema = new mongoose.Schema({
     systemStatusChangedAt: { type: Date, default: null },
     systemStatusChangedBy: { type: String, default: null },
 
+    // ── Classification & Taxonomy ──
+    businessType: {
+        type: String,
+        enum: ['franchise', 'non-franchise', 'broker', null],
+        default: null,
+        index: true
+    },
+    tags: [{
+        type: String,
+        trim: true,
+        index: true
+    }],
+    industry: {
+        type: String,
+        enum: ['rv', 'marine', 'both', null],
+        default: null,
+        index: true
+    },
+    isManuallyClassified: {
+        type: Boolean,
+        default: false
+    },
+
     // ── Contacts ──
     contacts: [{
         name: { type: String, trim: true, default: '' },

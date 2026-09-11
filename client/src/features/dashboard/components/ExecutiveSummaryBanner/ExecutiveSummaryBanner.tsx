@@ -12,6 +12,9 @@ interface ExecutiveSummaryBannerProps {
   groupSlug?: string;
   status?: string | null;
   drd?: string | null;
+  businessType?: string | null;
+  tags?: string[];
+  scope?: string | null;
 }
 
 function formatCurrency(val: number): string {
@@ -66,7 +69,10 @@ export function ExecutiveSummaryBanner({
   rep,
   groupSlug,
   status,
-  drd
+  drd,
+  businessType,
+  tags,
+  scope
 }: ExecutiveSummaryBannerProps) {
   const [data, setData] = useState<ExecutiveSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,7 +80,7 @@ export function ExecutiveSummaryBanner({
   useEffect(() => {
     let active = true;
     setIsLoading(true);
-    getExecutiveSummary(startDate, endDate, trend, state, rep, groupSlug, status, drd)
+    getExecutiveSummary(startDate, endDate, trend, state, rep, groupSlug, status, drd, businessType, tags, scope)
       .then((res) => {
         if (active) {
           setData(res);
@@ -89,7 +95,7 @@ export function ExecutiveSummaryBanner({
     return () => {
       active = false;
     };
-  }, [startDate, endDate, trend, state, rep, groupSlug, status, drd]);
+  }, [startDate, endDate, trend, state, rep, groupSlug, status, drd, businessType, tags, scope]);
 
   if (isLoading && !data) {
     return (

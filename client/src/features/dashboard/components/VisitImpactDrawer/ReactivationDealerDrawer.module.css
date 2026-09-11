@@ -450,3 +450,167 @@
 .subTable tr:hover {
   background: rgba(255, 255, 255, 0.03);
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR REACTIVATION DRAWER
+   ============================================ */
+[data-theme="light"] .drawerOverlay {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+[data-theme="light"] .drawerContainer {
+  background: #ffffff;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -12px 0 36px rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+[data-theme="light"] .drawerHeader {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .dealerName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dealerCodeBadge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+[data-theme="light"] .stateBadge {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+[data-theme="light"] .groupBadge {
+  background: #faf5ff;
+  color: #7e22ce;
+  border-color: #e9d5ff;
+}
+
+[data-theme="light"] .headerMetaRow {
+  color: #64748b;
+}
+
+[data-theme="light"] .repInfo {
+  color: #1e293b;
+}
+
+[data-theme="light"] .closeBtn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+[data-theme="light"] .kpiCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .kpiLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .kpiValue {
+  color: #0f172a;
+}
+
+[data-theme="light"] .kpiSub {
+  color: #94a3b8;
+}
+
+[data-theme="light"] .diagnosticBox {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+[data-theme="light"] .diagnosticTitle {
+  color: #0369a1;
+}
+
+[data-theme="light"] .diagnosticBullet {
+  color: #1e293b;
+}
+
+[data-theme="light"] .bulletIcon {
+  color: #0284c7;
+}
+
+[data-theme="light"] .sectionCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .sectionTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .legend {
+  color: #64748b;
+}
+
+[data-theme="light"] .hoverMetricsBar {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+}
+
+[data-theme="light"] .chartContainer {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .axisLabels {
+  color: #64748b;
+}
+
+[data-theme="light"] .tabNav {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .tabBtn {
+  color: #64748b;
+}
+
+[data-theme="light"] .tabBtn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .tabBtnActive {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .subTableWrapper {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+[data-theme="light"] .subTable th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .subTable td {
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+[data-theme="light"] .subTable tr:hover {
+  background: #f8fafc;
+}
+

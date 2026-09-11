@@ -127,3 +127,57 @@
 .applyBtn:hover {
   background: #0369a1;
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR CUSTOM DATE PICKER
+   ============================================ */
+[data-theme="light"] .triggerBtn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #1e40af;
+}
+
+[data-theme="light"] .triggerBtn:hover {
+  border-color: #1e40af;
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .popoverMenu {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+}
+
+[data-theme="light"] .popoverTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dateInput {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .dateLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .cancelBtn {
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .cancelBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .applyBtn {
+  background: #1e40af;
+}
+
+[data-theme="light"] .applyBtn:hover {
+  background: #1d4ed8;
+}
+

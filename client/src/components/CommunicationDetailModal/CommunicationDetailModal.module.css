@@ -235,3 +235,85 @@
 .footerCloseBtn:hover {
   background: #475569;
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR COMM DETAIL MODAL
+   ============================================ */
+[data-theme="light"] .modal {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+[data-theme="light"] .header {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .dateSub {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+[data-theme="light"] .metaCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .metaLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .metaValue {
+  color: #0f172a;
+}
+
+[data-theme="light"] .notesCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .notesHeader {
+  color: #0284c7;
+}
+
+[data-theme="light"] .notesContent {
+  color: #1e293b;
+}
+
+[data-theme="light"] .emptyNotes {
+  color: #94a3b8;
+}
+
+[data-theme="light"] .footer {
+  background: #ffffff;
+  border-top-color: #e2e8f0;
+}
+
+[data-theme="light"] .footerCloseBtn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .footerCloseBtn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+

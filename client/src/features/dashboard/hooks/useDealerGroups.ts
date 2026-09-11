@@ -10,7 +10,9 @@ export function useDealerGroups(
   trend?: string,
   status?: string | null,
   rep?: string,
-  drd?: string | null
+  drd?: string | null,
+  businessType?: string,
+  tags?: string[]
 ) {
   const [groups, setGroups] = useState<DealerGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,6 +22,7 @@ export function useDealerGroups(
 
   // Immutable serialization for stable dependency tracking
   const statesKey = states && states.length > 0 ? [...states].sort().join(',') : '';
+  const tagsKey = tags && tags.length > 0 ? [...tags].sort().join(',') : '';
   const modeKey = activityMode || 'application';
 
   const fetch = useCallback(async () => {
@@ -40,7 +43,9 @@ export function useDealerGroups(
         status,
         rep,
         drd,
-        controller.signal
+        controller.signal,
+        businessType || undefined,
+        tags && tags.length > 0 ? tags : undefined
       );
       // Discard stale out-of-order responses
       if (currentRequestId === requestIdRef.current) {
@@ -57,7 +62,7 @@ export function useDealerGroups(
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statesKey, modeKey, startDate, endDate, trend, status, rep, drd]);
+  }, [statesKey, modeKey, startDate, endDate, trend, status, rep, drd, businessType, tagsKey]);
 
   useEffect(() => {
     fetch();

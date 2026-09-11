@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from 'react';
+import { Sparkles } from 'lucide-react';
 import { useAuth } from '../../../features/auth/hooks/useAuth';
+import { useTheme } from '../../hooks/useTheme';
 import { SettingsPanel } from '../../../features/auth/components/SettingsPanel';
 import { DigestPanel } from '../../../features/auth/components/DigestPanel';
 import { RepScorecard } from '../../../features/dashboard/components/RepScorecard';
 import { UnderwriterScorecard, type UnderwriterDateRange } from '../../../features/dashboard/components/UnderwriterScorecard/UnderwriterScorecard';
 import { ScorecardReports } from '../../../features/dashboard/components/ScorecardReports/ScorecardReports';
+import { PatchNotesModal } from '../../../features/dashboard/components/PatchNotesModal';
 import { BugReporter } from '../../../components/BugReporter';
 import styles from './AppShell.module.css';
 import type { RollingWindow } from '../../../features/dashboard/types';
@@ -21,6 +24,7 @@ interface AppShellProps {
   onActivityModeChange?: (mode: 'application' | 'approval' | 'booking') => void;
   onOpenMoMAnalytics?: () => void;
   onOpenVisitImpact?: () => void;
+  onOpenSystemAudit?: () => void;
 }
 
 export function AppShell({
@@ -34,14 +38,17 @@ export function AppShell({
   activityMode,
   onActivityModeChange,
   onOpenMoMAnalytics,
-  onOpenVisitImpact
+  onOpenVisitImpact,
+  onOpenSystemAudit
 }: AppShellProps) {
   const { user } = useAuth();
+  const { mode, toggleTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [digestOpen, setDigestOpen] = useState(false);
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [scorecardReportsOpen, setScorecardReportsOpen] = useState(false);
   const [underwriterOpen, setUnderwriterOpen] = useState(false);
+  const [patchNotesOpen, setPatchNotesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isInsideRep = user?.role === 'inside_rep';
@@ -62,11 +69,14 @@ export function AppShell({
     <div className={styles.appShell}>
       <header className={styles.header} id="app-header">
         <div className={styles.brand}>
-          <div className={styles.brandMark}>S1</div>
-          <div>
-            <div className={styles.brandName}>Source One</div>
-            <div className={styles.brandTag}>Dealer Analytics</div>
+          <div className={styles.brandLogoContainer}>
+            <img
+              src="/sourceonelogo.png"
+              alt="Source One Financial Services"
+              className={styles.brandLogo}
+            />
           </div>
+          <span className={styles.brandTag}>Dealer Analytics</span>
         </div>
         <div className={styles.headerRight}>
           {formattedDate && (
@@ -165,6 +175,39 @@ export function AppShell({
                   <span>Settings</span>
                 </button>
 
+                <button
+                  className={styles.navCell}
+                  onClick={() => setPatchNotesOpen(true)}
+                  title="System Release Notes & What's New"
+                  id="patch-notes-header-btn"
+                  aria-label="Release Notes"
+                >
+                  <Sparkles size={14} color="#2563eb" />
+                  <span>Patch v1.6</span>
+                </button>
+
+                <div className={styles.navCellDivider} />
+
+                <button
+                  className={`${styles.navCell} ${styles.themeToggleBtn}`}
+                  onClick={toggleTheme}
+                  title={mode === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                  id="theme-toggle-btn"
+                  aria-label={mode === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                >
+                  {mode === 'light' ? (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                      <span>Dark Mode</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                      <span>Light Mode</span>
+                    </>
+                  )}
+                </button>
+
                 <BugReporter mode="header" className={styles.navCell} user={user ? { name: user.name, email: user.email } : undefined} />
               </div>
             )}
@@ -193,6 +236,22 @@ export function AppShell({
               <button className={styles.mobileDrawerClose} onClick={() => setMobileMenuOpen(false)}>✕</button>
             </div>
             <div className={styles.mobileDrawerGrid}>
+              <button
+                className={styles.mobileDrawerItem}
+                onClick={() => { toggleTheme(); setMobileMenuOpen(false); }}
+              >
+                {mode === 'light' ? (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <span>Switch to Dark Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+                    <span>Switch to Light Mode</span>
+                  </>
+                )}
+              </button>
               {onOpenMoMAnalytics && (
                 <button
                   className={styles.mobileDrawerItem}
@@ -250,6 +309,13 @@ export function AppShell({
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     <span>Settings</span>
                   </button>
+                  <button
+                    className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setPatchNotesOpen(true); }}
+                  >
+                    <Sparkles size={18} color="#2563eb" />
+                    <span>Patch v1.6 Notes</span>
+                  </button>
                 </>
               )}
             </div>
@@ -259,7 +325,7 @@ export function AppShell({
 
       <main className={styles.content}>{children}</main>
 
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} onOpenSystemAudit={onOpenSystemAudit} />
       <DigestPanel open={digestOpen} onClose={() => setDigestOpen(false)} latestReportDate={latestReportDate} />
       <RepScorecard
         open={scorecardOpen}
@@ -286,6 +352,7 @@ export function AppShell({
           initialActivityMode={activityMode as any}
         />
       )}
+      <PatchNotesModal isOpen={patchNotesOpen} onClose={() => setPatchNotesOpen(false)} />
     </div>
   );
 }

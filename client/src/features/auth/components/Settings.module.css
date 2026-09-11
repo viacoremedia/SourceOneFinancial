@@ -752,3 +752,102 @@
   border-color: #38bdf8;
 }
 
+/* ============================================
+   LIGHT MODE OVERRIDES FOR SETTINGS PANEL
+   ============================================ */
+[data-theme="light"] .panel {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .tabBar {
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .tabBtn {
+  color: #475569;
+}
+
+[data-theme="light"] .tabBtn:hover {
+  color: #0f172a;
+}
+
+[data-theme="light"] .tabBtnActive {
+  color: #1e40af;
+  border-bottom-color: #1e40af;
+  background: transparent;
+}
+
+[data-theme="light"] .tabBadge {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+[data-theme="light"] .deadTableContainer {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .deadTable th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .deadTable td {
+  color: #0f172a;
+  border-bottom-color: #f1f5f9;
+}
+
+[data-theme="light"] .syncCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .syncStatPill {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .syncStatValue {
+  color: #0f172a;
+}
+
+[data-theme="light"] .syncStatLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .excludedItem {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .excludedItemName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .excludedItemMeta {
+  color: #64748b;
+}
+
+[data-theme="light"] .restoreBtn {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+[data-theme="light"] .restoreBtn:hover {
+  background: #dbeafe;
+}
+
+[data-theme="light"] .reviveBtn {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+[data-theme="light"] .reviveBtn:hover {
+  background: #d1fae5;
+}
+

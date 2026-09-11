@@ -62,7 +62,9 @@ export async function getGroups(
   status?: string | null,
   rep?: string,
   drd?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  businessType?: string,
+  tags?: string[]
 ): Promise<DealerGroup[]> {
   const params: Record<string, string> = {};
   if (states && states.length > 0) params.states = states.join(',');
@@ -73,6 +75,8 @@ export async function getGroups(
   if (status) params.status = status;
   if (rep) params.rep = rep;
   if (drd) params.drd = drd;
+  if (businessType) params.businessType = businessType;
+  if (tags && tags.length > 0) params.tags = tags.join(',');
   const { data } = await api.get('/analytics/groups', { params, signal });
   return data.groups;
 }
@@ -131,6 +135,8 @@ export interface SmallDealerParams {
   endDate?: string;
   trend?: string;
   drd?: string | null;
+  businessType?: string;
+  tags?: string[];
   signal?: AbortSignal;
 }
 
@@ -178,6 +184,8 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.endDate) queryParams.endDate = params.endDate;
   if (params.trend) queryParams.trend = params.trend;
   if (params.drd) queryParams.drd = params.drd;
+  if (params.businessType) queryParams.businessType = params.businessType;
+  if (params.tags && params.tags.length > 0) queryParams.tags = params.tags.join(',');
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams, signal: params.signal });
   return {
     dealers: data.dealers,
@@ -333,7 +341,10 @@ export async function getExecutiveSummary(
   rep?: string,
   groupSlug?: string,
   status?: string | null,
-  drd?: string | null
+  drd?: string | null,
+  businessType?: string | null,
+  tags?: string[] | null,
+  scope?: string | null
 ): Promise<ExecutiveSummaryResponse> {
   const params: Record<string, string> = {};
   if (startDate) params.startDate = startDate;
@@ -344,6 +355,9 @@ export async function getExecutiveSummary(
   if (groupSlug) params.groupSlug = groupSlug;
   if (status) params.status = status;
   if (drd) params.drd = drd;
+  if (businessType) params.businessType = businessType;
+  if (tags && tags.length > 0) params.tags = tags.join(',');
+  if (scope) params.scope = scope;
   const { data } = await api.get('/analytics/executive-summary', { params });
   return data;
 }
@@ -353,13 +367,17 @@ export async function getHistoricalMoM(
   state?: string,
   rep?: string,
   groupSlug?: string,
-  dealerId?: string
+  dealerId?: string,
+  businessType?: string,
+  tags?: string[]
 ): Promise<HistoricalMoMResponse> {
   const params: Record<string, string> = { trend };
   if (state) params.state = state;
   if (rep) params.rep = rep;
   if (groupSlug) params.groupSlug = groupSlug;
   if (dealerId) params.dealerId = dealerId;
+  if (businessType) params.businessType = businessType;
+  if (tags && tags.length > 0) params.tags = tags.join(',');
   const { data } = await api.get('/analytics/historical/mom', { params });
   return data;
 }
@@ -537,6 +555,26 @@ export interface Dealer360Response {
     repName: string;
     groupName: string | null;
     groupSlug: string | null;
+    businessType?: 'franchise' | 'non-franchise' | 'broker' | null;
+    tags?: string[];
+    industry?: 'rv' | 'marine' | 'both' | null;
+    systemStatus?: string;
+    systemStatusReason?: string | null;
+    isFundingParent?: boolean;
+    fundingParent?: {
+      _id: string;
+      dealerName: string;
+      dealerId: string;
+      clientDealerId: string;
+      statePrefix?: string;
+    } | null;
+    fundingChildren?: Array<{
+      _id: string;
+      dealerName: string;
+      dealerId: string;
+      clientDealerId: string;
+      statePrefix?: string;
+    }>;
   };
   status: string;
   recencies: {
@@ -642,6 +680,30 @@ export interface DealerProfileItem {
   assignedRep?: string | null;
   systemStatus?: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service';
   systemStatusReason?: string | null;
+  businessType?: 'franchise' | 'non-franchise' | 'broker' | null;
+  tags?: string[];
+  industry?: 'rv' | 'marine' | 'both' | null;
+  isFundingParent?: boolean;
+  fundingParent?: {
+    _id: string;
+    dealerName: string;
+    dealerId: string;
+    clientDealerId: string;
+    statePrefix?: string;
+  } | null;
+  fundingChildren?: Array<{
+    _id: string;
+    dealerName: string;
+    dealerId: string;
+    clientDealerId: string;
+    statePrefix?: string;
+  }>;
+  dealerGroup?: {
+    _id: string;
+    name: string;
+    slug: string;
+    isCustom?: boolean;
+  } | null;
   contacts?: Array<{
     name: string;
     title: string;
@@ -1102,6 +1164,14 @@ export interface BadgerUpdateLogItem {
   createdAt: string;
 }
 
+export interface BadgerContact {
+  name: string;
+  title?: string;
+  phone?: string;
+  email?: string;
+  isPrimary?: boolean;
+}
+
 export interface BadgerActivityData {
   dealerId: string;
   dealerName: string;
@@ -1110,6 +1180,7 @@ export interface BadgerActivityData {
   notepad: string;
   appointments: BadgerAppointment[];
   recentLogs?: BadgerUpdateLogItem[];
+  contacts?: BadgerContact[];
 }
 
 export interface BadgerCheckinPayload {
@@ -1166,5 +1237,346 @@ export async function getDealerBadgerAuditLogs(
   return data;
 }
 
+export interface QuickActionPayload {
+  systemStatus?: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service';
+  systemStatusReason?: string | null;
+  businessType?: 'franchise' | 'non-franchise' | 'broker' | null;
+  tags?: string[];
+}
+
+export async function updateDealerQuickAction(
+  dealerId: string,
+  payload: QuickActionPayload
+): Promise<{ success: boolean; dealer: any; logId: string; message: string }> {
+  const { data } = await api.patch(`/dealers/${encodeURIComponent(dealerId)}/quick-action`, payload);
+  return data;
+}
+
+export async function undoDealerQuickAction(
+  logId: string
+): Promise<{ success: boolean; revertedDealer: any; message: string }> {
+  const { data } = await api.post(`/dealers/audit-history/${encodeURIComponent(logId)}/undo`);
+  return data;
+}
+
+export interface UniversalTag {
+  tag: string;
+  count: number;
+  color?: string;
+  description?: string;
+  isGlobal?: boolean;
+}
+
+export async function getDealerTags(): Promise<{ success: boolean; tags: UniversalTag[] }> {
+  const { data } = await api.get('/dealers/tags');
+  return data;
+}
+
+export async function createGlobalTag(
+  tag: string,
+  color?: string,
+  description?: string
+): Promise<{ success: boolean; tag: UniversalTag; alreadyExists?: boolean }> {
+  const { data } = await api.post('/dealers/tags', { tag, color, description });
+  return data;
+}
+
+export async function deleteGlobalTag(
+  tag: string,
+  cascade: boolean = false
+): Promise<{ success: boolean; message: string }> {
+  const { data } = await api.delete(`/dealers/tags/${encodeURIComponent(tag)}`, {
+    params: { cascade: cascade ? 'true' : 'false' }
+  });
+  return data;
+}
+
+export interface BatchActionPayload {
+  dealerIds?: string[];
+  selectAllMatching?: boolean;
+  filterQuery?: {
+    scope?: string;
+    state?: string | string[];
+    states?: string | string[];
+    rep?: string;
+    businessType?: string;
+    tags?: string | string[];
+    search?: string;
+    status?: string;
+  };
+  action: 'add_tags' | 'remove_tags' | 'set_business_type' | 'set_status';
+  payload: {
+    tags?: string[];
+    businessType?: 'franchise' | 'non-franchise' | 'broker' | null;
+    systemStatus?: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service';
+    systemStatusReason?: string | null;
+  };
+}
+
+export async function executeBatchDealerAction(
+  data: BatchActionPayload
+): Promise<{ success: boolean; updatedCount: number; batchId: string; updatedDealers: any[]; message: string }> {
+  const res = await api.post('/dealers/batch-action', data);
+  return res.data;
+}
+
+export async function undoBatchDealerAction(
+  batchId: string
+): Promise<{ success: boolean; revertedCount: number; revertedDealers: any[]; message: string }> {
+  const res = await api.post(`/dealers/batch-action/${encodeURIComponent(batchId)}/undo`);
+  return res.data;
+}
+
+// ── Funding Hierarchy (Parent-Child Central Funder vs Satellite Stores) ──
+export async function setFundingHierarchy(
+  parentId: string,
+  childIds: string[]
+): Promise<{ success: boolean; parent: any; linkedCount: number; batchId: string; message: string }> {
+  const res = await api.post('/dealers/hierarchy/set-parent', { parentId, childIds });
+  return res.data;
+}
+
+export async function unlinkFundingChild(
+  childId: string
+): Promise<{ success: boolean; child: any; parent?: any; message: string }> {
+  const res = await api.post('/dealers/hierarchy/unlink-child', { childId });
+  return res.data;
+}
+
+export async function dissolveFundingHierarchy(
+  parentId: string
+): Promise<{ success: boolean; dissolvedCount: number; message: string }> {
+  const res = await api.post('/dealers/hierarchy/dissolve', { parentId });
+  return res.data;
+}
+
+export async function getDealerHierarchy(
+  dealerId: string
+): Promise<{
+  success: boolean;
+  dealer: {
+    _id: string;
+    dealerId: string;
+    clientDealerId?: string;
+    dealerName: string;
+    isFundingParent: boolean;
+    fundingParent: any;
+    fundingChildren: any[];
+  };
+}> {
+  const res = await api.get(`/dealers/hierarchy/${encodeURIComponent(dealerId)}`);
+  return res.data;
+}
+
+// ── System Audit Log & Universal Undos ──
+export interface SystemAuditLogItem {
+  _id: string;
+  dealerId: string;
+  dealerName: string;
+  batchId?: string | null;
+  action: string;
+  user?: { id?: string; name: string; email?: string };
+  changedBy?: { name: string; email?: string };
+  previousState: any;
+  newState: any;
+  metadata?: any;
+  reason?: string;
+  isUndone: boolean;
+  undoneAt?: string;
+  undoneBy?: { name: string; email?: string };
+  createdAt: string;
+}
+
+export async function getSystemAuditLogs(params?: {
+  page?: number;
+  limit?: number;
+  action?: string;
+  search?: string;
+  showUndone?: boolean;
+}): Promise<{
+  success: boolean;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  logs: SystemAuditLogItem[];
+}> {
+  const res = await api.get('/dealers/audit-history', { params });
+  return res.data;
+}
+
+export async function undoAuditLogAction(
+  logId: string
+): Promise<{ success: boolean; revertedDealer?: any; message: string }> {
+  const res = await api.post(`/dealers/audit-history/${encodeURIComponent(logId)}/undo`);
+  return res.data;
+}
+
+// ── Dealer Groups & Rep-to-Admin Approval Desk ──
+export interface DealerGroupItem {
+  _id: string;
+  name: string;
+  slug: string;
+  dealerCount: number;
+  isCustom?: boolean;
+  description?: string;
+  createdBy?: string | null;
+  updatedAt?: string;
+  createdAt?: string;
+}
+
+export interface GroupMemberLocation {
+  _id: string;
+  dealerId: string;
+  dealerName: string;
+  dealerCity?: string;
+  dealerState?: string;
+  systemStatus?: string;
+  businessType?: string;
+  tags?: string[];
+  fundingParent?: any;
+  isFundingParent?: boolean;
+  createdAt?: string;
+}
+
+export interface DealerGroupProposalDealer {
+  dealerLocation: string;
+  dealerId: string;
+  dealerName: string;
+  currentGroupName?: string | null;
+  currentGroupId?: string | null;
+  action: 'add' | 'remove';
+  status?: 'pending' | 'approved' | 'rejected';
+}
+
+export interface DealerGroupRequestItem {
+  _id: string;
+  requestType: 'create_group' | 'add_dealers' | 'remove_dealers' | 'transfer_dealers' | 'delete_group' | 'edit_group';
+  groupId?: string | null;
+  groupName: string;
+  groupDescription?: string;
+  dealers: DealerGroupProposalDealer[];
+  requestedBy: string;
+  requesterName?: string;
+  requesterEmail?: string;
+  repNote: string;
+  status: 'pending' | 'approved' | 'rejected' | 'partially_approved';
+  reviewedBy?: string | null;
+  reviewerName?: string | null;
+  reviewNote?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+}
+
+export async function getDealerGroupsList(params?: {
+  search?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
+}): Promise<{
+  success: boolean;
+  total: number;
+  groups: DealerGroupItem[];
+  pendingRequestsCount: number;
+}> {
+  const res = await api.get('/dealers/groups', { params });
+  return res.data;
+}
+
+export async function getDealerGroupMembers(
+  groupId: string
+): Promise<{
+  success: boolean;
+  group: DealerGroupItem;
+  total: number;
+  members: GroupMemberLocation[];
+}> {
+  const res = await api.get(`/dealers/groups/${encodeURIComponent(groupId)}/members`);
+  return res.data;
+}
+
+export async function createOrProposeDealerGroup(data: {
+  name: string;
+  description?: string;
+  dealerLocationIds?: string[];
+  dealers?: DealerGroupProposalDealer[];
+  repNote?: string;
+}): Promise<{
+  success: boolean;
+  isProposal: boolean;
+  group?: DealerGroupItem;
+  proposal?: DealerGroupRequestItem;
+  message: string;
+}> {
+  const res = await api.post('/dealers/groups', data);
+  return res.data;
+}
+
+export async function updateOrProposeDealerGroup(
+  groupId: string,
+  data: {
+    name?: string;
+    description?: string;
+    addDealerLocationIds?: string[];
+    removeDealerLocationIds?: string[];
+    dealers?: DealerGroupProposalDealer[];
+    repNote?: string;
+  }
+): Promise<{
+  success: boolean;
+  isProposal: boolean;
+  group?: DealerGroupItem;
+  proposal?: DealerGroupRequestItem;
+  message: string;
+}> {
+  const res = await api.put(`/dealers/groups/${encodeURIComponent(groupId)}`, data);
+  return res.data;
+}
+
+export async function deleteOrProposeDealerGroup(
+  groupId: string,
+  repNote?: string
+): Promise<{
+  success: boolean;
+  isProposal: boolean;
+  deletedGroupName?: string;
+  proposal?: DealerGroupRequestItem;
+  message: string;
+}> {
+  const res = await api.delete(`/dealers/groups/${encodeURIComponent(groupId)}`, {
+    data: { repNote }
+  });
+  return res.data;
+}
+
+export async function getDealerGroupRequests(params?: {
+  status?: string;
+}): Promise<{
+  success: boolean;
+  total: number;
+  pendingCount: number;
+  requests: DealerGroupRequestItem[];
+}> {
+  const res = await api.get('/dealers/groups/requests', { params });
+  return res.data;
+}
+
+export async function reviewDealerGroupRequest(
+  requestId: string,
+  data: {
+    decision: 'approved' | 'rejected';
+    reviewNote?: string;
+    itemDecisions?: Record<string, 'approved' | 'rejected'>;
+  }
+): Promise<{
+  success: boolean;
+  proposal: DealerGroupRequestItem;
+  message: string;
+}> {
+  const res = await api.post(`/dealers/groups/requests/${encodeURIComponent(requestId)}/review`, data);
+  return res.data;
+}
+
 export default api;
+
+
 

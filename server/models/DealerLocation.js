@@ -107,6 +107,51 @@ const dealerLocationSchema = new mongoose.Schema({
     systemStatusChangedAt: { type: Date, default: null },
     systemStatusChangedBy: { type: String, default: null },
 
+    // ── Classification & Taxonomy ──
+    businessType: {
+        type: String,
+        enum: ['franchise', 'non-franchise', 'broker', null],
+        default: null,
+        index: true
+    },
+    tags: [{
+        type: String,
+        trim: true,
+        index: true
+    }],
+    industry: {
+        type: String,
+        enum: ['rv', 'marine', 'both', null],
+        default: null,
+        index: true
+    },
+    isManuallyClassified: {
+        type: Boolean,
+        default: false
+    },
+    isManuallyGrouped: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+
+    // ── Funding Hierarchy (Central Funder vs Satellite Stores) ──
+    isFundingParent: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    fundingParent: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'DealerLocation',
+        default: null,
+        index: true
+    },
+    fundingChildren: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'DealerLocation'
+    }],
+
     // ── Contacts (from Badger Maps & Manual CRM) ──
     contacts: [{
         name: { type: String, trim: true, default: '' },

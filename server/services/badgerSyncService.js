@@ -622,6 +622,21 @@ async function getDealerBadgerActivity(dealerId) {
         return dateB - dateA;
     });
 
+    let contacts = (locDoc?.contacts && locDoc.contacts.length > 0) ? locDoc.contacts : [];
+    if (contacts.length === 0 && customerDetail) {
+        try {
+            const liveParsed = parseBadgerCustomerDetail(customerDetail);
+            if (liveParsed && liveParsed.contacts && liveParsed.contacts.length > 0) {
+                contacts = liveParsed.contacts;
+                if (locDoc?._id) {
+                    DealerLocation.updateOne({ _id: locDoc._id }, { $set: { contacts } }).catch(() => {});
+                }
+            }
+        } catch {
+            // ignore
+        }
+    }
+
     return {
         dealerId: candidateCode,
         dealerName: locDoc?.dealerName || customerDetail?.last_name || customerDetail?.full_name || candidateCode,
@@ -629,7 +644,8 @@ async function getDealerBadgerActivity(dealerId) {
         accountOwner: customerDetail?.account_owner_name || customerDetail?.account_owner || '',
         notepad: customerDetail?.notes || '',
         appointments: allAppointments,
-        recentLogs
+        recentLogs,
+        contacts
     };
 }
 

@@ -16,7 +16,13 @@ interface TabBarProps {
   allDealerCount?: number;
 }
 
-export function TabBar({ activeTab, onTabChange, groupCount, dealerCount, allDealerCount }: TabBarProps) {
+export function TabBar({
+  activeTab,
+  onTabChange,
+  groupCount,
+  dealerCount,
+  allDealerCount,
+}: TabBarProps) {
   const tabs: Tab[] = [
     { id: 'groups', label: 'Dealer Groups', count: groupCount },
     { id: 'dealers', label: 'Independent Dealers', count: dealerCount },

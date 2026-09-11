@@ -16,6 +16,8 @@ export interface DashboardFilterState {
   trend: TrendPeriod;
   transitionFilter: string | null;
   drdFilter: string | null;
+  selectedBusinessType: string;
+  selectedTags: string[];
   searchQuery: string;
   latestReportDate?: string;
   filterVersion: number; // Monotonically increasing counter to trigger hard cache invalidation
@@ -31,6 +33,8 @@ export interface DashboardFilterState {
   setCustomDates: (start?: string, end?: string) => void;
   setTrend: (trend: TrendPeriod) => void;
   setTransitionFilter: (transition: string | null) => void;
+  setBusinessType: (type: string) => void;
+  setTags: (tags: string[]) => void;
   setSearchQuery: (query: string) => void;
   setLatestReportDate: (date: string) => void;
   resetAllFilters: () => void;
@@ -113,6 +117,8 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
   trend: 'mom',
   transitionFilter: null,
   drdFilter: null,
+  selectedBusinessType: '',
+  selectedTags: [],
   searchQuery: '',
   latestReportDate: undefined,
   filterVersion: 1,
@@ -140,6 +146,18 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
   setDrdFilter: (drd: string | null) =>
     set((state) => ({
       drdFilter: drd,
+      filterVersion: state.filterVersion + 1,
+    })),
+
+  setBusinessType: (type: string) =>
+    set((state) => ({
+      selectedBusinessType: type,
+      filterVersion: state.filterVersion + 1,
+    })),
+
+  setTags: (tags: string[]) =>
+    set((state) => ({
+      selectedTags: tags,
       filterVersion: state.filterVersion + 1,
     })),
 
@@ -236,6 +254,8 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
         endDate: dates.endDate,
         trend: 'mom',
         transitionFilter: null,
+        selectedBusinessType: '',
+        selectedTags: [],
         searchQuery: '',
         filterVersion: state.filterVersion + 1,
       };

@@ -749,3 +749,204 @@
   }
 }
 
+/* ============================================
+   LIGHT MODE OVERRIDES FOR DEALER 360 MODAL
+   ============================================ */
+[data-theme="light"] .card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+[data-theme="light"] .header {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .dealerTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .subMeta {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn {
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .tabBar {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .tabBtn {
+  color: #475569;
+}
+
+[data-theme="light"] .tabBtn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .tabBtnActive {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .body {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+[data-theme="light"] .recencyCard {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .recencyLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .statCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .statVal {
+  color: #0f172a;
+}
+
+[data-theme="light"] .statLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .sparklineSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+[data-theme="light"] .sparklineHeader {
+  color: #0f172a;
+}
+
+[data-theme="light"] .drdCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+[data-theme="light"] .drdTitle {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+[data-theme="light"] .drdRecommendationBox {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .drdMetricBox {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .drdMetricLabel {
+  color: #64748b;
+}
+
+[data-theme="light"] .timelineControlBar {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .timelineFilterBtn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+[data-theme="light"] .timelineFilterBtn:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+[data-theme="light"] .timelineFilterBtnActive {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .timelineItem {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .timelineItem:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .timelineTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .timelineDate {
+  color: #1e40af;
+}
+
+[data-theme="light"] .timelineMeta {
+  color: #475569;
+}
+
+[data-theme="light"] .horizontalTimelineChart {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .horizontalChartHeader {
+  color: #0f172a;
+}
+
+[data-theme="light"] .horizontalNodeCard {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .horizontalNodeTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .horizontalNodeDate {
+  color: #64748b;
+}
+
+[data-theme="light"] .inactivityGapCard {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+[data-theme="light"] .inactivityGapText {
+  color: #b45309;
+}
+
+[data-theme="light"] .expandOlderBtn {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+

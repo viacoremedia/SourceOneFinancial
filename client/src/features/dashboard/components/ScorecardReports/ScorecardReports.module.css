@@ -667,3 +667,145 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 }
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR SCORECARD REPORTS
+   ============================================ */
+[data-theme="light"] .modalContainer {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+[data-theme="light"] .modalHeader {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .headerTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .headerSubtitle {
+  color: #64748b;
+}
+
+[data-theme="light"] .closeButton {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .closeButton:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+[data-theme="light"] .configPanel {
+  background: #f8fafc;
+  border-right-color: #e2e8f0;
+  color: #0f172a;
+}
+
+[data-theme="light"] .configSectionTitle {
+  color: #1e40af;
+}
+
+[data-theme="light"] .configCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .fieldLabel {
+  color: #334155;
+}
+
+[data-theme="light"] .inputField {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .inputField:focus {
+  border-color: #1e40af;
+}
+
+[data-theme="light"] .segmentGroup {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .segmentBtn {
+  color: #475569;
+}
+
+[data-theme="light"] .segmentBtn:hover {
+  color: #0f172a;
+}
+
+[data-theme="light"] .segmentBtnActive {
+  background: #1e40af !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .checkboxRow {
+  color: #334155;
+}
+
+[data-theme="light"] .historyPanel {
+  background: #ffffff;
+}
+
+[data-theme="light"] .historyTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .reportCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .reportCard:hover {
+  background: #f1f5f9;
+  border-color: #93c5fd;
+}
+
+[data-theme="light"] .reportName {
+  color: #0f172a;
+}
+
+[data-theme="light"] .reportMeta {
+  color: #64748b;
+}
+
+[data-theme="light"] .statPill {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .viewerBar {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .viewerTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .fileSelectorDropdown {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .fileSelectorDropdown option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+[data-theme="light"] .iframeWrapper {
+  background: #f1f5f9;
+}
+

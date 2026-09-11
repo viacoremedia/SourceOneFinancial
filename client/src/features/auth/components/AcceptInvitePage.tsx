@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Sun, Moon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../../../core/hooks/useTheme';
 import styles from './Auth.module.css';
 
 export function AcceptInvitePage() {
   const { acceptInvite } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('token') || '';
@@ -18,6 +21,15 @@ export function AcceptInvitePage() {
   if (!inviteToken) {
     return (
       <div className={styles.authPage}>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={styles.themeToggle}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle visual theme"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
         <div className={styles.authCard}>
           <h2 className={styles.title}>Invalid Invite</h2>
           <p className={styles.subtitle}>This invite link is missing or invalid.</p>
@@ -52,13 +64,19 @@ export function AcceptInvitePage() {
 
   return (
     <div className={styles.authPage}>
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className={styles.themeToggle}
+        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        aria-label="Toggle visual theme"
+      >
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
       <div className={styles.authCard}>
         <div className={styles.brandRow}>
-          <div className={styles.brandMark}>S1</div>
-          <div>
-            <div className={styles.brandName}>Source One</div>
-            <div className={styles.brandTag}>Dealer Analytics</div>
-          </div>
+          <img src="/sourceonelogo.png" alt="Source One Financial Services" className={styles.brandLogo} />
+          <div className={styles.brandTag}>Dealer Analytics</div>
         </div>
         <h2 className={styles.title}>Set up your account</h2>
         <p className={styles.subtitle}>Create a password to get started.</p>

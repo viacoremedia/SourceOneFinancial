@@ -73,6 +73,8 @@ interface AnalyticsDrawerProps {
   datePresetLabel?: string;
   dateRangeStr?: string;
   allTableDealers?: any[];
+  businessType?: string | null;
+  tags?: string[];
   onSelectDealerId?: (dealerId: string | null) => void;
   onSelectGroupSlug?: (groupSlug: string | null) => void;
 }
@@ -139,6 +141,8 @@ export function AnalyticsDrawer({
   datePresetLabel,
   dateRangeStr,
   allTableDealers = [],
+  businessType = null,
+  tags = [],
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
@@ -329,7 +333,9 @@ export function AnalyticsDrawer({
       selectedState || undefined,
       selectedRep || undefined,
       selectedGroup || undefined,
-      selectedDealerId || undefined
+      selectedDealerId || undefined,
+      businessType || undefined,
+      tags && tags.length > 0 ? tags : undefined
     )
       .then((res) => {
         if (active) {
@@ -346,7 +352,7 @@ export function AnalyticsDrawer({
       active = false;
       document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup, selectedDealerId]);
+  }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup, selectedDealerId, businessType, tags]);
 
   // Load Application History data when target, filters or page changes
   useEffect(() => {
@@ -1094,8 +1100,8 @@ export function AnalyticsDrawer({
 
                 {/* Contacts & Badger Maps Communication Roster */}
                 <div style={{
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                  background: 'var(--bg-card-subtle, #f8fafc)',
+                  border: '1px solid var(--border-subtle, #e2e8f0)',
                   borderRadius: '10px',
                   padding: '14px 16px',
                   marginBottom: '16px',
@@ -1104,16 +1110,16 @@ export function AnalyticsDrawer({
                   gap: '10px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Phone size={14} color="#38bdf8" />
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Phone size={14} color="#0284c7" />
                       <span>Dealer Contacts</span>
                       {profile.contacts && profile.contacts.length > 0 && (
-                        <span style={{ fontSize: '11px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 7px', borderRadius: '999px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0284c7', padding: '1px 7px', borderRadius: '999px', fontWeight: 600 }}>
                           {profile.contacts.length} Contacts
                         </span>
                       )}
                       {profile.badgerData?.badgerId && (
-                        <span style={{ fontSize: '11px', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8', padding: '2px 8px', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '11px', background: 'var(--bg-surface, #ffffff)', color: 'var(--text-secondary, #64748b)', border: '1px solid var(--border-subtle, #e2e8f0)', padding: '2px 8px', borderRadius: '6px' }}>
                           Badger Account: #{profile.badgerData.badgerId} {profile.badgerData.accountName ? `(${profile.badgerData.accountName})` : ''}
                         </span>
                       )}
@@ -1121,7 +1127,7 @@ export function AnalyticsDrawer({
                   </div>
 
                   {badgerSyncMsg && (
-                    <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#4ade80' : '#f87171' }}>
+                    <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
                       {badgerSyncMsg}
                     </div>
                   )}
@@ -1132,29 +1138,30 @@ export function AnalyticsDrawer({
                         <div
                           key={i}
                           style={{
-                            background: c.isPrimary ? 'rgba(14, 116, 144, 0.15)' : 'rgba(30, 41, 59, 0.5)',
-                            border: `1px solid ${c.isPrimary ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.08)'}`,
+                            background: c.isPrimary ? '#eff6ff' : 'var(--bg-surface, #ffffff)',
+                            border: `1px solid ${c.isPrimary ? '#93c5fd' : 'var(--border-subtle, #e2e8f0)'}`,
                             borderRadius: '8px',
                             padding: '10px 12px',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '6px'
+                            gap: '6px',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#ffffff' }}>{c.name || 'Contact'}</span>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary, #0f172a)' }}>{c.name || 'Contact'}</span>
                             {c.isPrimary && (
-                              <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                              <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                                 PRIMARY
                               </span>
                             )}
                           </div>
-                          {c.title && <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{c.title}</div>}
+                          {c.title && <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #64748b)' }}>{c.title}</div>}
                           <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                             {c.phone && (
                               <a
                                 href={`tel:${c.phone}`}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', fontSize: '0.75rem', color: '#38bdf8', textDecoration: 'none', maxWidth: '100%' }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', background: 'var(--bg-card-subtle, #f1f5f9)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '6px', fontSize: '0.75rem', color: '#0284c7', textDecoration: 'none', maxWidth: '100%' }}
                                 title={`Call ${c.phone}`}
                               >
                                 <Phone size={11} />
@@ -1164,7 +1171,7 @@ export function AnalyticsDrawer({
                             {c.email && (
                               <a
                                 href={`mailto:${c.email}`}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', fontSize: '0.75rem', color: '#38bdf8', textDecoration: 'none', maxWidth: '100%' }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', background: 'var(--bg-card-subtle, #f1f5f9)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '6px', fontSize: '0.75rem', color: '#0284c7', textDecoration: 'none', maxWidth: '100%' }}
                                 title={`Email ${c.email}`}
                               >
                                 <Mail size={11} />
@@ -1173,11 +1180,11 @@ export function AnalyticsDrawer({
                             )}
                             {c.email && (
                               <button
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 6px', background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', fontSize: '0.75rem', color: '#38bdf8', cursor: 'pointer' }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 6px', background: 'var(--bg-card-subtle, #f1f5f9)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '6px', fontSize: '0.75rem', color: '#0284c7', cursor: 'pointer' }}
                                 onClick={() => copyToClipboard(c.email, `ad_email_${i}`)}
                                 title="Copy Email"
                               >
-                                {copiedField === `ad_email_${i}` ? <Check size={11} color="#4ade80" /> : <Copy size={11} />}
+                                {copiedField === `ad_email_${i}` ? <Check size={11} color="#059669" /> : <Copy size={11} />}
                               </button>
                             )}
                           </div>
@@ -1222,12 +1229,12 @@ export function AnalyticsDrawer({
                 <div
                   style={{
                     background: profile.manualOverride?.isOverridden
-                      ? 'rgba(234, 179, 8, 0.08)'
-                      : 'rgba(30, 41, 59, 0.5)',
+                      ? '#fefce8'
+                      : 'var(--bg-card-subtle, #f8fafc)',
                     border: `1px solid ${
                       profile.manualOverride?.isOverridden
-                        ? 'rgba(234, 179, 8, 0.35)'
-                        : 'rgba(255, 255, 255, 0.08)'
+                        ? '#fef08a'
+                        : 'var(--border-subtle, #e2e8f0)'
                     }`,
                     borderRadius: '8px',
                     padding: '14px 16px',
@@ -1250,7 +1257,7 @@ export function AnalyticsDrawer({
                       ) : (
                         <Unlock size={16} color="#94a3b8" />
                       )}
-                      <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>
+                      <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         DRD Human Reconciliation Status
                       </span>
                       {profile.manualOverride?.isOverridden ? (
@@ -1312,9 +1319,9 @@ export function AnalyticsDrawer({
                           setOverrideReason(profile.manualOverride?.reason || '');
                         }}
                         style={{
-                          background: 'rgba(56, 189, 248, 0.15)',
-                          border: '1px solid rgba(56, 189, 248, 0.35)',
-                          color: '#38bdf8',
+                          background: '#eff6ff',
+                          border: '1px solid #93c5fd',
+                          color: '#1e40af',
                           padding: '4px 10px',
                           borderRadius: '5px',
                           fontSize: '0.76rem',
@@ -1330,24 +1337,24 @@ export function AnalyticsDrawer({
                   {profile.manualOverride?.isOverridden && (
                     <div
                       style={{
-                        background: 'rgba(0, 0, 0, 0.25)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        background: 'var(--bg-card-subtle, #f8fafc)',
+                        border: '1px solid var(--border-subtle, #e2e8f0)',
                         padding: '10px 12px',
                         borderRadius: '6px',
                         fontSize: '0.8rem',
-                        color: '#cbd5e1',
+                        color: 'var(--text-secondary, #334155)',
                         marginBottom: '8px',
                       }}
                     >
                       <div style={{ marginBottom: '4px' }}>
-                        <strong style={{ color: '#facc15' }}>Active Override: </strong>
+                        <strong style={{ color: '#d97706' }}>Active Override: </strong>
                         <span>Classified as <strong>{profile.relationshipDemand?.replace(/_/g, ' ').toUpperCase()}</strong> (system calculated {profile.manualOverride.originalSegment || 'unclassified'})</span>
                       </div>
                       <div style={{ marginBottom: '4px' }}>
                         <strong>Reason: </strong>
-                        <span style={{ fontStyle: 'italic', color: '#e2e8f0' }}>"{profile.manualOverride.reason}"</span>
+                        <span style={{ fontStyle: 'italic', color: 'var(--text-primary, #0f172a)' }}>"{profile.manualOverride.reason}"</span>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
                         By {profile.manualOverride.overriddenBy?.name || profile.manualOverride.overriddenBy?.email || 'Authorized Manager'} • {profile.manualOverride.overriddenAt ? new Date(profile.manualOverride.overriddenAt).toLocaleString() : 'Recently'}
                       </div>
                     </div>
@@ -1359,12 +1366,12 @@ export function AnalyticsDrawer({
                       style={{
                         marginTop: '12px',
                         padding: '12px',
-                        background: 'rgba(15, 23, 42, 0.75)',
-                        border: '1px solid rgba(56, 189, 248, 0.25)',
+                        background: 'var(--bg-card-subtle, #f8fafc)',
+                        border: '1px solid var(--border-subtle, #e2e8f0)',
                         borderRadius: '6px',
                       }}
                     >
-                      <div style={{ fontSize: '0.84rem', fontWeight: 600, color: '#38bdf8', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary, #0f172a)', marginBottom: '8px' }}>
                         Select Target Classification & Document Required Reason:
                       </div>
 
@@ -1382,22 +1389,22 @@ export function AnalyticsDrawer({
                             style={{
                               padding: '8px',
                               borderRadius: '6px',
-                              border: overrideSegment === opt.key ? '1.5px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
-                              background: overrideSegment === opt.key ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                              color: overrideSegment === opt.key ? '#38bdf8' : '#cbd5e1',
+                              border: overrideSegment === opt.key ? '1.5px solid #1e40af' : '1px solid var(--border-subtle, #e2e8f0)',
+                              background: overrideSegment === opt.key ? '#eff6ff' : 'var(--bg-surface, #ffffff)',
+                              color: overrideSegment === opt.key ? '#1e40af' : 'var(--text-primary, #0f172a)',
                               textAlign: 'left',
                               cursor: 'pointer',
                             }}
                           >
                             <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>{opt.label}</div>
-                            <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>{opt.desc}</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>{opt.desc}</div>
                           </button>
                         ))}
                       </div>
 
                       <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
-                          Reason for Manual Override <span style={{ color: '#f87171' }}>* (Required for audit logging)</span>:
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary, #475569)', marginBottom: '4px' }}>
+                          Reason for Manual Override <span style={{ color: '#ef4444' }}>* (Required for audit logging)</span>:
                         </label>
                         <textarea
                           value={overrideReason}
@@ -1407,10 +1414,10 @@ export function AnalyticsDrawer({
                           style={{
                             width: '100%',
                             padding: '8px 10px',
-                            background: 'rgba(0, 0, 0, 0.4)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            background: 'var(--bg-input, #ffffff)',
+                            border: '1px solid var(--border-default, #cbd5e1)',
                             borderRadius: '5px',
-                            color: '#f8fafc',
+                            color: 'var(--text-primary, #0f172a)',
                             fontSize: '0.8rem',
                             outline: 'none',
                             resize: 'vertical',
@@ -1419,7 +1426,7 @@ export function AnalyticsDrawer({
                       </div>
 
                       {overrideActionError && (
-                        <div style={{ color: '#f87171', fontSize: '0.78rem', marginBottom: '8px' }}>
+                        <div style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '8px' }}>
                           ⚠️ {overrideActionError}
                         </div>
                       )}
@@ -1430,8 +1437,8 @@ export function AnalyticsDrawer({
                           onClick={() => setOverrideModalOpen(false)}
                           style={{
                             background: 'transparent',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            color: '#94a3b8',
+                            border: '1px solid var(--border-default, #cbd5e1)',
+                            color: 'var(--text-secondary, #64748b)',
                             padding: '5px 12px',
                             borderRadius: '4px',
                             fontSize: '0.78rem',
@@ -1939,8 +1946,8 @@ export function AnalyticsDrawer({
                         <td style={{ color: '#38bdf8', fontWeight: 800 }}>{formatCurrency(totals.leadBookedDollars)}</td>
                         <td style={{ color: '#4ade80', fontWeight: 800 }}>{totals.booked.toLocaleString()}</td>
                         <td style={{ color: '#4ade80', fontWeight: 800 }}>{formatCurrency(totals.bookedDollars)}</td>
-                        <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
-                        <td style={{ color: '#f8fafc', fontWeight: 800 }}>{(totals.approvalToBook * 100).toFixed(1)}%</td>
+                        <td style={{ color: 'var(--text-primary, #0f172a)', fontWeight: 800 }}>{(totals.lookToBook * 100).toFixed(1)}%</td>
+                        <td style={{ color: 'var(--text-primary, #0f172a)', fontWeight: 800 }}>{(totals.approvalToBook * 100).toFixed(1)}%</td>
                       </tr>
 
                       {/* Monthly Rows (Most Recent First) */}
@@ -2058,9 +2065,9 @@ export function AnalyticsDrawer({
                             setAppHistoryPage(1);
                           }}
                           style={{
-                            background: '#1e293b',
-                            border: '1px solid #334155',
-                            color: '#f8fafc',
+                            background: 'var(--bg-input, #ffffff)',
+                            border: '1px solid var(--border-default, #cbd5e1)',
+                            color: 'var(--text-primary, #0f172a)',
                             borderRadius: '6px',
                             padding: '4px 10px',
                             fontSize: '0.75rem',
@@ -2079,8 +2086,8 @@ export function AnalyticsDrawer({
 
                       {/* Date Range Presets */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>Period:</span>
-                        <div style={{ display: 'flex', gap: '2px', background: 'rgba(255, 255, 255, 0.05)', padding: '2px', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary, #64748b)' }}>Period:</span>
+                        <div style={{ display: 'flex', gap: '2px', background: 'var(--bg-surface-hover, #f1f5f9)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border-subtle, #e2e8f0)' }}>
                           {[
                             { key: 'all', label: 'All' },
                             { key: 'mtd', label: 'MTD' },
@@ -2093,8 +2100,8 @@ export function AnalyticsDrawer({
                               key={p.key}
                               onClick={() => handleAppDatePresetChange(p.key)}
                               style={{
-                                background: appDatePreset === p.key ? '#0284c7' : 'transparent',
-                                color: appDatePreset === p.key ? '#ffffff' : '#94a3b8',
+                                background: appDatePreset === p.key ? '#1e40af' : 'transparent',
+                                color: appDatePreset === p.key ? '#ffffff' : 'var(--text-secondary, #64748b)',
                                 border: 'none',
                                 borderRadius: '4px',
                                 padding: '3px 8px',
@@ -2120,15 +2127,15 @@ export function AnalyticsDrawer({
                               setAppHistoryPage(1);
                             }}
                             style={{
-                              background: '#1e293b',
-                              border: '1px solid #334155',
-                              color: '#f8fafc',
+                              background: 'var(--bg-input, #ffffff)',
+                              border: '1px solid var(--border-default, #cbd5e1)',
+                              color: 'var(--text-primary, #0f172a)',
                               padding: '3px 6px',
                               borderRadius: '4px',
                               fontSize: '0.72rem',
                             }}
                           />
-                          <span style={{ color: '#64748b', fontSize: '0.72rem' }}>–</span>
+                          <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.72rem' }}>–</span>
                           <input
                             type="date"
                             value={appEndDate || ''}
@@ -2137,9 +2144,9 @@ export function AnalyticsDrawer({
                               setAppHistoryPage(1);
                             }}
                             style={{
-                              background: '#1e293b',
-                              border: '1px solid #334155',
-                              color: '#f8fafc',
+                              background: 'var(--bg-input, #ffffff)',
+                              border: '1px solid var(--border-default, #cbd5e1)',
+                              color: 'var(--text-primary, #0f172a)',
                               padding: '3px 6px',
                               borderRadius: '4px',
                               fontSize: '0.72rem',
@@ -2204,7 +2211,7 @@ export function AnalyticsDrawer({
                                   )}
                                 </td>
                               )}
-                              <td style={{ fontWeight: 600, color: app.underwriter ? '#60a5fa' : '#64748b' }}>
+                              <td style={{ fontWeight: 600, color: app.underwriter ? '#1d4ed8' : 'var(--text-muted, #64748b)' }}>
                                 {app.underwriter || '—'}
                               </td>
                               <td>
@@ -2285,9 +2292,9 @@ export function AnalyticsDrawer({
                     key={tf.key}
                     onClick={() => { setCommTypeFilter(tf.key as any); setCommHistoryPage(1); }}
                     style={{
-                      background: commTypeFilter === tf.key ? '#2563eb' : '#1e293b',
-                      color: commTypeFilter === tf.key ? '#ffffff' : '#94a3b8',
-                      border: '1px solid #334155',
+                      background: commTypeFilter === tf.key ? '#1e40af' : 'var(--bg-input, #ffffff)',
+                      color: commTypeFilter === tf.key ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                      border: '1px solid var(--border-default, #cbd5e1)',
                       padding: '6px 12px',
                       borderRadius: '6px',
                       fontSize: '12px',
@@ -2338,16 +2345,16 @@ export function AnalyticsDrawer({
                           title="Click to view full touchpoint notes and discussion"
                         >
                           <td style={{ whiteSpace: 'nowrap' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 600, color: '#f8fafc' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>
                               {item.date ? new Date(item.date).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
                             </div>
                             {item.daysAgo != null && (
-                              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>
+                              <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>
                                 ⏱️ {item.daysAgo === 0 ? 'Today' : `${item.daysAgo}d ago`}
                               </span>
                             )}
                           </td>
-                          <td style={{ fontWeight: 600, color: '#f8fafc', whiteSpace: 'nowrap' }}>{item.repName || '—'}</td>
+                          <td style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)', whiteSpace: 'nowrap' }}>{item.repName || '—'}</td>
                           <td>
                             <span style={{
                               display: 'inline-block',
@@ -2356,16 +2363,20 @@ export function AnalyticsDrawer({
                               fontSize: '11px',
                               fontWeight: 700,
                               background: item.type?.toLowerCase().includes('visit') || item.type?.toLowerCase().includes('meeting')
-                                ? 'rgba(56, 189, 248, 0.2)'
+                                ? '#e0f2fe'
                                 : item.type?.toLowerCase().includes('call')
-                                ? 'rgba(168, 85, 247, 0.2)'
-                                : 'rgba(148, 163, 184, 0.2)',
+                                ? '#f3e8ff'
+                                : '#f1f5f9',
                               color: item.type?.toLowerCase().includes('visit') || item.type?.toLowerCase().includes('meeting')
-                                ? '#38bdf8'
+                                ? '#0284c7'
                                 : item.type?.toLowerCase().includes('call')
-                                ? '#c084fc'
-                                : '#cbd5e1',
-                              border: '1px solid rgba(255,255,255,0.1)',
+                                ? '#7e22ce'
+                                : '#475569',
+                              border: item.type?.toLowerCase().includes('visit') || item.type?.toLowerCase().includes('meeting')
+                                ? '1px solid #bae6fd'
+                                : item.type?.toLowerCase().includes('call')
+                                ? '1px solid #e9d5ff'
+                                : '1px solid #cbd5e1',
                             }}>
                               {item.type || 'Touchpoint'}
                             </span>
@@ -2373,7 +2384,7 @@ export function AnalyticsDrawer({
                           {!isDealerSelected && (
                             <td>
                               <div
-                                style={{ fontWeight: 600, color: '#38bdf8', cursor: 'pointer', textDecoration: 'underline' }}
+                                style={{ fontWeight: 600, color: '#0284c7', cursor: 'pointer', textDecoration: 'underline' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleSelectDealer({
@@ -2389,17 +2400,17 @@ export function AnalyticsDrawer({
                                 {item.dealerName || '—'}
                               </div>
                               {item.groupName && (
-                                <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>
+                                <span style={{ fontSize: '10px', color: 'var(--text-muted, #64748b)', display: 'block' }}>
                                   {item.groupName}
                                 </span>
                               )}
                             </td>
                           )}
-                          <td>{item.state || '—'}</td>
-                          <td style={{ fontSize: '12px', fontWeight: 600, color: '#34d399', maxWidth: '180px' }}>
+                          <td style={{ color: 'var(--text-secondary, #475569)' }}>{item.state || '—'}</td>
+                          <td style={{ fontSize: '12px', fontWeight: 600, color: '#059669', maxWidth: '180px' }}>
                             {item.result || '—'}
                           </td>
-                          <td style={{ fontSize: '12px', color: '#cbd5e1', maxWidth: '300px' }}>
+                          <td style={{ fontSize: '12px', color: 'var(--text-secondary, #334155)', maxWidth: '300px' }}>
                             {item.notes && item.notes !== item.result ? item.notes : (item.feedback || '—')}
                           </td>
                         </tr>
@@ -2453,44 +2464,43 @@ export function AnalyticsDrawer({
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0, 0, 0, 0.75)',
+              background: 'rgba(15, 23, 42, 0.6)',
               backdropFilter: 'blur(4px)',
-              zIndex: 9999,
+              zIndex: 10000,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px'
+              justifyContent: 'center'
             }}
             onClick={() => setLifecycleModalOpen(false)}
           >
             <div
               style={{
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--bg-surface, #ffffff)',
+                border: '1px solid var(--border-subtle, #cbd5e1)',
                 borderRadius: '12px',
                 padding: '24px',
                 maxWidth: '480px',
                 width: '100%',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.15)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px'
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Skull size={18} color="#f87171" />
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Skull size={18} color="#ef4444" />
                 <span>Flag Dealership Lifecycle Status</span>
               </h3>
-              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', lineHeight: '1.4' }}>
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary, #64748b)', lineHeight: '1.4' }}>
                 Set system-wide status for <strong>{profile?.dealerName || headerTitle}</strong>. Dead accounts (closed/bought out/out of service) are removed from all views and archived in the Admin Graveyard.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>Lifecycle Status</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', fontWeight: 600 }}>Lifecycle Status</label>
                 <select
                   value={lifecycleStatus}
                   onChange={(e: any) => setLifecycleStatus(e.target.value)}
-                  style={{ background: '#1e293b', border: '1px solid #475569', color: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
+                  style={{ background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-primary, #0f172a)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
                 >
                   <option value="active">🟢 Active (Normal Operation)</option>
                   <option value="closed">🚫 Closed Dealership</option>
@@ -2499,19 +2509,19 @@ export function AnalyticsDrawer({
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600 }}>Reason / Notes</label>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', fontWeight: 600 }}>Reason / Notes</label>
                 <textarea
                   value={lifecycleReason}
                   onChange={(e) => setLifecycleReason(e.target.value)}
                   placeholder="Details (e.g. store permanently closed, bought out by competitor)..."
                   rows={3}
-                  style={{ background: '#1e293b', border: '1px solid #475569', color: '#f8fafc', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', resize: 'vertical' }}
+                  style={{ background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-primary, #0f172a)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', resize: 'vertical' }}
                 />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
                 <button
                   onClick={() => setLifecycleModalOpen(false)}
-                  style={{ background: 'transparent', border: '1px solid #475569', color: '#cbd5e1', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                  style={{ background: 'transparent', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-secondary, #64748b)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
                 >
                   Cancel
                 </button>

@@ -141,6 +141,7 @@ async function resolveDealerBatch(rows) {
 
     // Fetch existing groups — match by slug (derived from uppercase name)
     const existingGroups = await DealerGroup.find({}).lean();
+    const customGroupIds = new Set(existingGroups.filter(g => g.isCustom).map(g => String(g._id)));
     for (const g of existingGroups) {
         groupKeyToDoc.set(g.name.toUpperCase(), g);
     }
@@ -211,8 +212,15 @@ async function resolveDealerBatch(rows) {
                 dealerGroupId: groupId || existing.dealerGroup || null
             });
 
+            // Ingestion Shield (Requirement 25):
+            // Never overwrite manually grouped or custom group memberships during automated ingestion!
+            const isShielded = Boolean(
+                existing.isManuallyGrouped ||
+                (existing.dealerGroup && customGroupIds.has(String(existing.dealerGroup)))
+            );
+
             // Update group assignment if it changed (new group detected, or group removed)
-            if (groupId && String(existing.dealerGroup) !== String(groupId)) {
+            if (!isShielded && groupId && String(existing.dealerGroup) !== String(groupId)) {
                 bulkOps.push({
                     updateOne: {
                         filter: { dealerId },

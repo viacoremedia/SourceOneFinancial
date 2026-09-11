@@ -260,9 +260,9 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                       📍 Visit Month
                     </span>
                   )}
-                  <span>Apps: <strong style={{ color: '#ffffff' }}>{relevantTimeline[hoveredIdx].appCount}</strong></span>
-                  <span>Funded Vol: <strong style={{ color: '#4ade80' }}>{formatDollar(relevantTimeline[hoveredIdx].bookedVolume)}</strong></span>
-                  <span>Rep Visits: <strong style={{ color: '#f87171' }}>{relevantTimeline[hoveredIdx].visitCount}</strong></span>
+                  <span>Apps: <strong style={{ color: 'var(--text-primary, #ffffff)' }}>{relevantTimeline[hoveredIdx].appCount}</strong></span>
+                  <span>Funded Vol: <strong style={{ color: '#10b981' }}>{formatDollar(relevantTimeline[hoveredIdx].bookedVolume)}</strong></span>
+                  <span>Rep Visits: <strong style={{ color: '#ef4444' }}>{relevantTimeline[hoveredIdx].visitCount}</strong></span>
                 </div>
               ) : (
                 <div style={{ fontSize: '0.72rem', color: '#64748b', fontStyle: 'italic' }}>
@@ -273,8 +273,8 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
               {/* Chart Container with Axis Labels */}
               <div className={styles.chartContainer}>
                 <div className={styles.axisLabels}>
-                  <span style={{ color: '#38bdf8', fontWeight: 600 }}>▲ Apps (0 – {maxApps})</span>
-                  <span style={{ color: '#4ade80', fontWeight: 600 }}>Booked Vol ($0 – {formatDollar(maxVolume)}) ▲</span>
+                  <span style={{ color: '#0284c7', fontWeight: 600 }}>▲ Apps (0 – {maxApps})</span>
+                  <span style={{ color: '#10b981', fontWeight: 600 }}>Booked Vol ($0 – {formatDollar(maxVolume)}) ▲</span>
                 </div>
 
                 <div style={{ position: 'relative', width: '100%', height: 180 }}>
@@ -291,9 +291,9 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                     </defs>
 
                     {/* Grid Lines */}
-                    <line x1="20" y1="130" x2="680" y2="130" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-                    <line x1="20" y1="85" x2="680" y2="85" stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
-                    <line x1="20" y1="40" x2="680" y2="40" stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+                    <line x1="20" y1="130" x2="680" y2="130" stroke="var(--border-subtle, rgba(255,255,255,0.12))" strokeWidth="1" />
+                    <line x1="20" y1="85" x2="680" y2="85" stroke="var(--border-subtle, rgba(255,255,255,0.05))" strokeDasharray="3 3" />
+                    <line x1="20" y1="40" x2="680" y2="40" stroke="var(--border-subtle, rgba(255,255,255,0.05))" strokeDasharray="3 3" />
 
                     {/* Monthly Bars */}
                     {relevantTimeline.map((item, idx) => {
@@ -312,7 +312,7 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                               y="15"
                               width={colWidth - 8}
                               height="115"
-                              fill={isHovered ? 'rgba(255, 255, 255, 0.06)' : 'rgba(56, 189, 248, 0.08)'}
+                              fill={isHovered ? 'rgba(56, 189, 248, 0.12)' : 'rgba(56, 189, 248, 0.08)'}
                               rx="6"
                               stroke={isHovered ? 'rgba(56, 189, 248, 0.4)' : isVisitMonth ? 'rgba(56, 189, 248, 0.25)' : 'transparent'}
                               strokeWidth="1"
@@ -330,7 +330,7 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                               rx="4"
                             />
                           ) : (
-                            <circle cx={x} cy={130} r="2" fill="rgba(255,255,255,0.2)" />
+                            <circle cx={x} cy={130} r="2" fill="var(--text-muted, rgba(255,255,255,0.2))" />
                           )}
 
                           {/* Apps Count Label above bar */}
@@ -338,7 +338,7 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                             <text
                               x={x}
                               y={124 - appHeight}
-                              fill="#ffffff"
+                              fill="var(--text-primary, #ffffff)"
                               fontSize="10"
                               fontWeight="700"
                               textAnchor="middle"
@@ -365,8 +365,8 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                           {/* Month Label */}
                           <text
                             x={x}
-                            y="152"
-                            fill={isHovered ? '#ffffff' : isVisitMonth ? '#38bdf8' : '#94a3b8'}
+                            y={152}
+                            fill={isHovered ? 'var(--text-primary, #ffffff)' : isVisitMonth ? '#0284c7' : 'var(--text-muted, #94a3b8)'}
                             fontSize="11"
                             fontWeight={isVisitMonth || isHovered ? '700' : '500'}
                             textAnchor="middle"
@@ -394,7 +394,7 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                       <>
                         <polyline
                           fill="none"
-                          stroke="#4ade80"
+                          stroke="#10b981"
                           strokeWidth="2.5"
                           points={relevantTimeline.map((item, idx) => {
                             const colWidth = 660 / Math.max(1, relevantTimeline.length);
@@ -414,8 +414,8 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                                 cx={x}
                                 cy={y}
                                 r={hoveredIdx === idx ? 6 : 4}
-                                fill="#4ade80"
-                                stroke="#0f172a"
+                                fill="#10b981"
+                                stroke="var(--bg-surface, #0f172a)"
                                 strokeWidth="2"
                               />
                             </g>

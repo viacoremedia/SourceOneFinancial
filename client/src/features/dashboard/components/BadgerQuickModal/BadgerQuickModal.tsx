@@ -15,7 +15,11 @@ import {
   Sparkles,
   ArrowDown,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Phone,
+  Mail,
+  Copy,
+  Check
 } from 'lucide-react';
 import {
   getDealerBadgerActivity,
@@ -23,7 +27,9 @@ import {
   createDealerBadgerCheckin,
   undoBadgerNotepadUpdate,
   undoBadgerCheckin,
-  type BadgerActivityData
+  syncDealerBadger,
+  type BadgerActivityData,
+  type BadgerContact
 } from '../../../../core/services/api';
 import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './BadgerQuickModal.module.css';
@@ -203,6 +209,46 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
   const [noteSuccessMsg, setNoteSuccessMsg] = useState<string | null>(null);
   const [lastNoteLogId, setLastNoteLogId] = useState<string | null>(null);
   const [isUndoing, setIsUndoing] = useState(false);
+
+  // Contacts states (Condensed All-In-One Roster)
+  const [contacts, setContacts] = useState<BadgerContact[]>([]);
+  const [isSyncingContacts, setIsSyncingContacts] = useState(false);
+  const [contactsSyncMsg, setContactsSyncMsg] = useState<string | null>(null);
+  const [copiedContactField, setCopiedContactField] = useState<string | null>(null);
+  const [isContactsCollapsed, setIsContactsCollapsed] = useState(false);
+
+  // Sync contacts from activity on load
+  useEffect(() => {
+    if (activity?.contacts) {
+      setContacts(activity.contacts);
+    }
+  }, [activity?.contacts]);
+
+  const copyContactEmail = (email: string, id: string) => {
+    navigator.clipboard.writeText(email);
+    setCopiedContactField(id);
+    setTimeout(() => setCopiedContactField(null), 2000);
+  };
+
+  const handleSyncContacts = async () => {
+    if (isSyncingContacts || !dealerId) return;
+    setIsSyncingContacts(true);
+    setContactsSyncMsg(null);
+    try {
+      const res = await syncDealerBadger(dealerId);
+      const syncedContacts = res.data?.contacts || [];
+      setContacts(syncedContacts);
+      const count = syncedContacts.length;
+      setContactsSyncMsg(`✅ Synced ${count} contact${count === 1 ? '' : 's'}`);
+      setTimeout(() => setContactsSyncMsg(null), 4000);
+      loadActivity();
+    } catch (err: any) {
+      setContactsSyncMsg(`❌ ${err.message || 'Failed to sync contacts'}`);
+      setTimeout(() => setContactsSyncMsg(null), 5000);
+    } finally {
+      setIsSyncingContacts(false);
+    }
+  };
 
   // Fetch activity data
   const loadActivity = useCallback(async () => {
@@ -966,6 +1012,104 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
     </div>
   );
 
+  // Section: Condensed Badger Contacts Strip
+  const renderContactsBar = () => (
+    <div className={styles.contactsBarContainer}>
+      <div className={styles.contactsBarHeader}>
+        <div className={styles.contactsBarTitle}>
+          <Phone size={14} className={styles.contactsIcon} />
+          <span>Badger Contacts</span>
+          <span className={styles.contactsCountBadge}>
+            {contacts.length}
+          </span>
+        </div>
+
+        <div className={styles.contactsBarActions}>
+          {contactsSyncMsg && (
+            <span className={contactsSyncMsg.startsWith('✅') ? styles.syncSuccessMsg : styles.syncErrorMsg}>
+              {contactsSyncMsg}
+            </span>
+          )}
+
+          <button
+            type="button"
+            className={styles.syncContactsBtn}
+            onClick={handleSyncContacts}
+            disabled={isSyncingContacts}
+            title="Sync contacts directly from Badger Maps"
+          >
+            <RefreshCw size={12} className={isSyncingContacts ? styles.spinner : ''} />
+            <span>{isSyncingContacts ? 'Syncing...' : 'Sync Contacts'}</span>
+          </button>
+
+          {contacts.length > 0 && (
+            <button
+              type="button"
+              className={styles.collapseContactsBtn}
+              onClick={() => setIsContactsCollapsed(prev => !prev)}
+              title={isContactsCollapsed ? 'Expand contacts list' : 'Collapse contacts list'}
+            >
+              {isContactsCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!isContactsCollapsed && (
+        contacts.length > 0 ? (
+          <div className={styles.contactsChipsRow}>
+            {contacts.map((c, idx) => (
+              <div key={idx} className={`${styles.contactChip} ${c.isPrimary ? styles.contactChipPrimary : ''}`}>
+                <div className={styles.contactChipTop}>
+                  <span className={styles.contactChipName}>{c.name || 'Contact'}</span>
+                  {c.isPrimary && <span className={styles.primaryBadge}>PRIMARY</span>}
+                </div>
+                {c.title && <div className={styles.contactChipTitle}>{c.title}</div>}
+                <div className={styles.contactChipLinks}>
+                  {c.phone && (
+                    <a href={`tel:${c.phone}`} className={styles.contactActionPill} title={`Call ${c.phone}`}>
+                      <Phone size={10} />
+                      <span>{c.phone}</span>
+                    </a>
+                  )}
+                  {c.email && (
+                    <a href={`mailto:${c.email}`} className={styles.contactActionPill} title={`Email ${c.email}`}>
+                      <Mail size={10} />
+                      <span>{c.email}</span>
+                    </a>
+                  )}
+                  {c.email && (
+                    <button
+                      type="button"
+                      className={styles.contactCopyBtn}
+                      onClick={() => copyContactEmail(c.email!, `contact_${idx}`)}
+                      title="Copy email address"
+                    >
+                      {copiedContactField === `contact_${idx}` ? <Check size={10} color="#16a34a" /> : <Copy size={10} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.contactsEmptyState}>
+            <span>No contacts loaded yet for this dealership.</span>
+            <button
+              type="button"
+              className={styles.inlineSyncBtn}
+              onClick={handleSyncContacts}
+              disabled={isSyncingContacts}
+            >
+              <RefreshCw size={11} className={isSyncingContacts ? styles.spinner : ''} />
+              <span>Pull from Badger Maps</span>
+            </button>
+          </div>
+        )
+      )}
+    </div>
+  );
+
   return createPortal(
     <div
       className={styles.drawerOverlay}
@@ -1109,6 +1253,8 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
               </button>
             </div>
           )}
+
+          {renderContactsBar()}
 
           {isLoading ? (
             <div className={styles.stateContainer}>

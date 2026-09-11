@@ -2,13 +2,21 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: linear-gradient(180deg, rgba(18, 24, 38, 0.8) 0%, rgba(13, 17, 28, 0.9) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 4px;
   width: fit-content;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background-color var(--transition-base), border-color var(--transition-base);
+}
+
+[data-theme="dark"] .tabBar {
+  background: linear-gradient(180deg, rgba(18, 24, 38, 0.8) 0%, rgba(13, 17, 28, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .tab {
@@ -19,7 +27,7 @@
   padding: 7px 16px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--text-secondary);
   border-radius: 7px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
@@ -29,14 +37,29 @@
 }
 
 .tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+[data-theme="dark"] .tab {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .tab:hover {
   color: #f8fafc;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .tabActive {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%) !important;
   color: #ffffff !important;
   font-weight: 700;
+  border-color: rgba(30, 64, 175, 0.4);
+  box-shadow: 0 3px 10px rgba(30, 64, 175, 0.3);
+}
+
+[data-theme="dark"] .tabActive {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
   border-color: rgba(96, 165, 250, 0.4);
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
@@ -45,16 +68,21 @@
   font-size: 0.72rem;
   padding: 2px 7px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
   font-weight: 600;
   font-family: var(--font-mono, monospace);
   transition: all 0.2s ease;
 }
 
+[data-theme="dark"] .tabCount {
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+}
+
 .tabActive .tabCount {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
 }
 
 @media (max-width: 768px) {

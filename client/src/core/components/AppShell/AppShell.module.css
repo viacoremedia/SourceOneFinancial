@@ -18,6 +18,7 @@
   border-bottom: 1px solid var(--border-subtle);
   height: 56px;
   flex-shrink: 0;
+  transition: background-color var(--transition-base), border-color var(--transition-base);
 }
 
 .brand {
@@ -26,25 +27,26 @@
   gap: var(--space-3);
 }
 
-.brandMark {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-teal-500), var(--color-teal-600));
+.brandLogoContainer {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: var(--weight-bold);
-  font-size: var(--font-h3);
-  color: white;
-  flex-shrink: 0;
+  height: 38px;
+  transition: background-color var(--transition-base);
 }
 
-.brandName {
-  font-size: var(--font-h3);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  letter-spacing: var(--tracking-tight);
+[data-theme="dark"] .brandLogoContainer {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2px 8px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.brandLogo {
+  height: 34px;
+  max-width: 170px;
+  object-fit: contain;
+  display: block;
 }
 
 .brandTag {
@@ -52,7 +54,11 @@
   color: var(--text-tertiary);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  padding: 3px 8px;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
 }
 
 .headerRight {
@@ -66,32 +72,43 @@
   align-items: center;
   gap: 6px;
   font-size: 0.8rem;
-  color: var(--text-secondary, #94a3b8);
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 5px 10px;
   margin-right: 4px;
+}
+
+[data-theme="dark"] .reportDate {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
 }
 
 .livePulse {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 8px #16a34a;
+}
+
+[data-theme="dark"] .livePulse {
   background: #34d399;
   box-shadow: 0 0 8px #34d399;
 }
 
 .reportDateLabel {
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .navCellStrip {
   display: inline-flex;
   align-items: center;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-subtle);
   border-radius: 9px;
   padding: 2px;
   gap: 2px;
@@ -99,6 +116,11 @@
   max-width: 100%;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+}
+
+[data-theme="dark"] .navCellStrip {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .navCellStrip::-webkit-scrollbar {
@@ -116,7 +138,7 @@
   border-radius: 6px;
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
@@ -124,22 +146,55 @@
 }
 
 .navCell:hover {
+  background: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .navCell {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .navCell:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
 }
 
 .navCell svg {
-  color: #60a5fa;
+  color: var(--accent-primary);
   flex-shrink: 0;
 }
 
+[data-theme="dark"] .navCell svg {
+  color: #60a5fa;
+}
+
+.themeToggleBtn {
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+[data-theme="dark"] .themeToggleBtn {
+  color: #fbbf24;
+}
+
 .navCellFeatured {
+  background: rgba(30, 64, 175, 0.08);
+  color: #1e40af;
+  border: 1px solid rgba(30, 64, 175, 0.2);
+}
+
+.navCellFeatured:hover {
+  background: rgba(30, 64, 175, 0.16);
+  color: #1e3a8a;
+}
+
+[data-theme="dark"] .navCellFeatured {
   background: rgba(37, 99, 235, 0.15);
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
-.navCellFeatured:hover {
+[data-theme="dark"] .navCellFeatured:hover {
   background: rgba(37, 99, 235, 0.25);
   color: #ffffff;
 }
@@ -147,9 +202,13 @@
 .navCellDivider {
   width: 1px;
   height: 16px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border-default);
   margin: 0 1px;
   flex-shrink: 0;
+}
+
+[data-theme="dark"] .navCellDivider {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .headerActionButton {
@@ -161,52 +220,33 @@
   font-size: 0.8rem;
   font-weight: 600;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .headerActionButton:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .headerActionButton {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .headerActionButton:hover {
   background: rgba(59, 130, 246, 0.15);
   border-color: rgba(59, 130, 246, 0.4);
   color: #ffffff;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
-}
-
-.headerActionButton svg {
-  color: #60a5fa;
-  transition: transform 0.2s ease;
-}
-
-.headerActionButton:hover svg {
-  transform: scale(1.1);
-  color: #93c5fd;
-}
-
-.themeTogglePill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  height: 34px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary, #94a3b8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.themeTogglePill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary, #ffffff);
 }
 
 .settingsBtn {
@@ -225,37 +265,8 @@
 }
 
 .settingsBtn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface-hover);
   color: var(--text-primary);
-}
-
-[data-theme="light"] .settingsBtn:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.themeToggle {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.themeToggle:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary);
-  border-color: var(--border-default);
-}
-
-[data-theme="light"] .themeToggle:hover {
-  background: rgba(0, 0, 0, 0.04);
 }
 
 .content {
@@ -280,17 +291,23 @@
   width: 36px;
   height: 36px;
   border-radius: 8px;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .mobileMenuTrigger {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #f8fafc;
-  cursor: pointer;
 }
 
 /* Mobile Quick Actions Bottom Sheet */
 .mobileDrawerBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
   z-index: 1100;
   display: flex;
@@ -300,17 +317,23 @@
 }
 
 .mobileDrawer {
-  background: var(--bg-surface, #0f172a);
+  background: var(--bg-surface);
   border-radius: 20px 20px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--border-default);
   padding: 12px 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   max-height: 80dvh;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+[data-theme="dark"] .mobileDrawer {
+  background: #0f172a;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes fadeIn {
@@ -327,21 +350,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 10px;
 }
 
 .mobileDrawerTitle {
   font-size: 16px;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .mobileDrawerClose {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-surface-hover);
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -349,6 +372,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
 .mobileDrawerGrid {
@@ -366,9 +390,9 @@
   padding: 12px 16px;
   min-height: 48px;
   border-radius: 12px;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   text-align: left;
@@ -377,6 +401,17 @@
 }
 
 .mobileDrawerItem:active {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-primary);
+}
+
+[data-theme="dark"] .mobileDrawerItem {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .mobileDrawerItem:active {
   background: rgba(59, 130, 246, 0.2);
   border-color: rgba(59, 130, 246, 0.4);
 }
@@ -403,4 +438,3 @@
     gap: var(--space-3);
   }
 }
-

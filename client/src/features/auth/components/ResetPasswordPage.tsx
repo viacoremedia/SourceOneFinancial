@@ -1,11 +1,13 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, CheckCircle2, AlertCircle, ArrowLeft, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, AlertCircle, ArrowLeft, KeyRound, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../../../core/hooks/useTheme';
 import api from '../../../core/services/api';
 import styles from './Auth.module.css';
 
 export function ResetPasswordPage() {
+  const { theme, toggleTheme } = useTheme();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { setUser } = useAuth();
@@ -87,13 +89,19 @@ export function ResetPasswordPage() {
   if (verifying) {
     return (
       <div className={styles.authPage}>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={styles.themeToggle}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle visual theme"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
         <div className={styles.authCard}>
           <div className={styles.brandRow}>
-            <div className={styles.brandMark}>S1</div>
-            <div>
-              <div className={styles.brandName}>Source One</div>
-              <div className={styles.brandTag}>Dealer Analytics</div>
-            </div>
+            <img src="/sourceonelogo.png" alt="Source One Financial Services" className={styles.brandLogo} />
+            <div className={styles.brandTag}>Dealer Analytics</div>
           </div>
           <h2 className={styles.title}>Verifying link...</h2>
           <p className={styles.subtitle}>Please wait while we validate your reset token.</p>
@@ -105,13 +113,19 @@ export function ResetPasswordPage() {
   if (!tokenValid) {
     return (
       <div className={styles.authPage}>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={styles.themeToggle}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle visual theme"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
         <div className={styles.authCard}>
           <div className={styles.brandRow}>
-            <div className={styles.brandMark}>S1</div>
-            <div>
-              <div className={styles.brandName}>Source One</div>
-              <div className={styles.brandTag}>Dealer Analytics</div>
-            </div>
+            <img src="/sourceonelogo.png" alt="Source One Financial Services" className={styles.brandLogo} />
+            <div className={styles.brandTag}>Dealer Analytics</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#ef4444', marginBottom: 12 }}>
@@ -140,13 +154,19 @@ export function ResetPasswordPage() {
 
   return (
     <div className={styles.authPage}>
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className={styles.themeToggle}
+        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        aria-label="Toggle visual theme"
+      >
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
       <div className={styles.authCard}>
         <div className={styles.brandRow}>
-          <div className={styles.brandMark}>S1</div>
-          <div>
-            <div className={styles.brandName}>Source One</div>
-            <div className={styles.brandTag}>Dealer Analytics</div>
-          </div>
+          <img src="/sourceonelogo.png" alt="Source One Financial Services" className={styles.brandLogo} />
+          <div className={styles.brandTag}>Dealer Analytics</div>
         </div>
 
         <h2 className={styles.title}>Create new password</h2>

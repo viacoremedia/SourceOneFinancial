@@ -169,10 +169,10 @@ export function RelationshipDemandView() {
       {/* Top Header & Recompute Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)', margin: 0 }}>
             Dealer Relationship Demand & Visit Allocation
           </h2>
-          <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #64748b)', margin: '4px 0 0 0' }}>
             Multi-cycle temporal pattern engine segmenting 3,940 dealer rooftops into actionable sales routing tiers.
           </p>
         </div>
@@ -190,9 +190,9 @@ export function RelationshipDemandView() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              background: 'rgba(56, 189, 248, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              color: '#38bdf8',
+              background: 'rgba(2, 132, 199, 0.1)',
+              border: '1px solid rgba(2, 132, 199, 0.3)',
+              color: '#0284c7',
               padding: '6px 14px',
               borderRadius: '8px',
               fontSize: '0.8rem',
@@ -240,12 +240,12 @@ export function RelationshipDemandView() {
           {/* 4 Hero KPI Banners */}
           <div className={styles.heroKpiGrid}>
             {/* High TLC Card */}
-            <div className={styles.heroKpiCard} style={{ background: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)' }}>
+            <div className={`${styles.heroKpiCard} ${styles.kpiCardHighTlc}`}>
               <div className={styles.heroKpiTopRow}>
-                <span className={styles.heroKpiBadge} style={{ color: '#f87171' }}>
+                <span className={styles.heroKpiBadge}>
                   🔴 High TLC (Visit-Dependent)
                 </span>
-                <span className={styles.heroKpiPct} style={{ color: '#fca5a5' }}>
+                <span className={styles.heroKpiPct}>
                   {summary?.segments.high_tlc.pct || 0}%
                 </span>
               </div>
@@ -255,18 +255,18 @@ export function RelationshipDemandView() {
               <div className={styles.heroKpiSub}>
                 Funded Volume: <strong>{formatDollar(summary?.segments.high_tlc.bookedVolume || 0)}</strong>
               </div>
-              <div className={styles.heroKpiAlert} style={{ color: '#ef4444' }}>
+              <div className={styles.heroKpiAlert}>
                 🚨 {summary?.urgency.overdue || 0} Overdue • ⏳ {summary?.urgency.due_soon || 0} Due Soon
               </div>
             </div>
 
             {/* Self-Sufficient Card */}
-            <div className={styles.heroKpiCard} style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.25)' }}>
+            <div className={`${styles.heroKpiCard} ${styles.kpiCardSelfSuff}`}>
               <div className={styles.heroKpiTopRow}>
-                <span className={styles.heroKpiBadge} style={{ color: '#34d399' }}>
+                <span className={styles.heroKpiBadge}>
                   🟢 Self-Sufficient (Organic)
                 </span>
-                <span className={styles.heroKpiPct} style={{ color: '#6ee7b7' }}>
+                <span className={styles.heroKpiPct}>
                   {summary?.segments.self_sufficient.pct || 0}%
                 </span>
               </div>
@@ -276,18 +276,18 @@ export function RelationshipDemandView() {
               <div className={styles.heroKpiSub}>
                 Funded Volume: <strong>{formatDollar(summary?.segments.self_sufficient.bookedVolume || 0)}</strong>
               </div>
-              <div className={styles.heroKpiAlert} style={{ color: '#34d399' }}>
+              <div className={styles.heroKpiAlert}>
                 ✅ Portal flow — Deprioritize road trips
               </div>
             </div>
 
             {/* Comfort Stop Card */}
-            <div className={styles.heroKpiCard} style={{ background: 'rgba(249, 115, 22, 0.08)', borderColor: 'rgba(249, 115, 22, 0.25)' }}>
+            <div className={`${styles.heroKpiCard} ${styles.kpiCardComfortStop}`}>
               <div className={styles.heroKpiTopRow}>
-                <span className={styles.heroKpiBadge} style={{ color: '#fb923c' }}>
+                <span className={styles.heroKpiBadge}>
                   🟠 Comfort Stop (Time Sink)
                 </span>
-                <span className={styles.heroKpiPct} style={{ color: '#fdba74' }}>
+                <span className={styles.heroKpiPct}>
                   {summary?.segments.comfort_stop.pct || 0}%
                 </span>
               </div>
@@ -297,18 +297,18 @@ export function RelationshipDemandView() {
               <div className={styles.heroKpiSub}>
                 Wasted Visits: <strong>{summary?.segments.comfort_stop.totalVisits.toLocaleString() || 0} visits</strong>
               </div>
-              <div className={styles.heroKpiAlert} style={{ color: '#fb923c' }}>
+              <div className={styles.heroKpiAlert}>
                 ⚠️ $0 Booked Loans — Freeze visits
               </div>
             </div>
 
             {/* Discovery Queue Card */}
-            <div className={styles.heroKpiCard} style={{ background: 'rgba(148, 163, 184, 0.08)', borderColor: 'rgba(148, 163, 184, 0.25)' }}>
+            <div className={`${styles.heroKpiCard} ${styles.kpiCardDiscovery}`}>
               <div className={styles.heroKpiTopRow}>
-                <span className={styles.heroKpiBadge} style={{ color: '#cbd5e1' }}>
+                <span className={styles.heroKpiBadge}>
                   ⚪ Discovery Queue (Low Data)
                 </span>
-                <span className={styles.heroKpiPct} style={{ color: '#94a3b8' }}>
+                <span className={styles.heroKpiPct}>
                   {summary?.segments.insufficient_data.pct || 0}%
                 </span>
               </div>
@@ -318,21 +318,21 @@ export function RelationshipDemandView() {
               <div className={styles.heroKpiSub}>
                 Unexplored: <strong>&lt;2 visits / &lt;5 apps</strong>
               </div>
-              <div className={styles.heroKpiAlert} style={{ color: '#94a3b8' }}>
+              <div className={styles.heroKpiAlert}>
                 🔍 Schedule baseline check-in
               </div>
             </div>
           </div>
 
           {/* Interactive Sales Rep Allocation Matrix */}
-          <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-subtle, #e2e8f0)', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Users size={16} color="#38bdf8" />
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Users size={16} color="#1e40af" />
                   <span>Sales Rep Route Allocation Matrix</span>
                 </h3>
-                <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #64748b)', margin: '4px 0 0 0' }}>
                   Clicking any red overdue badge instantly filters the master dealer table to that representative's overdue High TLC accounts.
                 </p>
               </div>
@@ -341,7 +341,7 @@ export function RelationshipDemandView() {
             <div className={styles.matrixTableScroll}>
               <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                  <tr style={{ borderBottom: '1px solid var(--border-subtle, #e2e8f0)', background: 'var(--bg-surface-hover, #f8fafc)', color: 'var(--text-secondary, #475569)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
                     <th style={{ padding: '10px 12px' }}>Sales Representative</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center' }}>🔴 High TLC Overdue</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center' }}>⏳ High TLC Due Soon</th>
@@ -357,11 +357,11 @@ export function RelationshipDemandView() {
                       <tr
                         key={r.rep}
                         style={{
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                          borderBottom: '1px solid var(--border-subtle, #f1f5f9)',
                           transition: 'background 0.15s ease'
                         }}
                       >
-                        <td style={{ padding: '12px', fontWeight: 600, color: '#ffffff' }}>
+                        <td style={{ padding: '12px', fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>
                           {r.rep}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -369,9 +369,9 @@ export function RelationshipDemandView() {
                             <button
                               onClick={() => handleMatrixFilter(r.rep, 'overdue')}
                               style={{
-                                background: 'rgba(239, 68, 68, 0.2)',
-                                color: '#fca5a5',
-                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                color: '#dc2626',
+                                border: '1px solid rgba(239, 68, 68, 0.35)',
                                 padding: '3px 10px',
                                 borderRadius: '12px',
                                 fontSize: '0.75rem',
@@ -384,7 +384,7 @@ export function RelationshipDemandView() {
                               🚨 {r.overdueCount} Overdue
                             </button>
                           ) : (
-                            <span style={{ color: '#64748b' }}>0</span>
+                            <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0</span>
                           )}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -392,8 +392,8 @@ export function RelationshipDemandView() {
                             <button
                               onClick={() => handleMatrixFilter(r.rep, 'due_soon')}
                               style={{
-                                background: 'rgba(245, 158, 11, 0.18)',
-                                color: '#fcd34d',
+                                background: 'rgba(245, 158, 11, 0.12)',
+                                color: '#d97706',
                                 border: '1px solid rgba(245, 158, 11, 0.35)',
                                 padding: '3px 10px',
                                 borderRadius: '12px',
@@ -405,25 +405,25 @@ export function RelationshipDemandView() {
                               ⏳ {r.dueSoonCount}
                             </button>
                           ) : (
-                            <span style={{ color: '#64748b' }}>0</span>
+                            <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0</span>
                           )}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
-                          <span style={{ color: '#34d399', fontWeight: 600 }}>{r.onTrackCount}</span>
+                          <span style={{ color: '#059669', fontWeight: 600 }}>{r.onTrackCount}</span>
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
-                          <span style={{ color: '#cbd5e1' }}>{r.selfSuffCount}</span>
+                          <span style={{ color: 'var(--text-secondary, #475569)', fontWeight: 500 }}>{r.selfSuffCount}</span>
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
                           {r.comfortStopCount > 0 ? (
-                            <span style={{ color: '#fb923c', fontWeight: 600 }}>
+                            <span style={{ color: '#c2410c', fontWeight: 600 }}>
                               {r.comfortStopCount} ({r.comfortStopVisits} visits)
                             </span>
                           ) : (
-                            <span style={{ color: '#64748b' }}>0</span>
+                            <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0</span>
                           )}
                         </td>
-                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: 700, color: '#ffffff' }}>
+                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
                           {formatDollar(r.totalBookedVolume)}
                         </td>
                       </tr>
@@ -446,16 +446,16 @@ export function RelationshipDemandView() {
       {activeTab === 'explorer' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Filters Bar */}
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '12px 16px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-subtle, #e2e8f0)', borderRadius: '10px', padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             {/* Search Input */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px 12px', flex: '1', minWidth: '220px' }}>
-              <Search size={14} color="#94a3b8" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 12px', flex: '1', minWidth: '220px' }}>
+              <Search size={14} color="#64748b" />
               <input
                 type="text"
                 placeholder="Search dealer by name or ID (e.g. FL319)..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '0.82rem', width: '100%', outline: 'none' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-primary, #0f172a)', fontSize: '0.82rem', width: '100%', outline: 'none' }}
               />
             </div>
 
@@ -463,7 +463,7 @@ export function RelationshipDemandView() {
             <select
               value={selectedDemand}
               onChange={(e) => { setSelectedDemand(e.target.value); setPage(1); }}
-              style={{ background: '#0f172a', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
+              style={{ background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary, #0f172a)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="all">All Relationship Segments</option>
               <option value="high_tlc">🔴 High TLC (Visit-Dependent)</option>
@@ -477,7 +477,7 @@ export function RelationshipDemandView() {
             <select
               value={selectedUrgency}
               onChange={(e) => { setSelectedUrgency(e.target.value); setPage(1); }}
-              style={{ background: '#0f172a', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
+              style={{ background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary, #0f172a)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="all">All Urgency Statuses</option>
               <option value="overdue">🚨 Overdue Visits</option>
@@ -491,7 +491,7 @@ export function RelationshipDemandView() {
             <select
               value={selectedRep}
               onChange={(e) => { setSelectedRep(e.target.value); setPage(1); }}
-              style={{ background: '#0f172a', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
+              style={{ background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary, #0f172a)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="">All Sales Reps</option>
               {repMappings?.allReps.map((r) => (
@@ -503,7 +503,7 @@ export function RelationshipDemandView() {
             <select
               value={selectedState}
               onChange={(e) => { setSelectedState(e.target.value); setPage(1); }}
-              style={{ background: '#0f172a', color: '#cbd5e1', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
+              style={{ background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary, #0f172a)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="">All States</option>
               {repMappings?.allStates.map((st) => (
@@ -522,7 +522,7 @@ export function RelationshipDemandView() {
                   setSearchQuery('');
                   setPage(1);
                 }}
-                style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', cursor: 'pointer' }}
+                style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
               >
                 Clear Filters
               </button>
@@ -530,11 +530,11 @@ export function RelationshipDemandView() {
           </div>
 
           {/* Master Dealers Table */}
-          <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-subtle, #e2e8f0)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(255, 255, 255, 0.02)', color: '#94a3b8', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                  <tr style={{ borderBottom: '1px solid var(--border-subtle, #e2e8f0)', background: 'var(--bg-surface-hover, #f8fafc)', color: 'var(--text-secondary, #475569)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
                     <th style={{ padding: '12px 14px' }}>Dealer Location</th>
                     <th style={{ padding: '12px 14px' }}>Rep</th>
                     <th style={{ padding: '12px 14px' }}>Relationship Segment</th>
@@ -566,42 +566,42 @@ export function RelationshipDemandView() {
                         key={d._id}
                         onClick={() => handleOpenDealer(d.clientDealerId)}
                         style={{
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                          borderBottom: '1px solid var(--border-subtle, #f1f5f9)',
                           cursor: 'pointer',
                           transition: 'background 0.15s ease'
                         }}
                       >
                         <td style={{ padding: '12px 14px' }}>
-                          <div style={{ fontWeight: 700, color: '#ffffff' }}>{d.dealerName}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            <span style={{ fontFamily: 'monospace', color: '#38bdf8' }}>{d.clientDealerId}</span>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>{d.dealerName}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <span style={{ fontFamily: 'monospace', color: '#0284c7' }}>{d.clientDealerId}</span>
                             {d.statePrefix && <span>• {d.statePrefix}</span>}
                           </div>
                         </td>
 
-                        <td style={{ padding: '12px 14px', color: '#cbd5e1' }}>
+                        <td style={{ padding: '12px 14px', color: 'var(--text-secondary, #334155)' }}>
                           {d.assignedRep || 'Unassigned'}
                         </td>
 
                         <td style={{ padding: '12px 14px' }}>
                           {d.relationshipDemand === 'high_tlc' ? (
-                            <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
                               🔴 High TLC
                             </span>
                           ) : d.relationshipDemand === 'self_sufficient' ? (
-                            <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
                               🟢 Self-Sufficient
                             </span>
                           ) : d.relationshipDemand === 'comfort_stop' ? (
-                            <span style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#fb923c', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            <span style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
                               🟠 Comfort Stop
                             </span>
                           ) : d.relationshipDemand === 'lapsed' ? (
-                            <span style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            <span style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#d97706', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
                               ⚠️ Lapsed
                             </span>
                           ) : (
-                            <span style={{ background: 'rgba(148, 163, 184, 0.15)', color: '#cbd5e1', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            <span style={{ background: 'rgba(148, 163, 184, 0.15)', color: '#64748b', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
                               ⚪ Discovery
                             </span>
                           )}
@@ -627,18 +627,18 @@ export function RelationshipDemandView() {
                           )}
                         </td>
 
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 600, color: (d.postVisitBookedLiftPct || 0) >= 70 ? '#f87171' : '#34d399' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 600, color: (d.postVisitBookedLiftPct || 0) >= 70 ? '#ef4444' : '#10b981' }}>
                           {d.postVisitBookedLiftPct !== null ? `${d.postVisitBookedLiftPct}%` : '—'}
                         </td>
 
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#ffffff' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
                           {formatDollar(d.lifetimeStats?.totalBookedVolume || 0)}
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400 }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)', fontWeight: 400 }}>
                             {d.lifetimeStats?.totalBookings || 0} loans
                           </div>
                         </td>
 
-                        <td style={{ padding: '12px 14px', textAlign: 'right', color: '#cbd5e1' }}>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--text-secondary, #334155)' }}>
                           {formatDollar(d.lifetimeYieldPerVisit || 0)}
                         </td>
 
@@ -648,16 +648,7 @@ export function RelationshipDemandView() {
                               e.stopPropagation();
                               handleOpenDealer(d.clientDealerId);
                             }}
-                            style={{
-                              background: 'rgba(56, 189, 248, 0.15)',
-                              border: '1px solid rgba(56, 189, 248, 0.35)',
-                              color: '#38bdf8',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              cursor: 'pointer'
-                            }}
+                            className={styles.inspectBtn}
                           >
                             Inspect Drawer
                           </button>
@@ -667,7 +658,7 @@ export function RelationshipDemandView() {
                   ) : (
                     <tr>
                       <td colSpan={8} style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>
-                        No dealers match the selected filter criteria.
+                        No dealers matching the selected filters.
                       </td>
                     </tr>
                   )}
@@ -677,7 +668,7 @@ export function RelationshipDemandView() {
 
             {/* Pagination Controls */}
             {totalDealers > 25 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.8rem', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid var(--border-subtle, #e2e8f0)', fontSize: '0.8rem', color: 'var(--text-secondary, #64748b)' }}>
                 <span>
                   Showing {dealers.length} of {totalDealers.toLocaleString()} dealers
                 </span>
@@ -685,17 +676,17 @@ export function RelationshipDemandView() {
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage(p => Math.max(1, p - 1))}
-                    style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', color: page <= 1 ? '#475569' : '#ffffff', padding: '4px 12px', borderRadius: '6px', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+                    style={{ background: 'var(--bg-surface-hover, #f1f5f9)', border: '1px solid var(--border-default, #cbd5e1)', color: page <= 1 ? '#94a3b8' : 'var(--text-primary, #0f172a)', padding: '4px 12px', borderRadius: '6px', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
                   >
                     Previous
                   </button>
-                  <span style={{ padding: '4px 8px', color: '#ffffff', fontWeight: 600 }}>
+                  <span style={{ padding: '4px 8px', color: 'var(--text-primary, #0f172a)', fontWeight: 600 }}>
                     Page {page} of {Math.ceil(totalDealers / 25)}
                   </span>
                   <button
                     disabled={page >= Math.ceil(totalDealers / 25)}
                     onClick={() => setPage(p => p + 1)}
-                    style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.1)', color: page >= Math.ceil(totalDealers / 25) ? '#475569' : '#ffffff', padding: '4px 12px', borderRadius: '6px', cursor: page >= Math.ceil(totalDealers / 25) ? 'not-allowed' : 'pointer' }}
+                    style={{ background: 'var(--bg-surface-hover, #f1f5f9)', border: '1px solid var(--border-default, #cbd5e1)', color: page >= Math.ceil(totalDealers / 25) ? '#94a3b8' : 'var(--text-primary, #0f172a)', padding: '4px 12px', borderRadius: '6px', cursor: page >= Math.ceil(totalDealers / 25) ? 'not-allowed' : 'pointer' }}
                   >
                     Next
                   </button>
@@ -709,11 +700,11 @@ export function RelationshipDemandView() {
       {/* ── TAB 3: REP MISALLOCATION DIAGNOSTICS ── */}
       {activeTab === 'diagnostics' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+          <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-subtle, #e2e8f0)', borderRadius: '12px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)', margin: 0 }}>
               Rep Road Trip Allocation Diagnostic (High TLC vs Wasteful Comfort Stops)
             </h3>
-            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '0' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #64748b)', margin: '0' }}>
               Identifies sales representatives spending more than 25% of their in-person road trips on Comfort Stops or Autonomous accounts while High TLC dealers sit overdue.
             </p>
 
@@ -722,8 +713,8 @@ export function RelationshipDemandView() {
                 <div
                   key={r.rep}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: r.misallocatedWarning ? '1px solid rgba(249, 115, 22, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
+                    background: 'var(--bg-card-subtle, #f8fafc)',
+                    border: r.misallocatedWarning ? '1px solid #fdba74' : '1px solid var(--border-subtle, #e2e8f0)',
                     borderRadius: '10px',
                     padding: '14px 16px',
                     display: 'flex',
@@ -733,29 +724,29 @@ export function RelationshipDemandView() {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#ffffff' }}>{r.rep}</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary, #0f172a)' }}>{r.rep}</span>
                       {r.misallocatedWarning && (
-                        <span style={{ background: 'rgba(249, 115, 22, 0.18)', color: '#fb923c', border: '1px solid rgba(249, 115, 22, 0.35)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700 }}>
+                        <span style={{ background: '#ffedd5', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700 }}>
                           ⚠️ Misallocation Alert
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #475569)' }}>
                       Total Visits: <strong>{r.totalVisits}</strong> • Volume: <strong>{formatDollar(r.totalBookedVolume)}</strong>
                     </span>
                   </div>
 
                   {/* Allocation Bar */}
-                  <div style={{ display: 'flex', height: '10px', borderRadius: '5px', overflow: 'hidden', background: 'rgba(255, 255, 255, 0.05)' }}>
+                  <div style={{ display: 'flex', height: '10px', borderRadius: '5px', overflow: 'hidden', background: 'var(--bg-surface-hover, #e2e8f0)' }}>
                     <div style={{ width: `${r.highTlcVisitPct}%`, background: '#ef4444' }} title={`High TLC: ${r.highTlcVisitPct}%`} />
                     <div style={{ width: `${r.selfSuffVisitPct}%`, background: '#10b981' }} title={`Autonomous: ${r.selfSuffVisitPct}%`} />
                     <div style={{ width: `${r.comfortStopVisitPct}%`, background: '#f97316' }} title={`Comfort Stop: ${r.comfortStopVisitPct}%`} />
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8' }}>
-                    <span style={{ color: '#f87171' }}>🔴 High TLC: {r.highTlcVisitPct}% ({r.highTlcVisits} visits)</span>
-                    <span style={{ color: '#34d399' }}>🟢 Autonomous: {r.selfSuffVisitPct}% ({r.selfSuffVisits} visits)</span>
-                    <span style={{ color: '#fb923c' }}>🟠 Comfort Stops: {r.comfortStopVisitPct}% ({r.comfortStopVisits} visits)</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
+                    <span style={{ color: '#ef4444', fontWeight: 600 }}>🔴 High TLC: {r.highTlcVisitPct}% ({r.highTlcVisits} visits)</span>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>🟢 Autonomous: {r.selfSuffVisitPct}% ({r.selfSuffVisits} visits)</span>
+                    <span style={{ color: '#f97316', fontWeight: 600 }}>🟠 Comfort Stops: {r.comfortStopVisitPct}% ({r.comfortStopVisits} visits)</span>
                   </div>
                 </div>
               ))}

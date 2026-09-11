@@ -190,7 +190,19 @@
   transition: color var(--transition-fast);
 }
 
-.table th:first-child {
+.table th.selectHeaderCell {
+  text-align: center;
+  padding: 0 8px;
+  position: sticky;
+  left: 0;
+  z-index: 26;
+  background: var(--bg-surface-raised, #161f30);
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
+}
+
+.table th:first-child:not(.selectHeaderCell) {
   text-align: left;
   padding-left: var(--space-4);
   position: sticky;
@@ -199,6 +211,19 @@
   background: var(--bg-surface-raised, #161f30);
   box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
   border-right: 1px solid var(--border-default);
+}
+
+.table th.firstDataTh {
+  text-align: left;
+  padding-left: var(--space-4);
+  position: sticky;
+  left: 38px;
+  z-index: 25;
+  background: var(--bg-surface-raised, #161f30);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid var(--border-default);
+  width: 280px;
+  min-width: 260px;
 }
 
 .table th:hover {
@@ -341,7 +366,19 @@
   font-variant-numeric: tabular-nums;
 }
 
-.table td:first-child {
+.table td.selectCell {
+  text-align: center;
+  padding: 0 8px;
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  background: var(--bg-surface, #0f172a);
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
+}
+
+.table td:first-child:not(.selectCell) {
   text-align: left;
   padding-left: var(--space-4);
   position: sticky;
@@ -352,13 +389,37 @@
   border-right: 1px solid var(--border-subtle);
 }
 
+.table td.firstDataTd {
+  text-align: left;
+  padding-left: var(--space-4);
+  position: sticky;
+  left: 38px;
+  z-index: 10;
+  background: var(--bg-surface, #0f172a);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid var(--border-subtle);
+  width: 280px;
+  min-width: 260px;
+}
+
+.table tr.rowSelected td {
+  background-color: rgba(45, 212, 191, 0.08) !important;
+}
+
+.table tr.rowSelected td.selectCell,
+.table tr.rowSelected td.firstDataTd {
+  background-color: #132431 !important;
+}
+
 /* ── Group Row (parent) ── */
 .groupRow {
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
-.groupRow td:first-child {
+.groupRow td:first-child,
+.groupRow td.selectCell,
+.groupRow td.firstDataTd {
   background: var(--bg-surface, #0f172a);
 }
 
@@ -366,7 +427,9 @@
   background: var(--bg-surface-hover);
 }
 
-.groupRow:hover td:first-child {
+.groupRow:hover td:first-child,
+.groupRow:hover td.selectCell,
+.groupRow:hover td.firstDataTd {
   background: var(--bg-surface-hover, #1e293b);
 }
 
@@ -416,7 +479,17 @@
   color: var(--text-secondary);
 }
 
-.childRow td:first-child {
+.childRow td.selectCell {
+  background: var(--table-child-row-bg, #0d1527);
+  padding: 0 8px;
+}
+
+.childRow td:first-child:not(.selectCell) {
+  padding-left: calc(var(--space-4) + var(--table-child-indent));
+  background: var(--table-child-row-bg, #0d1527);
+}
+
+.childRow td.firstDataTd {
   padding-left: calc(var(--space-4) + var(--table-child-indent));
   background: var(--table-child-row-bg, #0d1527);
 }
@@ -425,7 +498,9 @@
   background: rgba(26, 41, 66, 0.6);
 }
 
-.childRow:hover td:first-child {
+.childRow:hover td:first-child:not(.selectCell),
+.childRow:hover td.selectCell,
+.childRow:hover td.firstDataTd {
   background: #1a2942;
 }
 
@@ -838,3 +913,434 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── Select Mode Button & Full-Filter Banner ── */
+.selectModeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.selectModeBtn:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #7dd3fc;
+}
+
+.selectModeBtnActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.selectModeBtnActive:hover {
+  background: rgba(16, 185, 129, 0.28);
+}
+
+.selectAllBanner {
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #e2e8f0;
+  backdrop-filter: blur(8px);
+}
+
+.selectAllMatchingBtn {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  text-decoration: underline;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.selectAllMatchingBtn:hover {
+  color: #7dd3fc;
+}
+
+.allMatchingSelectedText {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #34d399;
+  font-weight: 500;
+}
+
+.clearAllMatchingBtn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  text-decoration: underline;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.clearAllMatchingBtn:hover {
+  color: #e2e8f0;
+}
+
+/* ── Funding Hierarchy Badges ── */
+.centralFunderBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.centralFunderBadge:hover {
+  background: rgba(168, 85, 247, 0.25);
+  border-color: #c084fc;
+}
+
+.centralFunderBadgeExpanded {
+  background: rgba(168, 85, 247, 0.3) !important;
+  border-color: #c084fc !important;
+}
+
+.matchedViaChildBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.satelliteBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ── Modern Uncluttered Dealer Cell UI ── */
+.dealerCellWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 260px;
+  max-width: 440px;
+  padding: 2px 0;
+  justify-content: center;
+}
+
+.dealerTopLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dealerNameLink {
+  color: #38bdf8;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.3;
+  transition: color 0.15s ease;
+  word-break: break-word;
+}
+
+.dealerNameLink:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
+.dealerMetaLine {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.dealerCodePill {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.12);
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.dealerMetaDivider {
+  color: #475569;
+  font-size: 9px;
+}
+
+.actionBtnGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.microActionBtn {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.4;
+  transition: all 0.15s ease;
+}
+
+.microActionBtn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.microActionBtnWarn {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.microActionBtnWarn:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+.matchedViaChildNotice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(56, 189, 248, 0.08);
+  border-left: 2px solid #38bdf8;
+  padding: 2px 6px;
+  border-radius: 0 4px 4px 0;
+  font-size: 10px;
+  color: #7dd3fc;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+/* ============================================
+   LIGHT MODE OVERRIDES FOR DEALER TABLE
+   ============================================ */
+[data-theme="light"] .table th:first-child:not(.selectHeaderCell),
+[data-theme="light"] .table th.firstDataTh {
+  background: #f8fafc;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .table td:first-child:not(.selectCell),
+[data-theme="light"] .table td.firstDataTd {
+  background: #ffffff;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .table td.selectCell {
+  background: #ffffff;
+}
+
+[data-theme="light"] .table tr:hover td:first-child,
+[data-theme="light"] .table tr:hover td.firstDataTd,
+[data-theme="light"] .table tr:hover td.selectCell {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .table tr.rowSelected td {
+  background-color: #eff6ff !important;
+}
+
+[data-theme="light"] .table tr.rowSelected td.selectCell,
+[data-theme="light"] .table tr.rowSelected td.firstDataTd {
+  background-color: #e0f2fe !important;
+}
+
+[data-theme="light"] .groupRow td:first-child,
+[data-theme="light"] .groupRow td.selectCell,
+[data-theme="light"] .groupRow td.firstDataTd {
+  background: #ffffff;
+}
+
+[data-theme="light"] .groupRow:hover td:first-child,
+[data-theme="light"] .groupRow:hover td.selectCell,
+[data-theme="light"] .groupRow:hover td.firstDataTd {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .groupRowExpanded td:first-child,
+[data-theme="light"] .groupRowExpanded td.selectCell,
+[data-theme="light"] .groupRowExpanded td.firstDataTd {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .selectAllBanner {
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .selectAllMatchingBtn {
+  color: #1d4ed8;
+}
+
+[data-theme="light"] .mobileCardMetrics {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .mobileMetricVal {
+  color: #0f172a;
+}
+
+[data-theme="light"] .mobileMetricLbl {
+  color: #64748b;
+}
+
+[data-theme="light"] .matchedViaChildNotice {
+  background: rgba(30, 64, 175, 0.08);
+  border-left-color: #1e40af;
+  color: #1e40af;
+}
+
+[data-theme="light"] .searchSubmitBtn {
+  background: #1e40af;
+  color: #ffffff;
+}
+
+[data-theme="light"] .searchSubmitBtn:hover {
+  background: #1d4ed8;
+}
+
+[data-theme="light"] .table th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom-color: #cbd5e1;
+}
+
+[data-theme="light"] .table th.selectHeaderCell,
+[data-theme="light"] .table th:first-child:not(.selectHeaderCell),
+[data-theme="light"] .table th.firstDataTh {
+  background: #f8fafc;
+  border-right-color: #e2e8f0;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .table td {
+  color: #0f172a;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .table td.selectCell,
+[data-theme="light"] .table td:first-child:not(.selectCell),
+[data-theme="light"] .table td.firstDataTd {
+  background: #ffffff;
+  border-right-color: #e2e8f0;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .table tr:hover td.selectCell,
+[data-theme="light"] .table tr:hover td:first-child:not(.selectCell),
+[data-theme="light"] .table tr:hover td.firstDataTd {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .dealerNameLink {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+[data-theme="light"] .dealerNameLink:hover {
+  color: #1e40af;
+}
+
+[data-theme="light"] .groupName {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+[data-theme="light"] .subText,
+[data-theme="light"] .dealerCityState {
+  color: #64748b;
+}
+
+[data-theme="light"] .locationCountBadge {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .satelliteBadge {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .mobileCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .mobileCardTitle {
+  color: #0f172a;
+}
+
+[data-theme="light"] .mobileCardSub {
+  color: #64748b;
+}
+
+

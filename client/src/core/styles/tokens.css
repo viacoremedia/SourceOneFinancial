@@ -1,17 +1,28 @@
 /* ============================================
-   SOURCE ONE — DESIGN TOKENS
-   Corporate fintech palette: navy / teal / slate
+   SOURCE ONE FINANCIAL SERVICES — DESIGN TOKENS
+   Default: Light Corporate Fintech Theme
+   Option: Dark Navy Fintech Theme
    ============================================ */
 
 :root {
-  /* ── Primary Palette ── */
+  /* ── Raw Palette Scales ── */
   --color-navy-950: #060D1A;
   --color-navy-900: #0B1426;
   --color-navy-800: #111D35;
   --color-navy-700: #1A2942;
   --color-navy-600: #243654;
 
-  /* ── Slate / Surface ── */
+  --color-blue-900: #1E3A8A;
+  --color-blue-800: #1E40AF;
+  --color-blue-700: #1D4ED8;
+  --color-blue-600: #2563EB;
+  --color-blue-500: #3B82F6;
+  --color-blue-400: #60A5FA;
+  --color-blue-300: #93C5FD;
+  --color-blue-100: #DBEAFE;
+  --color-blue-50:  #EFF6FF;
+
+  --color-slate-950: #020617;
   --color-slate-900: #0F172A;
   --color-slate-800: #1E293B;
   --color-slate-700: #334155;
@@ -21,63 +32,33 @@
   --color-slate-300: #CBD5E1;
   --color-slate-200: #E2E8F0;
   --color-slate-100: #F1F5F9;
-  --color-slate-50: #F8FAFC;
+  --color-slate-50:  #F8FAFC;
 
-  /* ── Accent / Teal ── */
   --color-teal-500: #00B4D8;
   --color-teal-400: #22D3EE;
   --color-teal-300: #67E8F9;
   --color-teal-600: #0891B2;
 
-  /* ── Status Colors ── */
+  --color-green-700: #15803D;
+  --color-green-600: #16A34A;
   --color-green-500: #22C55E;
   --color-green-400: #4ADE80;
-  --color-green-950: #052E16;
-  --color-green-900: #14532D;
+  --color-green-100: #DCFCE7;
 
+  --color-red-700: #B91C1C;
+  --color-red-600: #DC2626;
   --color-red-500: #EF4444;
   --color-red-400: #F87171;
-  --color-red-950: #450A0A;
-  --color-red-900: #7F1D1D;
+  --color-red-100: #FEE2E2;
 
+  --color-amber-600: #D97706;
   --color-amber-500: #F59E0B;
   --color-amber-400: #FBBF24;
-  --color-amber-950: #451A03;
-  --color-amber-900: #78350F;
+  --color-amber-100: #FEF3C7;
 
+  --color-orange-600: #EA580C;
   --color-orange-500: #F97316;
   --color-orange-400: #FB923C;
-
-  /* ── Semantic Aliases (Dark — default) ── */
-  --bg-app: var(--color-navy-950);
-  --bg-surface: var(--color-navy-900);
-  --bg-surface-raised: var(--color-navy-800);
-  --bg-surface-hover: var(--color-navy-700);
-  --bg-header: rgba(11, 20, 38, 0.85);
-  --bg-card: #162031;
-
-  --text-primary: var(--color-slate-50);
-  --text-secondary: var(--color-slate-400);
-  --text-tertiary: var(--color-slate-500);
-  --text-muted: var(--color-slate-600);
-
-  --border-default: var(--color-navy-700);
-  --border-subtle: var(--color-navy-800);
-  --border-accent: var(--color-teal-500);
-
-  --accent-primary: var(--color-teal-500);
-  --accent-hover: var(--color-teal-400);
-
-  --status-active: var(--color-green-500);
-  --status-warning: var(--color-amber-500);
-  --status-danger: var(--color-orange-500);
-  --status-critical: var(--color-red-500);
-
-  --trend-positive: var(--color-green-400);
-  --trend-negative: var(--color-red-400);
-  --trend-neutral: var(--color-slate-500);
-  --trend-positive-bg: rgba(34, 197, 94, 0.1);
-  --trend-negative-bg: rgba(239, 68, 68, 0.1);
 
   /* ── Spacing Scale (4px base) ── */
   --space-0: 0;
@@ -99,12 +80,6 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  /* ── Shadows ── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 0 20px rgba(0, 180, 216, 0.15);
-
   /* ── Transitions ── */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
@@ -120,50 +95,148 @@
   --z-modal: 400;
   --z-toast: 500;
 
-  /* ── Table ── */
+  /* ── Table Sizing ── */
   --table-row-height: 44px;
   --table-header-height: 40px;
   --table-child-indent: 32px;
-}
 
-/* ============================================
-   LIGHT THEME OVERRIDES
-   Applied via data-theme="light" on <html>
-   ============================================ */
-
-[data-theme="light"] {
-  /* ── Surfaces ── */
+  /* ── DEFAULT THEME (LIGHT — Source One Corporate Theme) ── */
   --bg-app: #F8FAFC;
   --bg-surface: #FFFFFF;
   --bg-surface-raised: #FFFFFF;
   --bg-surface-hover: #F1F5F9;
-  --bg-header: rgba(255, 255, 255, 0.95);
-  --bg-card: #ffffff;
+  --bg-header: rgba(255, 255, 255, 0.96);
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #F8FAFC;
+  --bg-input: #FFFFFF;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+  --bg-glass-card: rgba(255, 255, 255, 0.96);
 
-  /* ── Text ── */
   --text-primary: #0F172A;
   --text-secondary: #334155;
-  --text-tertiary: #475569;
-  --text-muted: #64748B;
+  --text-tertiary: #64748B;
+  --text-muted: #94A3B8;
 
-  /* ── Borders ── */
   --border-default: #CBD5E1;
   --border-subtle: #E2E8F0;
+  --border-accent: #1E40AF;
+  --border-glass: rgba(0, 0, 0, 0.08);
 
-  /* ── Accent — professional royal blue for high legibility & contrast ── */
-  --accent-primary: #2563EB;
+  --accent-primary: #1E40AF;
   --accent-hover: #1D4ED8;
+  --accent-subtle: rgba(30, 64, 175, 0.08);
+  --accent-glow: rgba(30, 64, 175, 0.16);
 
-  /* ── Trends (darker shades for light bg readability) ── */
+  --status-active: #16A34A;
+  --status-warning: #D97706;
+  --status-danger: #EA580C;
+  --status-critical: #DC2626;
+
   --trend-positive: #16A34A;
   --trend-negative: #DC2626;
   --trend-neutral: #64748B;
-  --trend-positive-bg: rgba(22, 163, 74, 0.08);
-  --trend-negative-bg: rgba(220, 38, 38, 0.08);
+  --trend-positive-bg: rgba(22, 163, 74, 0.1);
+  --trend-negative-bg: rgba(220, 38, 38, 0.1);
 
-  /* ── Shadows (softer for light bg) ── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 20px rgba(8, 145, 178, 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.09);
+  --shadow-glow: 0 0 20px rgba(30, 64, 175, 0.12);
+}
+
+/* ============================================
+   EXPLICIT LIGHT THEME
+   (Matches :root defaults for full consistency)
+   ============================================ */
+[data-theme="light"] {
+  --bg-app: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-raised: #FFFFFF;
+  --bg-surface-hover: #F1F5F9;
+  --bg-header: rgba(255, 255, 255, 0.96);
+  --bg-card: #FFFFFF;
+  --bg-card-subtle: #F8FAFC;
+  --bg-input: #FFFFFF;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+  --bg-glass-card: rgba(255, 255, 255, 0.96);
+
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-tertiary: #64748B;
+  --text-muted: #94A3B8;
+
+  --border-default: #CBD5E1;
+  --border-subtle: #E2E8F0;
+  --border-accent: #1E40AF;
+  --border-glass: rgba(0, 0, 0, 0.08);
+
+  --accent-primary: #1E40AF;
+  --accent-hover: #1D4ED8;
+  --accent-subtle: rgba(30, 64, 175, 0.08);
+  --accent-glow: rgba(30, 64, 175, 0.16);
+
+  --status-active: #16A34A;
+  --status-warning: #D97706;
+  --status-danger: #EA580C;
+  --status-critical: #DC2626;
+
+  --trend-positive: #16A34A;
+  --trend-negative: #DC2626;
+  --trend-neutral: #64748B;
+  --trend-positive-bg: rgba(22, 163, 74, 0.1);
+  --trend-negative-bg: rgba(220, 38, 38, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.09);
+  --shadow-glow: 0 0 20px rgba(30, 64, 175, 0.12);
+}
+
+/* ============================================
+   DARK THEME OVERRIDES
+   Applied via data-theme="dark" on <html>
+   (Preserves 100% of the dark fintech experience)
+   ============================================ */
+[data-theme="dark"] {
+  --bg-app: var(--color-navy-950);
+  --bg-surface: var(--color-navy-900);
+  --bg-surface-raised: var(--color-navy-800);
+  --bg-surface-hover: var(--color-navy-700);
+  --bg-header: rgba(11, 20, 38, 0.85);
+  --bg-card: #162031;
+  --bg-card-subtle: rgba(30, 41, 59, 0.4);
+  --bg-input: rgba(15, 23, 42, 0.6);
+  --bg-glass: rgba(18, 24, 38, 0.85);
+  --bg-glass-card: rgba(30, 41, 59, 0.6);
+
+  --text-primary: var(--color-slate-50);
+  --text-secondary: var(--color-slate-400);
+  --text-tertiary: var(--color-slate-500);
+  --text-muted: var(--color-slate-600);
+
+  --border-default: var(--color-navy-700);
+  --border-subtle: var(--color-navy-800);
+  --border-accent: var(--color-teal-500);
+  --border-glass: rgba(255, 255, 255, 0.08);
+
+  --accent-primary: var(--color-teal-500);
+  --accent-hover: var(--color-teal-400);
+  --accent-subtle: rgba(0, 180, 216, 0.15);
+  --accent-glow: rgba(0, 180, 216, 0.25);
+
+  --status-active: var(--color-green-500);
+  --status-warning: var(--color-amber-500);
+  --status-danger: var(--color-orange-500);
+  --status-critical: var(--color-red-500);
+
+  --trend-positive: var(--color-green-400);
+  --trend-negative: var(--color-red-400);
+  --trend-neutral: var(--color-slate-500);
+  --trend-positive-bg: rgba(34, 197, 94, 0.1);
+  --trend-negative-bg: rgba(239, 68, 68, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(0, 180, 216, 0.15);
 }

@@ -274,14 +274,19 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
 
         const clientDealerId = profile.clientDealerId;
 
-        // Fetch location details for complete contact info
+        // Fetch location details for complete contact info, classification, and funding hierarchy
         const loc = await DealerLocation.findOne({
             $or: [
                 { _id: profile.dealerLocation },
                 { dealerId: clientDealerId },
                 { clientDealerId }
             ]
-        }).select('contacts badgerData dealerPhoneNumber dealerFaxNumber dealerAddress dealerCity dealerState dealerPostalCode systemStatus systemStatusReason').lean();
+        })
+            .select('contacts badgerData dealerPhoneNumber dealerFaxNumber dealerAddress dealerCity dealerState dealerPostalCode systemStatus systemStatusReason businessType tags industry isFundingParent fundingParent fundingChildren dealerGroup')
+            .populate('fundingParent', 'dealerName dealerId clientDealerId statePrefix')
+            .populate('fundingChildren', 'dealerName dealerId clientDealerId statePrefix')
+            .populate('dealerGroup', 'name slug isCustom')
+            .lean();
 
         // Fetch recent communications (normalized)
         const rawComms = await DealerCommunication.find({
@@ -323,6 +328,30 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
                 ...profile,
                 systemStatus: profile.systemStatus || loc?.systemStatus || 'active',
                 systemStatusReason: profile.systemStatusReason || loc?.systemStatusReason || null,
+                businessType: loc?.businessType || 'non-franchise',
+                tags: loc?.tags || [],
+                industry: loc?.industry || null,
+                isFundingParent: Boolean(loc?.isFundingParent || (loc?.fundingChildren && loc.fundingChildren.length > 0)),
+                fundingParent: loc?.fundingParent ? {
+                    _id: loc.fundingParent._id,
+                    dealerName: loc.fundingParent.dealerName,
+                    dealerId: loc.fundingParent.dealerId,
+                    clientDealerId: loc.fundingParent.clientDealerId,
+                    statePrefix: loc.fundingParent.statePrefix
+                } : null,
+                fundingChildren: (loc?.fundingChildren || []).map(child => ({
+                    _id: child._id,
+                    dealerName: child.dealerName,
+                    dealerId: child.dealerId,
+                    clientDealerId: child.clientDealerId,
+                    statePrefix: child.statePrefix
+                })),
+                dealerGroup: loc?.dealerGroup ? {
+                    _id: loc.dealerGroup._id,
+                    name: loc.dealerGroup.name,
+                    slug: loc.dealerGroup.slug,
+                    isCustom: loc.dealerGroup.isCustom
+                } : null,
                 contacts: (profile.contacts && profile.contacts.length > 0) ? profile.contacts : (loc?.contacts || []),
                 badgerData: profile.badgerData || loc?.badgerData || null,
                 dealerPhoneNumber: loc?.dealerPhoneNumber || null,

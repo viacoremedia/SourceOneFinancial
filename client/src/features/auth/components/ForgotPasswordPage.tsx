@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Mail, Info } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Mail, Info, Sun, Moon } from 'lucide-react';
 import api from '../../../core/services/api';
+import { useTheme } from '../../../core/hooks/useTheme';
 import styles from './Auth.module.css';
 
 export function ForgotPasswordPage() {
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,13 +29,19 @@ export function ForgotPasswordPage() {
 
   return (
     <div className={styles.authPage}>
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className={styles.themeToggle}
+        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        aria-label="Toggle visual theme"
+      >
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
       <div className={styles.authCard}>
         <div className={styles.brandRow}>
-          <div className={styles.brandMark}>S1</div>
-          <div>
-            <div className={styles.brandName}>Source One</div>
-            <div className={styles.brandTag}>Dealer Analytics</div>
-          </div>
+          <img src="/sourceonelogo.png" alt="Source One Financial Services" className={styles.brandLogo} />
+          <div className={styles.brandTag}>Dealer Analytics</div>
         </div>
 
         <h2 className={styles.title}>Forgot Password</h2>

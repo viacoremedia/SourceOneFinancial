@@ -4,10 +4,11 @@
  * Budget/rep summary only shows when a rep or state is selected.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Tag, ChevronDown, Search, X, Plus, Settings, History, Bell } from 'lucide-react';
 import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './FilterBar.module.css';
-import type { StateRepMap, StateBudget, DealerStatusBreakdown } from '../../../../core/services/api';
+import { createGlobalTag, type StateRepMap, type StateBudget, type DealerStatusBreakdown, type UniversalTag } from '../../../../core/services/api';
 import type { DealerGroup, HeatClass } from '../../types';
 
 export type DatePreset = 'this_month' | 'last_30' | 'last_60' | 'last_90' | 'last_month' | 'ytd' | 'last_year' | 'all_time' | 'custom';
@@ -22,6 +23,13 @@ interface FilterBarProps {
   selectedState: string;
   statusFilter: string | null;
   drdFilter?: string | null;
+  selectedBusinessType?: string;
+  selectedTags?: string[];
+  availableTags?: UniversalTag[];
+  onBusinessTypeChange?: (type: string) => void;
+  onTagsChange?: (tags: string[]) => void;
+  onOpenTagManager?: () => void;
+  onRefreshTags?: () => void;
   activityMode?: 'application' | 'approval' | 'booking';
   onRepChange: (rep: string) => void;
   onStateChange: (state: string) => void;
@@ -33,6 +41,9 @@ interface FilterBarProps {
   transitionFilter?: string | null;
   onTransitionFilterChange?: (key: string | null) => void;
   repStatesMap?: Record<string, string[]>;
+  onOpenSystemAudit?: () => void;
+  onOpenGroupManager?: (initialTab?: 'groups' | 'approvals') => void;
+  pendingProposalsCount?: number;
 }
 
 function formatDollar(n: number): string {
@@ -83,6 +94,13 @@ export function FilterBar({
   selectedState,
   statusFilter,
   drdFilter = null,
+  selectedBusinessType = '',
+  selectedTags = [],
+  availableTags = [],
+  onBusinessTypeChange,
+  onTagsChange,
+  onOpenTagManager,
+  onRefreshTags,
   activityMode = 'application',
   onRepChange,
   onStateChange,
@@ -94,11 +112,36 @@ export function FilterBar({
   transitionFilter = null,
   onTransitionFilterChange,
   repStatesMap = {},
+  onOpenSystemAudit,
+  onOpenGroupManager,
+  pendingProposalsCount,
 }: FilterBarProps) {
   const { user } = useAuth();
   const isInsideRep = user?.role === 'inside_rep';
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const assignedRep = user?.assignedRep;
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    if (tagDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [tagDropdownOpen]);
+
+  const filteredTags = useMemo(() => {
+    if (!tagSearch.trim()) return availableTags;
+    const q = tagSearch.trim().toLowerCase();
+    return availableTags.filter((t) => t.tag.toLowerCase().includes(q));
+  }, [availableTags, tagSearch]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -106,10 +149,12 @@ export function FilterBar({
     if (selectedState) count++;
     if (statusFilter) count++;
     if (drdFilter) count++;
+    if (selectedBusinessType) count++;
+    if (selectedTags && selectedTags.length > 0) count++;
     if (activityMode && activityMode !== 'application') count++;
     if (transitionFilter) count++;
     return count;
-  }, [selectedRep, selectedState, statusFilter, activityMode, transitionFilter]);
+  }, [selectedRep, selectedState, statusFilter, drdFilter, selectedBusinessType, selectedTags, activityMode, transitionFilter]);
 
   const reps = useMemo(() => {
     const HIDDEN_REPS = [
@@ -254,6 +299,8 @@ export function FilterBar({
     }
     handleStateChange('');
     onStatusFilterChange(null);
+    onBusinessTypeChange?.('');
+    onTagsChange?.([]);
   };
 
   const handleStatClick = (statKey: string | null) => {
@@ -266,7 +313,9 @@ export function FilterBar({
     if (onTransitionFilterChange) onTransitionFilterChange(null);
   };
 
-  const hasActiveFilters = selectedRep || selectedState;
+  const hasActiveFilters = Boolean(
+    selectedRep || selectedState || selectedBusinessType || (selectedTags && selectedTags.length > 0) || statusFilter || drdFilter
+  );
 
   return (
     <div className={styles.filterWrapper}>
@@ -344,36 +393,248 @@ export function FilterBar({
           </div>
         )}
 
-        <div className={styles.filterGroup}>
-          <label className={styles.filterLabel}>Relationship (DRD)</label>
-          <select
-            className={`${styles.filterSelect} ${drdFilter ? styles.filterActive : ''}`}
-            value={drdFilter || ''}
-            onChange={(e) => onDrdFilterChange?.(e.target.value || null)}
-            id="filter-drd"
-          >
-            <option value="">All DRD Segments</option>
-            <option value="high_tlc">🔴 High TLC</option>
-            <option value="self_sufficient">🟢 Autonomous</option>
-            <option value="comfort_stop">🟠 Comfort Stop</option>
-            <option value="lapsed">⚠️ Lapsed / Churned</option>
-            <option value="insufficient_data">⚪ Discovery Queue</option>
-            <option value="overridden">🔒 Manually Reconciled</option>
-          </select>
-        </div>
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Relationship (DRD)</label>
+            <select
+              className={`${styles.filterSelect} ${drdFilter ? styles.filterActive : ''}`}
+              value={drdFilter || ''}
+              onChange={(e) => onDrdFilterChange?.(e.target.value || null)}
+              id="filter-drd"
+            >
+              <option value="">All DRD Segments</option>
+              <option value="high_tlc">🔴 High TLC</option>
+              <option value="self_sufficient">🟢 Autonomous</option>
+              <option value="comfort_stop">🟠 Comfort Stop</option>
+              <option value="lapsed">⚠️ Lapsed / Churned</option>
+              <option value="insufficient_data">⚪ Discovery Queue</option>
+              <option value="overridden">🔒 Manually Reconciled</option>
+            </select>
+          </div>
 
-        {hasActiveFilters && (
-          <button
-            className={styles.clearBtn}
-            onClick={() => {
-              handleClearFilters();
-              onDrdFilterChange?.(null);
-            }}
-            title="Clear all filters"
-          >
-            ✕
-          </button>
-        )}
+          {/* Business Type Filter */}
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Type</label>
+            <select
+              className={`${styles.filterSelect} ${selectedBusinessType ? styles.filterActive : ''}`}
+              value={selectedBusinessType}
+              onChange={(e) => onBusinessTypeChange?.(e.target.value)}
+              id="filter-business-type"
+            >
+              <option value="">All Types</option>
+              <option value="franchise">🏢 Franchise</option>
+              <option value="non-franchise">Independent</option>
+              <option value="broker">Broker</option>
+            </select>
+          </div>
+
+          {/* Custom Tags Multi-Select Dropdown */}
+          <div className={styles.filterGroup} ref={tagDropdownRef}>
+            <label className={styles.filterLabel}>Tags</label>
+            <button
+              type="button"
+              className={`${styles.tagFilterBtn} ${selectedTags.length > 0 ? styles.tagFilterBtnActive : ''}`}
+              onClick={() => setTagDropdownOpen((prev) => !prev)}
+              id="filter-custom-tags"
+            >
+              <Tag size={12} />
+              <span>{selectedTags.length === 0 ? 'All Tags' : `Tags (${selectedTags.length})`}</span>
+              <ChevronDown size={12} className={tagDropdownOpen ? styles.rotate180 : ''} />
+            </button>
+
+            {tagDropdownOpen && (
+              <div className={styles.tagDropdownMenu}>
+                <div className={styles.tagSearchWrapper}>
+                  <Search size={12} className={styles.tagSearchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Search tags..."
+                    value={tagSearch}
+                    onChange={(e) => setTagSearch(e.target.value)}
+                    className={styles.tagSearchInput}
+                    autoFocus
+                  />
+                  {tagSearch && (
+                    <button type="button" onClick={() => setTagSearch('')} className={styles.tagSearchClear}>
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+
+                <div className={styles.tagDropdownList}>
+                  {tagSearch.trim() && !availableTags.some((t) => t.tag.toLowerCase() === tagSearch.trim().toLowerCase()) && (
+                    <button
+                      type="button"
+                      className={styles.createTagActionBtn}
+                      onClick={async () => {
+                        const name = tagSearch.trim();
+                        try {
+                          await createGlobalTag(name);
+                          onRefreshTags?.();
+                          onTagsChange?.([...selectedTags, name]);
+                          setTagSearch('');
+                        } catch (err: any) {
+                          alert(err.message || 'Failed to create tag');
+                        }
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Create global tag <strong>"{tagSearch.trim()}"</strong></span>
+                    </button>
+                  )}
+                  {filteredTags.length === 0 && !tagSearch.trim() ? (
+                    <div className={styles.tagEmptyMessage}>
+                      {availableTags.length === 0 ? 'No custom tags found' : 'No matching tags'}
+                    </div>
+                  ) : (
+                    filteredTags.map((item) => {
+                      const isChecked = selectedTags.includes(item.tag);
+                      return (
+                        <label key={item.tag} className={styles.tagDropdownItem}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                onTagsChange?.(selectedTags.filter((t) => t !== item.tag));
+                              } else {
+                                onTagsChange?.([...selectedTags, item.tag]);
+                              }
+                            }}
+                            className={styles.tagCheckbox}
+                          />
+                          <span className={styles.tagName}>{item.tag}</span>
+                          <span className={styles.tagCountBadge}>{item.count}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className={styles.tagDropdownFooter}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {onOpenTagManager && (
+                      <button
+                        type="button"
+                        className={styles.tagManageBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTagDropdownOpen(false);
+                          onOpenTagManager();
+                        }}
+                        title="Open Tag Catalog to create, view, or delete global tags"
+                      >
+                        <Settings size={12} />
+                        Manage Tags
+                      </button>
+                    )}
+                    {onOpenSystemAudit && (
+                      <button
+                        type="button"
+                        className={styles.tagManageBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTagDropdownOpen(false);
+                          onOpenSystemAudit();
+                        }}
+                        title="View System Operations Audit Trail"
+                      >
+                        <History size={12} />
+                        Audit Log
+                      </button>
+                    )}
+                  </div>
+                  {selectedTags.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onTagsChange?.([])}
+                      className={styles.tagClearAllBtn}
+                    >
+                      Clear ({selectedTags.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Selected tag chips display for quick removal */}
+          {selectedTags.length > 0 && (
+            <div className={styles.tagChipList}>
+              {selectedTags.map((t) => (
+                <span key={t} className={styles.tagChip}>
+                  <span>{t}</span>
+                  <button
+                    type="button"
+                    className={styles.tagChipRemove}
+                    onClick={() => onTagsChange?.(selectedTags.filter((tag) => tag !== t))}
+                    title={`Remove ${t}`}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+        <div className={styles.filterBarRightActions}>
+          {onOpenGroupManager && (
+            <button
+              type="button"
+              className={styles.groupManagerBarBtn}
+              onClick={() =>
+                onOpenGroupManager(
+                  pendingProposalsCount && pendingProposalsCount > 0 && isAdmin
+                    ? 'approvals'
+                    : 'groups'
+                )
+              }
+              title={
+                isAdmin
+                  ? 'Manage Dealer Groups & Approval Desk'
+                  : 'Propose Dealer Group changes'
+              }
+              id="filterbar-group-manager-btn"
+            >
+              {isAdmin ? <Settings size={13} /> : <Plus size={13} />}
+              <span>{isAdmin ? 'Manage Groups' : 'Propose Group'}</span>
+              {pendingProposalsCount != null && pendingProposalsCount > 0 && (
+                <span
+                  className={styles.notificationBadge}
+                  title={`${pendingProposalsCount} pending proposal(s)`}
+                >
+                  <Bell size={9} style={{ display: 'inline', marginRight: '2px' }} />
+                  {pendingProposalsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {onOpenSystemAudit && (
+            <button
+              type="button"
+              className={styles.auditLogBarBtn}
+              onClick={onOpenSystemAudit}
+              title="Open System Operations Audit Trail & History"
+              id="filterbar-audit-log-btn"
+            >
+              <History size={13} />
+              <span>Audit Log</span>
+            </button>
+          )}
+
+          {hasActiveFilters && (
+            <button
+              className={styles.clearBtn}
+              onClick={() => {
+                handleClearFilters();
+                onDrdFilterChange?.(null);
+              }}
+              title="Clear all filters"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Budget summary — only when rep/state is selected */}
@@ -626,6 +887,58 @@ export function FilterBar({
                   ))}
                 </div>
               </div>
+
+              {/* Business Type (Mobile) */}
+              {onBusinessTypeChange && (
+                <div className={styles.mobileFilterSection}>
+                  <span className={styles.mobileSectionTitle}>Business Type</span>
+                  <div className={styles.mobilePresetGrid}>
+                    {[
+                      { key: '', label: 'All Types' },
+                      { key: 'franchise', label: '🏢 Franchise' },
+                      { key: 'non-franchise', label: 'Independent' },
+                      { key: 'broker', label: 'Broker' },
+                    ].map((bt) => (
+                      <button
+                        key={bt.key}
+                        className={`${styles.mobileChip} ${selectedBusinessType === bt.key ? styles.mobileChipActive : ''}`}
+                        onClick={() => onBusinessTypeChange(bt.key)}
+                      >
+                        {bt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Tags (Mobile) */}
+              {onTagsChange && availableTags.length > 0 && (
+                <div className={styles.mobileFilterSection}>
+                  <span className={styles.mobileSectionTitle}>
+                    Custom Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
+                  </span>
+                  <div className={styles.mobilePresetGrid}>
+                    {availableTags.map((item) => {
+                      const isChecked = selectedTags.includes(item.tag);
+                      return (
+                        <button
+                          key={item.tag}
+                          className={`${styles.mobileChip} ${isChecked ? styles.mobileChipActive : ''}`}
+                          onClick={() => {
+                            if (isChecked) {
+                              onTagsChange(selectedTags.filter((t) => t !== item.tag));
+                            } else {
+                              onTagsChange([...selectedTags, item.tag]);
+                            }
+                          }}
+                        >
+                          {item.tag} ({item.count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Mobile Filter Footer */}
@@ -636,6 +949,8 @@ export function FilterBar({
                   onRepChange('');
                   onStateChange('');
                   onStatusFilterChange(null);
+                  onBusinessTypeChange?.('');
+                  onTagsChange?.([]);
                   if (onTransitionFilterChange) onTransitionFilterChange(null);
                 }}
               >

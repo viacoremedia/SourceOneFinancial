@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark';
 type ResolvedTheme = 'light' | 'dark';
@@ -10,31 +10,40 @@ interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-const STORAGE_KEY = 's1-theme';
+const STORAGE_KEY = 's1-theme-v2';
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Force dark theme on document permanently
-  useEffect(() => {
-    document.documentElement.dataset.theme = 'dark';
+  const [mode, setModeState] = useState<ThemeMode>(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, 'dark');
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === 'dark' || saved === 'light') return saved;
     } catch {
       // ignore
     }
-  }, []);
+    return 'light'; // Default to light mode
+  });
 
-  const setMode = useCallback((_newMode: ThemeMode) => {
-    // Permanently dark mode
+  useEffect(() => {
+    document.documentElement.dataset.theme = mode;
+    try {
+      localStorage.setItem(STORAGE_KEY, mode);
+    } catch {
+      // ignore
+    }
+  }, [mode]);
+
+  const setMode = useCallback((newMode: ThemeMode) => {
+    setModeState(newMode);
   }, []);
 
   const toggleTheme = useCallback(() => {
-    // Permanently dark mode
+    setModeState(prev => (prev === 'light' ? 'dark' : 'light'));
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode: 'dark', theme: 'dark', setMode, toggleTheme }}>
+    <ThemeContext.Provider value={{ mode, theme: mode, setMode, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

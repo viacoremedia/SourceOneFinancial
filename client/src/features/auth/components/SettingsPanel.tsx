@@ -16,6 +16,7 @@ import styles from './Settings.module.css';
 interface SettingsPanelProps {
   open: boolean;
   onClose: () => void;
+  onOpenSystemAudit?: () => void;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -81,13 +82,13 @@ function formatLoginTime(isoString?: string | null): { formatted: string; relati
   return { formatted, relative, isRecent };
 }
 
-export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ open, onClose, onOpenSystemAudit }: SettingsPanelProps) {
   const { user, logout } = useAuth();
   const isAdmin = user && ROLE_HIERARCHY[user.role] >= 1;
   const isInsideRep = user && user.role === 'inside_rep';
 
-  // Active Tab: 'account' | 'team' | 'dead_dealers' | 'badger_sync' | 'reports' | 'excluded'
-  const [activeTab, setActiveTab] = useState<'account' | 'team' | 'dead_dealers' | 'badger_sync' | 'reports' | 'excluded'>('account');
+  // Active Tab: 'account' | 'team' | 'dead_dealers' | 'badger_sync' | 'reports' | 'excluded' | 'audit_log'
+  const [activeTab, setActiveTab] = useState<'account' | 'team' | 'dead_dealers' | 'badger_sync' | 'reports' | 'excluded' | 'audit_log'>('account');
 
   // Password change
   const [currentPw, setCurrentPw] = useState('');
@@ -372,6 +373,12 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 onClick={() => setActiveTab('reports')}
               >
                 📊 Digest Emails
+              </button>
+              <button
+                className={`${styles.tabBtn} ${activeTab === 'audit_log' ? styles.tabBtnActive : ''}`}
+                onClick={() => setActiveTab('audit_log')}
+              >
+                📋 Audit Trail
               </button>
             </>
           )}
@@ -845,6 +852,44 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                   </div>
                 ))}
               </div>
+            )}
+          </section>
+        )}
+
+        {/* TAB 7: OPERATIONS AUDIT TRAIL (Admin) */}
+        {isAdmin && activeTab === 'audit_log' && (
+          <section className={styles.section}>
+            <h3>Operations Audit Trail & History</h3>
+            <p className={styles.recipientHint}>
+              Every system operation is tracked with actor identity, timestamp, before/after diffs, and reversible 1-click undos:
+            </p>
+            <ul style={{ paddingLeft: '20px', color: '#94a3b8', fontSize: '13px', lineHeight: '1.7', margin: '14px 0 18px' }}>
+              <li><strong>Status Classifications:</strong> Red-flags (closed, bought out, no longer in service) with operational reasons.</li>
+              <li><strong>Business Types:</strong> Franchise, independent, or broker assignments.</li>
+              <li><strong>Custom Tags:</strong> Global tag creations, deletions, and per-dealer tag associations.</li>
+              <li><strong>Hierarchy Links:</strong> Central Funder parent-child corporate rooftop links, unlinks, and group dissolutions.</li>
+              <li><strong>Batch Multi-Select:</strong> Mass updates performed on multiple dealerships simultaneously.</li>
+            </ul>
+            {onOpenSystemAudit && (
+              <button
+                type="button"
+                className={styles.btn}
+                style={{
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+                onClick={() => {
+                  onClose();
+                  onOpenSystemAudit();
+                }}
+              >
+                <span>🚀 Open Interactive Audit Trail Viewer</span>
+              </button>
             )}
           </section>
         )}

@@ -27,6 +27,25 @@ const dealerGroupSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    isCustom: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    description: {
+        type: String,
+        default: '',
+        trim: true
+    },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    },
     createdAt: {
         type: Date,
         default: Date.now

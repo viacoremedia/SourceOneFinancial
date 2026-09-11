@@ -10,11 +10,15 @@
  * - Search, trend dropdown, skeleton loading
  */
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import styles from './DealerTable.module.css';
 import { TABLE_COLUMNS } from './columns';
 import { StatusBadge } from './StatusBadge';
 import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
+import { QuickActionPopover, type QuickActionDealer } from '../QuickActionPopover/QuickActionPopover';
+import { undoDealerQuickAction, undoBatchDealerAction, type UniversalTag } from '../../../../core/services/api';
+import { FloatingBatchBar } from './FloatingBatchBar';
+import { RotateCcw, X, CheckSquare } from 'lucide-react';
 import { getDaysSinceHeatmap, getCommDaysHeatmap } from '../../../../core/utils/heatmap';
 import type { StateRepMap } from '../../../../core/services/api';
 import type {
@@ -87,7 +91,7 @@ function renderStackedStatCell(
   if (isAllTime || !trend) {
     if (val == null || val === 0) return <span className={styles.emptyValue}>—</span>;
     return (
-      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
         {currentFormatted}
       </span>
     );
@@ -126,7 +130,7 @@ function renderStackedStatCell(
   if (baseVal === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
-        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
           {currentFormatted}
         </span>
         <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -148,7 +152,7 @@ function renderStackedStatCell(
   if (totalVolume < 5 && type === 'count') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
-        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
           {currentFormatted}
         </span>
         <span style={{ fontSize: '11px', marginTop: '2px', fontFamily: 'var(--font-mono, monospace)', color: '#94a3b8', fontWeight: 500 }}>
@@ -165,7 +169,7 @@ function renderStackedStatCell(
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.3', padding: '2px 0' }}>
-      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
         {currentFormatted}
       </span>
       {baselineFormatted !== '—' && (
@@ -215,6 +219,55 @@ interface DealerTableProps {
   onCustomDateChange?: (start?: string, end?: string) => void;
   onTrendChange?: (trend: TrendPeriod) => void;
   comparisonLabel?: string;
+  availableTags?: UniversalTag[];
+  onTagsUpdated?: () => void;
+  totalCount?: number;
+  currentFilters?: Record<string, any>;
+}
+
+function IndeterminateCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  disabled,
+  title,
+  ariaLabel,
+  onClick
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  title?: string;
+  ariaLabel?: string;
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = Boolean(indeterminate);
+    }
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange || (() => {})}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+      style={{
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        accentColor: '#38bdf8',
+        width: '15px',
+        height: '15px',
+        borderRadius: '3px'
+      }}
+    />
+  );
 }
 
 // ── DRD Segment Badge Helper ──
@@ -337,6 +390,95 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
   }
 }
 
+// ── Classification & Status Badges Helper ──
+
+function renderStatusRedFlag(dealer: {
+  systemStatus?: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service';
+  systemStatusReason?: string | null;
+}) {
+  const isDead = dealer.systemStatus && dealer.systemStatus !== 'active';
+  if (!isDead) return null;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        background: dealer.systemStatus === 'closed' ? 'rgba(239, 68, 68, 0.2)' : dealer.systemStatus === 'bought_out' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+        color: dealer.systemStatus === 'closed' ? '#f87171' : dealer.systemStatus === 'bought_out' ? '#fbbf24' : '#facc15',
+        border: `1px solid ${dealer.systemStatus === 'closed' ? 'rgba(239, 68, 68, 0.4)' : dealer.systemStatus === 'bought_out' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(234, 179, 8, 0.4)'}`,
+        padding: '1px 6px',
+        borderRadius: '4px',
+        fontSize: '0.68rem',
+        fontWeight: 700,
+        letterSpacing: '0.02em',
+        whiteSpace: 'nowrap'
+      }}
+      title={dealer.systemStatusReason || dealer.systemStatus}
+    >
+      {dealer.systemStatus === 'closed' ? '🚫 Closed' : dealer.systemStatus === 'bought_out' ? '🤝 Bought Out' : '⚠️ Out of Service'}
+    </span>
+  );
+}
+
+function renderMetaBadges(dealer: {
+  businessType?: 'franchise' | 'non-franchise' | 'broker' | null;
+  tags?: string[];
+}) {
+  return (
+    <>
+      {dealer.businessType && (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+            background: 'rgba(148, 163, 184, 0.12)',
+            color: '#cbd5e1',
+            border: '1px solid rgba(148, 163, 184, 0.25)',
+            padding: '1px 5px',
+            borderRadius: '3px',
+            fontSize: '0.65rem',
+            fontWeight: 600,
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {dealer.businessType === 'franchise' ? '🏢 Franchise' : dealer.businessType === 'non-franchise' ? 'Independent' : 'Broker'}
+        </span>
+      )}
+
+      {dealer.tags && dealer.tags.length > 0 && (
+        <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
+          {dealer.tags.slice(0, 2).map((t, idx) => (
+            <span
+              key={idx}
+              style={{
+                background: 'rgba(56, 189, 248, 0.1)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                color: '#38bdf8',
+                fontSize: '0.62rem',
+                padding: '0 4px',
+                borderRadius: '3px',
+                fontWeight: 500
+              }}
+            >
+              #{t}
+            </span>
+          ))}
+          {dealer.tags.length > 2 && (
+            <span
+              style={{ fontSize: '0.62rem', color: '#94a3b8' }}
+              title={dealer.tags.slice(2).join(', ')}
+            >
+              +{dealer.tags.length - 2}
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── DRD Visit Metrics Cell Renderers ──
 
 function renderLastVisitCell(drd?: DealerLocation['drd']) {
@@ -363,7 +505,7 @@ function renderLastVisitCell(drd?: DealerLocation['drd']) {
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2', padding: '1px 0' }}
       title={fullDateTooltip}
     >
-      <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', fontFamily: 'var(--font-mono, monospace)' }}>
+      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono, monospace)' }}>
         {dateFormatted !== '—' ? dateFormatted : (daysStr ? `${daysStr} ago` : 'Never')}
       </span>
       {daysStr && dateFormatted !== '—' && (
@@ -425,7 +567,7 @@ function renderYieldPerVisitCell(yieldVal?: number | null) {
 
   return (
     <span
-      style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
+      style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono, monospace)', whiteSpace: 'nowrap' }}
       title={`$${Math.round(yieldVal).toLocaleString()} lifetime booked volume per visit`}
     >
       {formatted}
@@ -661,12 +803,146 @@ export function DealerTable({
   comparisonLabel,
   activityMode = 'application',
   stateRepMap = {},
+  availableTags = [],
+  onTagsUpdated,
+  totalCount = 0,
+  currentFilters = {},
 }: DealerTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [committedQuery, setCommittedQuery] = useState('');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
   const [badgerModalDealer, setBadgerModalDealer] = useState<{ dealerId: string; dealerName: string } | null>(null);
+  const [quickActionDealer, setQuickActionDealer] = useState<QuickActionDealer | null>(null);
+  const [undoToast, setUndoToast] = useState<{ message: string; logId?: string; dealerId?: string; batchId?: string } | null>(null);
+  const [isUndoing, setIsUndoing] = useState<boolean>(false);
+  const [dealerOverrides, setDealerOverrides] = useState<Record<string, Partial<DealerLocation>>>({});
+  const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [selectedDealerIds, setSelectedDealerIds] = useState<Set<string>>(new Set());
+  const [selectAllAcrossPages, setSelectAllAcrossPages] = useState<boolean>(false);
+  const lastSelectedIdxRef = useRef<number | null>(null);
+
+  const toggleParentExpanded = useCallback((dealerKey: string) => {
+    setExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(dealerKey)) {
+        next.delete(dealerKey);
+      } else {
+        next.add(dealerKey);
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!undoToast) return;
+    const timer = setTimeout(() => setUndoToast(null), 8000);
+    return () => clearTimeout(timer);
+  }, [undoToast]);
+
+  const handleQuickActionSave = useCallback((updatedDealer: any, logId?: string) => {
+    const key = updatedDealer.clientDealerId || updatedDealer.dealerId || updatedDealer._id;
+    setDealerOverrides((prev) => ({
+      ...prev,
+      [key]: {
+        systemStatus: updatedDealer.systemStatus,
+        systemStatusReason: updatedDealer.systemStatusReason,
+        businessType: updatedDealer.businessType,
+        tags: updatedDealer.tags,
+        industry: updatedDealer.industry,
+        isManuallyClassified: updatedDealer.isManuallyClassified,
+        isFundingParent: updatedDealer.isFundingParent,
+        fundingParent: updatedDealer.fundingParent,
+        fundingChildren: updatedDealer.fundingChildren,
+        fundingChildrenDetails: updatedDealer.fundingChildrenDetails
+      }
+    }));
+    if (logId) {
+      setUndoToast({
+        message: `Updated ${updatedDealer.dealerName}`,
+        logId,
+        dealerId: key
+      });
+    }
+    onTagsUpdated?.();
+  }, [onTagsUpdated]);
+
+  const handleBatchSuccess = useCallback((updatedDealers: any[], batchId: string, actionLabel: string) => {
+    setDealerOverrides((prev) => {
+      const next = { ...prev };
+      for (const d of updatedDealers) {
+        const key = d.clientDealerId || d.dealerId || d._id;
+        next[key] = {
+          systemStatus: d.systemStatus,
+          systemStatusReason: d.systemStatusReason,
+          businessType: d.businessType,
+          tags: d.tags,
+          industry: d.industry,
+          isManuallyClassified: d.isManuallyClassified
+        };
+      }
+      return next;
+    });
+
+    setUndoToast({
+      message: `${actionLabel} on ${updatedDealers.length} dealers`,
+      batchId
+    });
+
+    setSelectedDealerIds(new Set());
+    setSelectAllAcrossPages(false);
+    setIsSelectMode(false);
+    onTagsUpdated?.();
+  }, [onTagsUpdated]);
+
+  const handleUndo = useCallback(async (toast: { logId?: string; dealerId?: string; batchId?: string }) => {
+    setIsUndoing(true);
+    try {
+      if (toast.batchId) {
+        const res = await undoBatchDealerAction(toast.batchId);
+        if (res.revertedDealers && res.revertedDealers.length > 0) {
+          setDealerOverrides((prev) => {
+            const next = { ...prev };
+            for (const d of res.revertedDealers) {
+              const key = d.clientDealerId || d.dealerId || d._id;
+              next[key] = {
+                systemStatus: d.systemStatus,
+                systemStatusReason: d.systemStatusReason,
+                businessType: d.businessType,
+                tags: d.tags,
+                industry: d.industry,
+                isManuallyClassified: d.isManuallyClassified
+              };
+            }
+            return next;
+          });
+        }
+        onTagsUpdated?.();
+      } else if (toast.logId && toast.dealerId) {
+        const res = await undoDealerQuickAction(toast.logId);
+        if (res.revertedDealer) {
+          setDealerOverrides((prev) => ({
+            ...prev,
+            [toast.dealerId!]: {
+              systemStatus: res.revertedDealer.systemStatus,
+              systemStatusReason: res.revertedDealer.systemStatusReason,
+              businessType: res.revertedDealer.businessType,
+              tags: res.revertedDealer.tags,
+              industry: res.revertedDealer.industry,
+              isManuallyClassified: res.revertedDealer.isManuallyClassified
+            }
+          }));
+        }
+        onTagsUpdated?.();
+      }
+      setUndoToast(null);
+    } catch (err: any) {
+      console.error('Failed to undo action:', err);
+    } finally {
+      setIsUndoing(false);
+    }
+  }, [onTagsUpdated]);
 
   // Physical button / Enter key search execution
   const executeSearch = useCallback((val?: string) => {
@@ -696,6 +972,10 @@ export function DealerTable({
     setCommittedQuery('');
     setInternalDealerSort([{ key: 'apps', dir: 'desc' }]);
     setExpandedSlugs(new Set());
+    setSelectedDealerIds(new Set());
+    setSelectAllAcrossPages(false);
+    setIsSelectMode(false);
+    lastSelectedIdxRef.current = null;
   }, [mode]);
 
   // Toggle expand
@@ -798,7 +1078,10 @@ export function DealerTable({
 
   // Instant client-side filtering and sorting on loaded items while server search/sort resolves
   const sortedDealers = useMemo(() => {
-    let result = smallDealers;
+    let result = smallDealers.map((d) => {
+      const key = d.clientDealerId || d.dealerId || d._id;
+      return dealerOverrides[key] ? { ...d, ...dealerOverrides[key] } : d;
+    });
     const q = (committedQuery || searchInput).trim();
     if (q) {
       const lower = q.toLowerCase();
@@ -807,7 +1090,24 @@ export function DealerTable({
         const code = (d.dealerId || d.clientDealerId || '').toLowerCase();
         const state = (d.statePrefix || '').toLowerCase();
         const rep = (d.dealerRepresentative || '').toLowerCase();
-        return name.includes(lower) || code.includes(lower) || state.includes(lower) || rep.includes(lower);
+        if (name.includes(lower) || code.includes(lower) || state.includes(lower) || rep.includes(lower)) {
+          return true;
+        }
+        if (d.matchedViaChild) {
+          const mName = (d.matchedViaChild.dealerName || '').toLowerCase();
+          const mCode = (d.matchedViaChild.dealerId || '').toLowerCase();
+          if (mName.includes(lower) || mCode.includes(lower)) return true;
+        }
+        if (Array.isArray(d.fundingChildrenDetails) && d.fundingChildrenDetails.length > 0) {
+          return d.fundingChildrenDetails.some((c: any) => {
+            const cName = (c.dealerName || '').toLowerCase();
+            const cCode = (c.clientDealerId || c.dealerId || '').toLowerCase();
+            const cState = (c.statePrefix || c.dealerState || '').toLowerCase();
+            const cRep = (c.dealerRepresentative || '').toLowerCase();
+            return cName.includes(lower) || cCode.includes(lower) || cState.includes(lower) || cRep.includes(lower);
+          });
+        }
+        return false;
       });
     }
     if (activeDealerSort && activeDealerSort.length > 0) {
@@ -816,7 +1116,81 @@ export function DealerTable({
       return sorted;
     }
     return result;
-  }, [smallDealers, committedQuery, searchInput, activeDealerSort]);
+  }, [smallDealers, committedQuery, searchInput, activeDealerSort, dealerOverrides]);
+
+  // Keys of all selectable dealers in the current table view
+  const allSelectableKeys = useMemo(() => {
+    if (mode === 'groups') {
+      const keys: string[] = [];
+      for (const g of sortedGroups) {
+        const locs = groupLocations[g.slug] || [];
+        for (const l of locs) {
+          keys.push(l.clientDealerId || l.dealerId || l._id);
+        }
+      }
+      return keys;
+    }
+    return sortedDealers.map((d) => d.clientDealerId || d.dealerId || d._id);
+  }, [mode, sortedGroups, groupLocations, sortedDealers]);
+
+  const isAllSelected = allSelectableKeys.length > 0 && allSelectableKeys.every((k) => selectedDealerIds.has(k));
+  const isSomeSelected = allSelectableKeys.some((k) => selectedDealerIds.has(k));
+
+  const handleSelectAll = useCallback(() => {
+    if (isAllSelected) {
+      setSelectedDealerIds((prev) => {
+        const next = new Set(prev);
+        for (const k of allSelectableKeys) next.delete(k);
+        return next;
+      });
+    } else {
+      setSelectedDealerIds((prev) => {
+        const next = new Set(prev);
+        for (const k of allSelectableKeys) next.add(k);
+        return next;
+      });
+    }
+  }, [isAllSelected, allSelectableKeys]);
+
+  const handleToggleSelectDealer = useCallback((id: string, idx?: number, shiftKey?: boolean) => {
+    setSelectedDealerIds((prev) => {
+      const next = new Set(prev);
+      if (shiftKey && lastSelectedIdxRef.current !== null && idx !== undefined && lastSelectedIdxRef.current !== idx) {
+        const start = Math.min(lastSelectedIdxRef.current, idx);
+        const end = Math.max(lastSelectedIdxRef.current, idx);
+        for (let i = start; i <= end; i++) {
+          const d = sortedDealers[i];
+          if (d) {
+            const key = d.clientDealerId || d.dealerId || d._id;
+            next.add(key);
+          }
+        }
+      } else {
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        if (idx !== undefined) {
+          lastSelectedIdxRef.current = idx;
+        }
+      }
+      return next;
+    });
+  }, [sortedDealers]);
+
+  const handleToggleSelectGroup = useCallback((ids: string[]) => {
+    setSelectedDealerIds((prev) => {
+      const next = new Set(prev);
+      const allIn = ids.length > 0 && ids.every((id) => next.has(id));
+      if (allIn) {
+        for (const id of ids) next.delete(id);
+      } else {
+        for (const id of ids) next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   // Which sort to display in the headers
   const displayStack: SortColumn[] = mode !== 'groups'
@@ -921,7 +1295,7 @@ export function DealerTable({
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.lookToBook, trends?.lookToBook, 'percent', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>{renderStackedStatCell(stats?.approvalToBook, trends?.approvalToBook, 'percent', isAllTime)}</td>
         <td style={{ textAlign: 'right' }}>
-          {stats?.avgFico ? <span style={{ fontWeight: 600, color: '#f8fafc' }}>{stats.avgFico}</span> : '—'}
+          {stats?.avgFico ? <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{stats.avgFico}</span> : '—'}
         </td>
       </>
     );
@@ -1008,8 +1382,9 @@ export function DealerTable({
           <table className={styles.table}>
             <thead>
               <tr className={styles.headerRow}>
-                {visibleColumns.map((col) => (
-                  <th key={col.key} className={styles.headerCell}>
+                <th className={styles.selectHeaderCell} />
+                {visibleColumns.map((col, idx) => (
+                  <th key={col.key} className={`${styles.headerCell} ${idx === 0 ? styles.firstDataTh : ''}`}>
                     {col.label}
                   </th>
                 ))}
@@ -1018,7 +1393,10 @@ export function DealerTable({
             <tbody>
               {[...Array(12)].map((_, i) => (
                 <tr key={i} className={styles.skeletonRow}>
-                  <td><div className={`${styles.skeletonCell} ${styles.skeletonName}`} /></td>
+                  <td className={styles.selectCell}>
+                    <div className={styles.skeletonCell} style={{ width: '16px', height: '16px', margin: '0 auto', borderRadius: '3px' }} />
+                  </td>
+                  <td className={styles.firstDataTd}><div className={`${styles.skeletonCell} ${styles.skeletonName}`} /></td>
                   {visibleColumns.slice(1).map((col) => (
                     <td key={col.key}><div className={`${styles.skeletonCell} ${styles.skeletonNum}`} /></td>
                   ))}
@@ -1062,6 +1440,32 @@ export function DealerTable({
             title="Click to search (or press Enter)"
           >
             Search
+          </button>
+          <button
+            type="button"
+            className={isSelectMode ? styles.selectModeBtnActive : styles.selectModeBtn}
+            onClick={() => {
+              if (isSelectMode) {
+                setIsSelectMode(false);
+                setSelectedDealerIds(new Set());
+                setSelectAllAcrossPages(false);
+              } else {
+                setIsSelectMode(true);
+              }
+            }}
+            title={isSelectMode ? "Exit select mode" : "Enter select mode to bulk-tag or update dealers"}
+          >
+            {isSelectMode ? (
+              <>
+                <X size={13} />
+                <span>Exit Selection {selectedDealerIds.size > 0 ? `(${selectAllAcrossPages ? totalCount : selectedDealerIds.size})` : ''}</span>
+              </>
+            ) : (
+              <>
+                <CheckSquare size={13} />
+                <span>Select Mode</span>
+              </>
+            )}
           </button>
         </div>
         <div className={styles.toolbarRight}>
@@ -1219,6 +1623,33 @@ export function DealerTable({
         </div>
       </div>
 
+      {/* Full-Filter Select All Banner */}
+      {isSelectMode && isAllSelected && totalCount > allSelectableKeys.length && (
+        <div className={styles.selectAllBanner}>
+          <span>All <strong>{allSelectableKeys.length}</strong> dealers on this page are selected.</span>
+          {!selectAllAcrossPages ? (
+            <button
+              type="button"
+              className={styles.selectAllMatchingBtn}
+              onClick={() => setSelectAllAcrossPages(true)}
+            >
+              Select all <strong>{totalCount}</strong> dealers matching current filters
+            </button>
+          ) : (
+            <span className={styles.allMatchingSelectedText}>
+              ✓ All <strong>{totalCount}</strong> dealers matching current filters are selected.
+              <button
+                type="button"
+                className={styles.clearAllMatchingBtn}
+                onClick={() => setSelectAllAcrossPages(false)}
+              >
+                Clear full selection
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Mobile Card View (<768px) */}
       <div className={styles.mobileCardList}>
         {isEmpty ? (
@@ -1334,7 +1765,19 @@ export function DealerTable({
           <table className={styles.table}>
             <thead>
               <tr>
-                {visibleColumns.map((col) => {
+                {isSelectMode && (
+                  <th className={styles.selectHeaderCell}>
+                    <IndeterminateCheckbox
+                      checked={isAllSelected}
+                      indeterminate={isSomeSelected && !isAllSelected}
+                      onChange={handleSelectAll}
+                      disabled={allSelectableKeys.length === 0}
+                      title={isAllSelected ? "Deselect all on page" : "Select all on page"}
+                      ariaLabel="Select all"
+                    />
+                  </th>
+                )}
+                {visibleColumns.map((col, colIdx) => {
                   const stackIdx = displayStack.findIndex((s) => s.key === col.key);
                   const isSorted = stackIdx !== -1;
                   const sortItem = isSorted ? displayStack[stackIdx] : null;
@@ -1344,7 +1787,7 @@ export function DealerTable({
                     <th
                       key={col.key}
                       style={{ textAlign: col.align, width: col.width, minWidth: col.minWidth }}
-                      className={isSorted ? styles.thSorted : ''}
+                      className={`${(isSelectMode && colIdx === 0) ? styles.firstDataTh : ''} ${isSorted ? styles.thSorted : ''}`}
                       onClick={(e) => col.sortable && handleColumnClick(col.key, e.shiftKey || e.ctrlKey || e.metaKey)}
                       onDoubleClick={() => col.sortable && handleColumnClick(col.key, true)}
                       title={col.description ? `${col.description}${col.sortable ? ' · Click to sort (Shift-click for multi-sort)' : ''}` : (col.sortable ? 'Click to sort · Shift-click for multi-sort' : undefined)}
@@ -1396,80 +1839,293 @@ export function DealerTable({
                         onSelectDealer={onSelectDealer}
                         stateRepMap={stateRepMap}
                         onOpenBadger={setBadgerModalDealer}
+                        onOpenQuickAction={setQuickActionDealer}
+                        dealerOverrides={dealerOverrides}
+                        isSelectMode={isSelectMode}
+                        selectedDealerIds={selectedDealerIds}
+                        onToggleSelectDealer={handleToggleSelectDealer}
+                        onToggleSelectGroup={handleToggleSelectGroup}
                       />
                     );
                   })
-                : sortedDealers.map((dealer) => {
+                : sortedDealers.map((dealer, idx) => {
                     const repName = getRepDisplayForDealer(dealer.dealerRepresentative, dealer.repName, dealer.statePrefix, stateRepMap);
                     const hasRep = repName && repName !== '—';
+                    const dealerKey = dealer.clientDealerId || dealer.dealerId || dealer._id;
+                    const isSelected = selectedDealerIds.has(dealerKey);
+
+                    const isParent = Boolean(dealerOverrides[dealerKey]?.isFundingParent ?? dealer.isFundingParent);
+                    const childStores = dealerOverrides[dealerKey]?.fundingChildrenDetails || dealer.fundingChildrenDetails || [];
+                    const childCount = childStores.length || (dealer.fundingChildren?.length || 0);
+                    const qLower = (committedQuery || searchInput).trim().toLowerCase();
+                    const matchesViaChild = Boolean(
+                      dealer.matchedViaChild ||
+                      (qLower && Array.isArray(childStores) && childStores.some((c: any) => {
+                        const cName = (c.dealerName || '').toLowerCase();
+                        const cCode = (c.clientDealerId || c.dealerId || '').toLowerCase();
+                        return cName.includes(qLower) || cCode.includes(qLower);
+                      }))
+                    );
+                    const isParentExpanded = expandedParentIds.has(dealerKey) || matchesViaChild;
+
                     return (
-                      <tr key={dealer._id} className={styles.dealerRow}>
-                        <td
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => onSelectDealer?.(dealer._id)}
-                          title="Click to view application history"
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '13px' }}>{dealer.dealerName}</span>
-                              <StatusBadge status={deriveStatus(dealer.latestSnapshot)} />
-                              {renderDrdBadge(dealer.drd)}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
-                              <button
-                                type="button"
+                      <React.Fragment key={dealer._id}>
+                        <tr className={`${styles.dealerRow} ${(isSelectMode && isSelected) ? styles.rowSelected : ''}`}>
+                          {isSelectMode && (
+                            <td className={styles.selectCell} onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const isShift = (e.nativeEvent as MouseEvent).shiftKey;
+                                  handleToggleSelectDealer(dealerKey, idx, isShift);
+                                }}
                                 onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBadgerModalDealer({
-                                    dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
-                                    dealerName: dealer.dealerName
-                                  });
+                                  if (e.shiftKey) {
+                                    handleToggleSelectDealer(dealerKey, idx, true);
+                                  }
                                 }}
                                 style={{
-                                  background: 'rgba(56, 189, 248, 0.12)',
-                                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                                  color: '#38bdf8',
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
                                   cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  lineHeight: '1.4',
-                                  letterSpacing: '0.01em',
-                                  transition: 'all 0.15s ease'
+                                  accentColor: '#38bdf8',
+                                  width: '15px',
+                                  height: '15px',
+                                  borderRadius: '3px'
                                 }}
-                                title="View Badger Maps activity, notepad, and log check-ins"
-                              >
-                                📍 Badger Activity
-                              </button>
-                            </div>
-                            {hasRep && (
-                              <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ color: '#64748b' }}>Rep:</span>
-                                <span style={{ color: '#cbd5e1' }}>{repName}</span>
+                                aria-label={`Select ${dealer.dealerName}`}
+                              />
+                            </td>
+                          )}
+                          <td
+                            className={isSelectMode ? styles.firstDataTd : undefined}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => onSelectDealer?.(dealer._id)}
+                            title="Click to view application history"
+                          >
+                            <div className={styles.dealerCellWrapper}>
+                              {/* Row 1: Primary Identity & Core Status */}
+                              <div className={styles.dealerTopLine}>
+                                <span className={styles.dealerNameLink}>{dealer.dealerName}</span>
+                                <StatusBadge status={deriveStatus(dealer.latestSnapshot)} />
+                                {renderDrdBadge(dealer.drd)}
+                                {renderStatusRedFlag(dealer)}
+
+                                {isParent && (
+                                  <button
+                                    type="button"
+                                    className={`${styles.centralFunderBadge} ${isParentExpanded ? styles.centralFunderBadgeExpanded : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleParentExpanded(dealerKey);
+                                    }}
+                                    title="Central Funder corporate account - click to toggle satellite stores"
+                                  >
+                                    <span>🏢 Central Funder ({childCount} store{childCount === 1 ? '' : 's'})</span>
+                                    <span style={{ fontSize: '9px', marginLeft: '2px' }}>{isParentExpanded ? '▲' : '▼'}</span>
+                                  </button>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </td>
-                        {renderChildCells(dealer.latestSnapshot, dealer.stats, dealer.drd)}
-                      </tr>
+
+                              {/* Row 2: Secondary Metadata, Classification & Micro Actions */}
+                              <div className={styles.dealerMetaLine}>
+                                <span className={styles.dealerCodePill}>{dealerKey}</span>
+
+                                {dealer.dealerCity && (
+                                  <>
+                                    <span className={styles.dealerMetaDivider}>•</span>
+                                    <span>{dealer.dealerCity}, {dealer.statePrefix || dealer.dealerState}</span>
+                                  </>
+                                )}
+
+                                {hasRep && (
+                                  <>
+                                    <span className={styles.dealerMetaDivider}>•</span>
+                                    <span>Rep: <strong style={{ color: 'var(--text-primary)' }}>{repName}</strong></span>
+                                  </>
+                                )}
+
+                                {renderMetaBadges(dealer)}
+
+                                <div className={styles.actionBtnGroup}>
+                                  <button
+                                    type="button"
+                                    className={styles.microActionBtn}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setBadgerModalDealer({
+                                        dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
+                                        dealerName: dealer.dealerName
+                                      });
+                                    }}
+                                    title="View Badger Maps activity, notepad, and log check-ins"
+                                  >
+                                    📍 Badger
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className={`${styles.microActionBtn} ${dealer.systemStatus && dealer.systemStatus !== 'active' ? styles.microActionBtnWarn : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setQuickActionDealer({
+                                        _id: dealer._id,
+                                        dealerId: dealer.dealerId,
+                                        clientDealerId: dealer.clientDealerId || undefined,
+                                        dealerName: dealer.dealerName,
+                                        systemStatus: dealerOverrides[dealerKey]?.systemStatus ?? dealer.systemStatus,
+                                        systemStatusReason: dealerOverrides[dealerKey]?.systemStatusReason ?? dealer.systemStatusReason,
+                                        businessType: dealerOverrides[dealerKey]?.businessType ?? dealer.businessType,
+                                        tags: dealerOverrides[dealerKey]?.tags ?? dealer.tags,
+                                        isFundingParent: isParent,
+                                        fundingParent: dealerOverrides[dealerKey]?.fundingParent ?? dealer.fundingParent,
+                                        fundingChildren: dealerOverrides[dealerKey]?.fundingChildren ?? dealer.fundingChildren,
+                                        fundingChildrenDetails: childStores
+                                      });
+                                    }}
+                                    title="Quick Action: Red flag dealership, change business type, add tags, or manage funding hierarchy"
+                                  >
+                                    <span>{dealer.systemStatus && dealer.systemStatus !== 'active' ? '🚩 Flagged' : '🚩 Actions'}</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Row 3 (Optional): Satellite Search Matched Indicator */}
+                              {dealer.matchedViaChild && (
+                                <div
+                                  className={styles.matchedViaChildNotice}
+                                  title={`Search matched satellite rooftop: ${dealer.matchedViaChild.dealerName}`}
+                                >
+                                  <span>↳ Matched via satellite: <strong>{dealer.matchedViaChild.dealerName}</strong> ({dealer.matchedViaChild.dealerId})</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          {renderChildCells(dealer.latestSnapshot, dealer.stats, dealer.drd)}
+                        </tr>
+
+                        {/* Nested Satellite Store Rows when Central Funder is expanded */}
+                        {isParent && isParentExpanded && childStores.map((child: any) => {
+                          const childKey = child.clientDealerId || child.dealerId || child._id;
+                          const childRep = getRepDisplayForDealer(child.dealerRepresentative, child.repName, child.statePrefix || child.dealerState, stateRepMap);
+                          const childSelected = selectedDealerIds.has(childKey);
+
+                          return (
+                            <tr key={`sat-${child._id}`} className={`${styles.childRow} ${isSelectMode && childSelected ? styles.rowSelected : ''}`}>
+                              {isSelectMode && (
+                                <td className={styles.selectCell} onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={childSelected}
+                                    onChange={() => handleToggleSelectDealer(childKey, -1, false)}
+                                    style={{
+                                      cursor: 'pointer',
+                                      accentColor: '#38bdf8',
+                                      width: '15px',
+                                      height: '15px',
+                                      borderRadius: '3px'
+                                    }}
+                                    aria-label={`Select ${child.dealerName}`}
+                                  />
+                                </td>
+                              )}
+                              <td
+                                className={isSelectMode ? styles.firstDataTd : undefined}
+                                style={{ paddingLeft: '28px', cursor: 'pointer' }}
+                                onClick={() => onSelectDealer?.(child._id)}
+                                title="Click to view application history"
+                              >
+                                <div className={styles.dealerCellWrapper}>
+                                  {/* Row 1: Satellite store name & status */}
+                                  <div className={styles.dealerTopLine}>
+                                    <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 600 }}>└─</span>
+                                    <span className={styles.dealerNameLink} style={{ color: 'var(--text-primary)', fontSize: '12px' }}>
+                                      {child.dealerName}
+                                    </span>
+                                    <span className={styles.satelliteBadge}>
+                                      Satellite
+                                    </span>
+                                    <StatusBadge status={deriveStatus(child.latestSnapshot)} />
+                                    {renderDrdBadge(child.drd)}
+                                    {renderStatusRedFlag(child)}
+                                  </div>
+
+                                  {/* Row 2: Secondary metadata & actions */}
+                                  <div className={styles.dealerMetaLine} style={{ paddingLeft: '14px' }}>
+                                    <span className={styles.dealerCodePill}>{childKey}</span>
+                                    {child.dealerCity && (
+                                      <>
+                                        <span className={styles.dealerMetaDivider}>•</span>
+                                        <span>{child.dealerCity}, {child.statePrefix || child.dealerState}</span>
+                                      </>
+                                    )}
+                                    {childRep && childRep !== '—' && (
+                                      <>
+                                        <span className={styles.dealerMetaDivider}>•</span>
+                                        <span>Rep: <strong style={{ color: 'var(--text-primary)' }}>{childRep}</strong></span>
+                                      </>
+                                    )}
+                                    {renderMetaBadges(child)}
+
+                                    <div className={styles.actionBtnGroup}>
+                                      <button
+                                        type="button"
+                                        className={styles.microActionBtn}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setBadgerModalDealer({
+                                            dealerId: child.clientDealerId || child.dealerId || child._id,
+                                            dealerName: child.dealerName
+                                          });
+                                        }}
+                                        title="View Badger Maps activity, notepad, and log check-ins"
+                                      >
+                                        📍 Badger
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={styles.microActionBtn}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setQuickActionDealer({
+                                            _id: child._id,
+                                            dealerId: child.dealerId,
+                                            clientDealerId: child.clientDealerId || undefined,
+                                            dealerName: child.dealerName,
+                                            systemStatus: child.systemStatus,
+                                            systemStatusReason: child.systemStatusReason,
+                                            businessType: child.businessType,
+                                            tags: child.tags,
+                                            isFundingParent: child.isFundingParent,
+                                            fundingParent: dealer,
+                                            fundingChildren: child.fundingChildren
+                                          });
+                                        }}
+                                        title="Manage satellite store classification or funding link"
+                                      >
+                                        Manage
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              {renderChildCells(child.latestSnapshot, child.stats, child.drd)}
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })}
               {/* Intersection observer sentinel */}
               {mode !== 'groups' && hasMore && (
                 <tr ref={sentinelRef} style={{ height: '1px', opacity: 0 }}>
-                  <td colSpan={visibleColumns.length} style={{ padding: 0, border: 'none', height: '1px' }} />
+                  <td colSpan={visibleColumns.length + (isSelectMode ? 1 : 0)} style={{ padding: 0, border: 'none', height: '1px' }} />
                 </tr>
               )}
 
               {/* Loading more indicator */}
               {isLoadingMore && (
                 <tr className={styles.loadingMoreRow}>
-                  <td colSpan={visibleColumns.length}>
+                  <td colSpan={visibleColumns.length + (isSelectMode ? 1 : 0)}>
                     <div className={styles.loadingMore}>
                       <span className={styles.loadingSpinner} />
                       Loading more dealers...
@@ -1481,7 +2137,7 @@ export function DealerTable({
               {/* Manual load more button fallback if user reaches bottom */}
               {mode !== 'groups' && hasMore && !isLoadingMore && (
                 <tr className={styles.loadingMoreRow}>
-                  <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '12px' }}>
+                  <td colSpan={visibleColumns.length + (isSelectMode ? 1 : 0)} style={{ textAlign: 'center', padding: '12px' }}>
                     <button
                       type="button"
                       onClick={() => triggerLoadMore()}
@@ -1512,6 +2168,75 @@ export function DealerTable({
           dealerName={badgerModalDealer.dealerName}
           onClose={() => setBadgerModalDealer(null)}
         />
+      )}
+      {quickActionDealer && (
+        <QuickActionPopover
+          dealer={quickActionDealer}
+          onClose={() => setQuickActionDealer(null)}
+          onSaveSuccess={handleQuickActionSave}
+        />
+      )}
+      {isSelectMode && (selectedDealerIds.size > 0 || selectAllAcrossPages) && (
+        <FloatingBatchBar
+          selectedIds={Array.from(selectedDealerIds)}
+          totalSelectedCount={totalCount}
+          selectAllAcrossPages={selectAllAcrossPages}
+          filterQuery={currentFilters}
+          availableTags={availableTags || []}
+          onClearSelection={() => {
+            setSelectedDealerIds(new Set());
+            setSelectAllAcrossPages(false);
+          }}
+          onBatchSuccess={handleBatchSuccess}
+        />
+      )}
+      {undoToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 99999,
+          background: '#0f172a',
+          border: '1px solid rgba(56, 189, 248, 0.4)',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.2)',
+          borderRadius: '10px',
+          padding: '12px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+          color: '#f8fafc',
+          animation: 'slideUp 0.2s ease-out'
+        }}>
+          <span style={{ fontSize: '13px', fontWeight: 500 }}>{undoToast.message}</span>
+          <button
+            type="button"
+            onClick={() => handleUndo(undoToast)}
+            disabled={isUndoing}
+            style={{
+              background: 'rgba(56, 189, 248, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              color: '#38bdf8',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <RotateCcw size={12} className={isUndoing ? styles.spin : ''} />
+            <span>{isUndoing ? 'Reverting...' : 'Undo'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setUndoToast(null)}
+            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -1601,6 +2326,12 @@ interface GroupRowsProps {
   onSelectDealer?: (dealerId: string) => void;
   stateRepMap?: StateRepMap;
   onOpenBadger?: (info: { dealerId: string; dealerName: string }) => void;
+  onOpenQuickAction?: (dealer: QuickActionDealer) => void;
+  dealerOverrides?: Record<string, Partial<DealerLocation>>;
+  isSelectMode?: boolean;
+  selectedDealerIds?: Set<string>;
+  onToggleSelectDealer?: (id: string, idx?: number, shiftKey?: boolean) => void;
+  onToggleSelectGroup?: (ids: string[]) => void;
 }
 
 
@@ -1634,8 +2365,43 @@ function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null
   return { best, worst };
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns, onSelectGroup, onSelectDealer, stateRepMap, onOpenBadger }: GroupRowsProps) {
+function GroupRows({
+  group,
+  isExpanded,
+  locations,
+  statusFilter,
+  isPrefetching,
+  onToggle,
+  renderChildCells,
+  deriveStatusFn,
+  visibleColumns,
+  onSelectGroup,
+  onSelectDealer,
+  stateRepMap,
+  onOpenBadger,
+  onOpenQuickAction,
+  dealerOverrides,
+  isSelectMode,
+  selectedDealerIds,
+  onToggleSelectDealer,
+  onToggleSelectGroup
+}: GroupRowsProps) {
   const s = group.summary;
+
+  const effectiveLocations = useMemo(() => {
+    if (!dealerOverrides || Object.keys(dealerOverrides).length === 0) return locations;
+    return locations.map((loc) => {
+      const key = loc.clientDealerId || loc.dealerId || loc._id;
+      return dealerOverrides[key] ? { ...loc, ...dealerOverrides[key] } : loc;
+    });
+  }, [locations, dealerOverrides]);
+
+  const groupChildKeys = useMemo(() => {
+    return effectiveLocations.map((loc) => loc.clientDealerId || loc.dealerId || loc._id);
+  }, [effectiveLocations]);
+
+  const isGroupAllSelected = Boolean(isSelectMode && groupChildKeys.length > 0 && groupChildKeys.every((id) => selectedDealerIds?.has(id)));
+  const isGroupSomeSelected = Boolean(isSelectMode && !isGroupAllSelected && groupChildKeys.some((id) => selectedDealerIds?.has(id)));
 
   // Aggregate stats across child locations
   const groupStats = locations.reduce<DealerStats>(
@@ -1697,12 +2463,12 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
 
   // Compute filtered active count for status badge
   const displayedLocations = useMemo(() => {
-    if (!statusFilter) return locations;
-    return locations.filter((loc) => {
+    if (!statusFilter) return effectiveLocations;
+    return effectiveLocations.filter((loc) => {
       const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
       return locStatus === statusFilter;
     });
-  }, [locations, statusFilter, deriveStatusFn]);
+  }, [effectiveLocations, statusFilter, deriveStatusFn]);
 
   let filteredActive: number | undefined;
   let filteredTotal: number | undefined;
@@ -1722,7 +2488,19 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         className={`${styles.groupRow} ${isExpanded ? styles.groupRowExpanded : ''}`}
         onClick={onToggle}
       >
-        <td>
+        {isSelectMode && (
+          <td className={styles.selectCell} onClick={(e) => e.stopPropagation()}>
+            <IndeterminateCheckbox
+              checked={isGroupAllSelected}
+              indeterminate={isGroupSomeSelected}
+              onChange={() => onToggleSelectGroup?.(groupChildKeys)}
+              disabled={groupChildKeys.length === 0}
+              title={isGroupAllSelected ? "Deselect group locations" : "Select all group locations"}
+              ariaLabel={`Select all locations in ${group.name}`}
+            />
+          </td>
+        )}
+        <td className={isSelectMode ? styles.firstDataTd : undefined}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span
               className={`${styles.expandIcon} ${isExpanded ? styles.expandIconOpen : ''}`}
@@ -1809,16 +2587,39 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.lookToBook, group.stats?.trends?.lookToBook, 'percent')}</td>
         <td style={{ textAlign: 'right' }}>{showSkeleton ? <SkeletonCell /> : renderStackedStatCell(group.stats?.approvalToBook, group.stats?.trends?.approvalToBook, 'percent')}</td>
         <td style={{ textAlign: 'right' }}>
-          {showSkeleton ? <SkeletonCell /> : (group.stats?.avgFico ? <span style={{ fontWeight: 600, color: '#f8fafc' }}>{group.stats.avgFico}</span> : '—')}
+          {showSkeleton ? <SkeletonCell /> : (group.stats?.avgFico ? <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{group.stats.avgFico}</span> : '—')}
         </td>
       </tr>
-      {isExpanded && displayedLocations.map((loc) => {
+      {isExpanded && displayedLocations.map((loc, locIdx) => {
         const repDisplay = getRepDisplayForDealer(loc.dealerRepresentative, loc.repName, loc.statePrefix, stateRepMap);
         const hasRep = repDisplay && repDisplay !== '—';
         const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
+        const locKey = loc.clientDealerId || loc.dealerId || loc._id;
+        const isLocSelected = Boolean(isSelectMode && selectedDealerIds?.has(locKey));
         return (
-          <tr key={loc._id} className={styles.childRow}>
+          <tr key={loc._id} className={`${styles.childRow} ${(isSelectMode && isLocSelected) ? styles.rowSelected : ''}`}>
+            {isSelectMode && (
+              <td className={styles.selectCell} onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={isLocSelected}
+                  onChange={(e) => {
+                    const isShift = (e.nativeEvent as MouseEvent).shiftKey;
+                    onToggleSelectDealer?.(locKey, locIdx, isShift);
+                  }}
+                  style={{
+                    cursor: 'pointer',
+                    accentColor: '#38bdf8',
+                    width: '15px',
+                    height: '15px',
+                    borderRadius: '3px'
+                  }}
+                  aria-label={`Select ${loc.dealerName}`}
+                />
+              </td>
+            )}
             <td
+              className={isSelectMode ? styles.firstDataTd : undefined}
               style={{ cursor: 'pointer', paddingLeft: '32px' }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1826,50 +2627,70 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
               }}
               title="Click to view Historical MoM & application history"
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <span style={{ color: '#38bdf8', fontWeight: 500, fontSize: '13px' }}>{loc.dealerName}</span>
+              <div className={styles.dealerCellWrapper}>
+                {/* Row 1: Primary Identity & Status */}
+                <div className={styles.dealerTopLine}>
+                  <span className={styles.dealerNameLink}>{loc.dealerName}</span>
                   <StatusBadge status={locStatus} />
                   {renderDrdBadge(loc.drd)}
+                  {renderStatusRedFlag(loc)}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenBadger?.({
-                        dealerId: loc.clientDealerId || loc.dealerId || loc._id,
-                        dealerName: loc.dealerName
-                      });
-                    }}
-                    style={{
-                      background: 'rgba(56, 189, 248, 0.12)',
-                      border: '1px solid rgba(56, 189, 248, 0.3)',
-                      color: '#38bdf8',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      lineHeight: '1.4',
-                      letterSpacing: '0.01em',
-                      transition: 'all 0.15s ease'
-                    }}
-                    title="View Badger Maps activity, notepad, and log check-ins"
-                  >
-                    📍 Badger Activity
-                  </button>
-                </div>
-                {hasRep && (
-                  <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ color: '#64748b' }}>Rep:</span>
-                    <span style={{ color: '#cbd5e1' }}>{repDisplay}</span>
+
+                {/* Row 2: Secondary Metadata & Actions */}
+                <div className={styles.dealerMetaLine}>
+                  <span className={styles.dealerCodePill}>{locKey}</span>
+                  {loc.dealerCity && (
+                    <>
+                      <span className={styles.dealerMetaDivider}>•</span>
+                      <span>{loc.dealerCity}, {loc.statePrefix || loc.dealerState}</span>
+                    </>
+                  )}
+                  {hasRep && (
+                    <>
+                      <span className={styles.dealerMetaDivider}>•</span>
+                      <span>Rep: <strong style={{ color: 'var(--text-primary)' }}>{repDisplay}</strong></span>
+                    </>
+                  )}
+                  {renderMetaBadges(loc)}
+
+                  <div className={styles.actionBtnGroup}>
+                    <button
+                      type="button"
+                      className={styles.microActionBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenBadger?.({
+                          dealerId: loc.clientDealerId || loc.dealerId || loc._id,
+                          dealerName: loc.dealerName
+                        });
+                      }}
+                      title="View Badger Maps activity, notepad, and log check-ins"
+                    >
+                      📍 Badger
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`${styles.microActionBtn} ${loc.systemStatus && loc.systemStatus !== 'active' ? styles.microActionBtnWarn : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenQuickAction?.({
+                          _id: loc._id,
+                          dealerId: loc.dealerId,
+                          clientDealerId: loc.clientDealerId || undefined,
+                          dealerName: loc.dealerName,
+                          systemStatus: loc.systemStatus,
+                          systemStatusReason: loc.systemStatusReason,
+                          businessType: loc.businessType,
+                          tags: loc.tags
+                        });
+                      }}
+                      title="Quick Action: Red flag dealership, change business type, or add tags"
+                    >
+                      <span>{loc.systemStatus && loc.systemStatus !== 'active' ? '🚩 Flagged' : '🚩 Actions'}</span>
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
             </td>
             {renderChildCells(loc.latestSnapshot, loc.stats, loc.drd)}

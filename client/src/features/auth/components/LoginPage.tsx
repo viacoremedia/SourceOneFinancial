@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../../../core/hooks/useTheme';
 import styles from './Auth.module.css';
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,13 +29,20 @@ export function LoginPage() {
 
   return (
     <div className={styles.authPage}>
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className={styles.themeToggle}
+        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        aria-label="Toggle visual theme"
+        id="auth-theme-toggle"
+      >
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
       <div className={styles.authCard}>
         <div className={styles.brandRow}>
-          <div className={styles.brandMark}>S1</div>
-          <div>
-            <div className={styles.brandName}>Source One</div>
-            <div className={styles.brandTag}>Dealer Analytics</div>
-          </div>
+          <img src="/sourceonelogo.png" alt="Source One Financial Services" className={styles.brandLogo} />
+          <div className={styles.brandTag}>Dealer Analytics</div>
         </div>
         <h2 className={styles.title}>Sign in</h2>
         <form onSubmit={handleSubmit} className={styles.form}>

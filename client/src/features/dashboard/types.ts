@@ -207,6 +207,24 @@ export interface DealerLocation {
   latestSnapshot: DailySnapshot | null;
   stats?: DealerStats;
   drd?: DealerDRDMeta | null;
+  systemStatus?: 'active' | 'closed' | 'bought_out' | 'no_longer_in_service';
+  systemStatusReason?: string | null;
+  businessType?: 'franchise' | 'non-franchise' | 'broker' | null;
+  tags?: string[];
+  industry?: 'rv' | 'marine' | 'both' | null;
+  isManuallyClassified?: boolean;
+  dealerCity?: string;
+  dealerState?: string;
+  isFundingParent?: boolean;
+  fundingParent?: any;
+  fundingChildren?: string[];
+  fundingChildrenDetails?: DealerLocation[];
+  matchedViaChild?: {
+    dealerName: string;
+    dealerId: string;
+    city?: string;
+    state?: string;
+  } | null;
 }
 
 // ── Daily Snapshot ──

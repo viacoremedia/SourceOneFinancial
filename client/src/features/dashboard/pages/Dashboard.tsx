@@ -11,14 +11,17 @@ import { DealerTable } from '../components/DealerTable';
 import { ExecutiveSummaryBanner } from '../components/ExecutiveSummaryBanner/ExecutiveSummaryBanner';
 import { AnalyticsDrawer } from '../components/AnalyticsDrawer/AnalyticsDrawer';
 import { VisitImpactDrawer } from '../components/VisitImpactDrawer/VisitImpactDrawer';
+import { TagManagerModal } from '../components/TagManagerModal/TagManagerModal';
+import { SystemAuditModal } from '../components/SystemAuditModal/SystemAuditModal';
+import { GroupManagerModal } from '../components/GroupManagerModal';
 import type { UnderwriterDateRange } from '../components/UnderwriterScorecard/UnderwriterScorecard';
 import { useOverview, useDealerGroups } from '../hooks';
 import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
-import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings } from '../../../core/services/api';
-import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings } from '../../../core/services/api';
+import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings, getDealerTags, getDealerGroupRequests } from '../../../core/services/api';
+import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings, UniversalTag } from '../../../core/services/api';
 import type { DealerLocation, RollingWindow, HeatClass, SortColumn } from '../types';
 
 // Map frontend sort keys to server sort keys
@@ -65,6 +68,10 @@ function DashboardContent() {
     transitionFilter,
     drdFilter,
     setDrdFilter,
+    selectedBusinessType,
+    selectedTags,
+    setBusinessType,
+    setTags,
     searchQuery,
     filterVersion,
     setTab,
@@ -79,6 +86,42 @@ function DashboardContent() {
     setSearchQuery,
     setLatestReportDate,
   } = useDashboardStore();
+
+  const [availableTags, setAvailableTags] = useState<UniversalTag[]>([]);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
+  const [systemAuditOpen, setSystemAuditOpen] = useState(false);
+  const [groupManagerModal, setGroupManagerModal] = useState<{
+    isOpen: boolean;
+    initialTab: 'groups' | 'approvals';
+  }>({ isOpen: false, initialTab: 'groups' });
+  const [pendingProposalsCount, setPendingProposalsCount] = useState<number>(0);
+
+  const refreshPendingProposals = useCallback(async () => {
+    try {
+      const res = await getDealerGroupRequests({ status: 'pending' });
+      if (res?.success) {
+        setPendingProposalsCount(res.pendingCount || 0);
+      }
+    } catch (err) {
+      console.warn('Failed to load pending proposals count:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPendingProposals();
+  }, [refreshPendingProposals]);
+
+  const refreshTags = useCallback(() => {
+    getDealerTags()
+      .then((res) => {
+        if (res?.tags) setAvailableTags(res.tags);
+      })
+      .catch((err) => console.warn('Failed to load dealer tags:', err));
+  }, []);
+
+  useEffect(() => {
+    refreshTags();
+  }, [refreshTags]);
 
   // If inside rep, lock rep filter to assignedRep
   useEffect(() => {
@@ -180,7 +223,9 @@ function DashboardContent() {
     trend,
     statusFilter,
     selectedRep,
-    drdFilter
+    drdFilter,
+    selectedBusinessType,
+    selectedTags
   );
 
   // Groups filtered by state only — used for stats computation (stable numbers)
@@ -254,6 +299,8 @@ function DashboardContent() {
           endDate,
           trend,
           drd: drdFilter || undefined,
+          businessType: selectedBusinessType || undefined,
+          tags: selectedTags.length > 0 ? selectedTags : undefined,
           signal,
         });
 
@@ -291,7 +338,7 @@ function DashboardContent() {
         }
       }
     },
-    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter]
+    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter, selectedBusinessType, selectedTags]
   );
 
   // Invalidate loadedTabs cache on any filter version change
@@ -314,6 +361,15 @@ function DashboardContent() {
     pageRef.current = 1;
     fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
   }, [activeTab, fetchDealers, statusFilter, explicitStates]);
+
+  const handleUndoSuccess = useCallback(() => {
+    refreshTags();
+    refreshPendingProposals();
+    const scope = scopeForTab(activeTab);
+    if (scope) {
+      fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
+    }
+  }, [refreshTags, refreshPendingProposals, activeTab, fetchDealers, statusFilter, explicitStates]);
 
   // Fetch transition data for the groups tab
   useEffect(() => {
@@ -508,8 +564,9 @@ function DashboardContent() {
       onSelectRep={handleRepChange}
       onSelectRepState={handleRepStateChange}
       onSelectUnderwriter={handleSelectUnderwriter}
+      onOpenSystemAudit={() => setSystemAuditOpen(true)}
     >
-      <div style={{ marginBottom: '16px' }}>
+      <div style={{ marginBottom: '16px', position: 'relative', zIndex: 100 }}>
         <TabBar
           activeTab={activeTab}
           onTabChange={handleTabChange}
@@ -528,6 +585,18 @@ function DashboardContent() {
             selectedState={selectedState}
             statusFilter={statusFilter}
             drdFilter={drdFilter}
+            selectedBusinessType={selectedBusinessType}
+            selectedTags={selectedTags}
+            availableTags={availableTags}
+            onBusinessTypeChange={setBusinessType}
+            onTagsChange={setTags}
+            onOpenTagManager={() => setTagManagerOpen(true)}
+            onOpenSystemAudit={() => setSystemAuditOpen(true)}
+            onOpenGroupManager={(tab) =>
+              setGroupManagerModal({ isOpen: true, initialTab: tab || 'groups' })
+            }
+            pendingProposalsCount={pendingProposalsCount}
+            onRefreshTags={refreshTags}
             activityMode={activityMode}
             onRepChange={handleRepChange}
             onStateChange={handleStateChange}
@@ -552,6 +621,9 @@ function DashboardContent() {
         rep={selectedRep}
         status={statusFilter}
         drd={drdFilter}
+        businessType={selectedBusinessType}
+        tags={selectedTags}
+        scope={activeTab === 'groups' ? 'groups' : activeTab === 'dealers' ? 'dealers' : 'all'}
       />
 
       <DealerTable
@@ -580,6 +652,19 @@ function DashboardContent() {
         onCustomDateChange={setCustomDates}
         onTrendChange={setTrend}
         comparisonLabel={comparisonLabel}
+        availableTags={availableTags}
+        onTagsUpdated={refreshTags}
+        totalCount={activeTab === 'groups' ? filteredGroups.length : (activeTab === 'all' ? totalAllDealers : totalSmallDealers)}
+        currentFilters={{
+          scope: scopeForTab(activeTab),
+          state: selectedState || undefined,
+          states: selectedState ? [selectedState] : undefined,
+          rep: selectedRep || undefined,
+          status: statusFilter || undefined,
+          businessType: selectedBusinessType || undefined,
+          tags: selectedTags.length > 0 ? selectedTags : undefined,
+          search: searchQuery || undefined
+        }}
       />
 
       {/* Unified Tabbed Historical MoM & Application History Drawer */}
@@ -602,6 +687,8 @@ function DashboardContent() {
         datePresetLabel={datePreset}
         dateRangeStr={startDate && endDate ? `${startDate} to ${endDate}` : undefined}
         allTableDealers={activeTab === 'all' ? allDealers : smallDealers}
+        businessType={selectedBusinessType}
+        tags={selectedTags}
         onSelectDealerId={setDrawerDealerId}
         onSelectGroupSlug={setDrawerGroupSlug}
       />
@@ -610,6 +697,36 @@ function DashboardContent() {
       <VisitImpactDrawer
         open={visitImpactOpen}
         onClose={() => setVisitImpactOpen(false)}
+      />
+
+      {/* Global Standalone Tag Manager Modal */}
+      <TagManagerModal
+        isOpen={tagManagerOpen}
+        onClose={() => setTagManagerOpen(false)}
+        availableTags={availableTags}
+        onTagsChanged={refreshTags}
+      />
+
+      {/* System Operations & Audit Trail Modal */}
+      <SystemAuditModal
+        isOpen={systemAuditOpen}
+        onClose={() => setSystemAuditOpen(false)}
+        onUndoSuccess={handleUndoSuccess}
+      />
+
+      {/* Dealer Groups & Rep-to-Admin Approval Desk Modal */}
+      <GroupManagerModal
+        isOpen={groupManagerModal.isOpen}
+        initialTab={groupManagerModal.initialTab}
+        onClose={() => setGroupManagerModal({ isOpen: false, initialTab: 'groups' })}
+        onSuccess={() => {
+          refreshPendingProposals();
+          refreshTags();
+          const scope = scopeForTab(activeTab);
+          if (scope) {
+            fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
+          }
+        }}
       />
     </AppShell>
   );
