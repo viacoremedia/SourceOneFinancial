@@ -31,6 +31,7 @@ import type { RelationshipDemandDrawerResponse } from '../../../../core/services
 import { useAuth } from '../../../auth/hooks/useAuth';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
+import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
 import styles from './DealerRelationshipDrawer.module.css';
 
 interface DealerRelationshipDrawerProps {
@@ -69,9 +70,10 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   const [overrideActionError, setOverrideActionError] = useState<string | null>(null);
   const [auditLogExpanded, setAuditLogExpanded] = useState<boolean>(false);
 
-  // Badger Sync state
+  // Badger Sync & Quick Modal state
   const [badgerSyncing, setBadgerSyncing] = useState<boolean>(false);
   const [badgerSyncMsg, setBadgerSyncMsg] = useState<string | null>(null);
+  const [badgerModalOpen, setBadgerModalOpen] = useState<boolean>(false);
 
   // Lifecycle Status (Dead Dealer) modal state
   const [lifecycleModalOpen, setLifecycleModalOpen] = useState<boolean>(false);
@@ -326,6 +328,30 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
             {/* Quick Actions Strip */}
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={styles.badgerActivityBtn}
+                onClick={() => setBadgerModalOpen(true)}
+                title="View Badger activity, structured notepad & log check-ins"
+                style={{
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  color: '#38bdf8',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <MapPin size={13} />
+                <span>Badger Activity</span>
+              </button>
+
               <button
                 className={styles.syncBadgerBtn}
                 onClick={handleSyncBadger}
@@ -1293,6 +1319,14 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
             </div>
           </div>
         </div>
+      )}
+
+      {badgerModalOpen && clientDealerId && (
+        <BadgerQuickModal
+          dealerId={clientDealerId}
+          dealerName={profile?.dealerName || clientDealerId}
+          onClose={() => setBadgerModalOpen(false)}
+        />
       )}
     </div>
   );

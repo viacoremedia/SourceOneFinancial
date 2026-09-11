@@ -5,7 +5,13 @@ const { requireAuth, requireRole } = require('../../middleware/authMiddleware');
 const {
     getSyncStatus,
     syncSingleDealerFromBadger,
-    syncAllDealersFromBadger
+    syncAllDealersFromBadger,
+    getDealerBadgerActivity,
+    updateDealerBadgerNotepad,
+    createDealerBadgerCheckin,
+    undoBadgerNotepadUpdate,
+    undoBadgerCheckin,
+    getDealerBadgerAuditLogs
 } = require('../../services/badgerSyncService');
 
 const router = express.Router();
@@ -186,6 +192,130 @@ router.get('/sync-badger-status', requireAuth, async (req, res) => {
         success: true,
         status: getSyncStatus()
     });
+});
+
+// ── Valid Check-in Options for Badger Maps ──
+const VALID_DISPOSITIONS = [
+    'Met with existing contact',
+    'Follow up on approvals/stips',
+    'Spoke with Sales Manager',
+    'Met with new contact',
+    'Not able to speak to anyone',
+    'Sign up completed',
+    'Training completed',
+    'Returned phone call'
+];
+
+const VALID_FEEDBACK = [
+    'Active – Happy',
+    'Follow up on approvals/stips',
+    'No contact - follow up',
+    'Interested in signing up',
+    'Terms offered',
+    'Not Interested',
+    'Approval times',
+    'Closing',
+    'Interest rates',
+    'Funding times',
+    'Reserve rates',
+    'Lost to competitor',
+    'Interested'
+];
+
+// ── GET /dealers/:dealerId/badger-activity (Fetch Badger activity for a dealer) ──
+router.get('/:dealerId/badger-activity', requireAuth, async (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    try {
+        const activity = await getDealerBadgerActivity(req.params.dealerId);
+        res.json({ success: true, activity });
+    } catch (err) {
+        console.error(`Error fetching Badger activity for ${req.params.dealerId}:`, err);
+        res.status(err.message.includes('not found') ? 404 : 500).json({
+            success: false,
+            message: err.message
+        });
+    }
+});
+
+// ── POST /dealers/:dealerId/badger-notepad (Update Badger Notepad) ──
+router.post('/:dealerId/badger-notepad', requireAuth, async (req, res) => {
+    try {
+        const { noteText } = req.body;
+        if (!noteText || !noteText.trim()) {
+            return res.status(400).json({ success: false, message: 'noteText is required' });
+        }
+        const result = await updateDealerBadgerNotepad(req.params.dealerId, { noteText }, req.user);
+        res.json({ success: true, notepad: result.notepad });
+    } catch (err) {
+        console.error(`Error updating Badger notepad for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── POST /dealers/:dealerId/badger-checkin (Create Badger check-in) ──
+router.post('/:dealerId/badger-checkin', requireAuth, async (req, res) => {
+    try {
+        const { disposition, feedback, notes } = req.body;
+        if (!disposition || !VALID_DISPOSITIONS.includes(disposition)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}`
+            });
+        }
+        if (!feedback || !VALID_FEEDBACK.includes(feedback)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid feedback. Must be one of: ${VALID_FEEDBACK.join(', ')}`
+            });
+        }
+        const result = await createDealerBadgerCheckin(req.params.dealerId, { disposition, feedback, notes }, req.user);
+        res.status(201).json({
+            success: true,
+            appointment: result.appointment,
+            communicationId: result.communicationId,
+            logId: result.logId
+        });
+    } catch (err) {
+        console.error(`Error creating Badger check-in for ${req.params.dealerId}:`, err);
+        res.status(err.message.includes('not found') ? 404 : 500).json({
+            success: false,
+            message: err.message
+        });
+    }
+});
+
+// ── POST /dealers/:dealerId/badger-notepad/undo (Undo last/specified notepad update) ──
+router.post('/:dealerId/badger-notepad/undo', requireAuth, async (req, res) => {
+    try {
+        const { logId } = req.body;
+        const result = await undoBadgerNotepadUpdate(req.params.dealerId, logId, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error(`Error reverting Badger notepad for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── POST /dealers/:dealerId/badger-checkin/:appointmentId/undo (Undo/Delete a check-in) ──
+router.post('/:dealerId/badger-checkin/:appointmentId/undo', requireAuth, async (req, res) => {
+    try {
+        const result = await undoBadgerCheckin(req.params.dealerId, req.params.appointmentId, req.user);
+        res.json(result);
+    } catch (err) {
+        console.error(`Error undoing Badger check-in for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── GET /dealers/:dealerId/badger-audit-logs (Fetch audit history of manual updates) ──
+router.get('/:dealerId/badger-audit-logs', requireAuth, async (req, res) => {
+    try {
+        const logs = await getDealerBadgerAuditLogs(req.params.dealerId);
+        res.json({ success: true, logs });
+    } catch (err) {
+        console.error(`Error fetching Badger audit logs for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 module.exports = router;

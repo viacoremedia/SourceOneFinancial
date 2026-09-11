@@ -14,6 +14,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import styles from './DealerTable.module.css';
 import { TABLE_COLUMNS } from './columns';
 import { StatusBadge } from './StatusBadge';
+import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
 import { getDaysSinceHeatmap, getCommDaysHeatmap } from '../../../../core/utils/heatmap';
 import type { StateRepMap } from '../../../../core/services/api';
 import type {
@@ -665,6 +666,7 @@ export function DealerTable({
   const [committedQuery, setCommittedQuery] = useState('');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('mom');
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
+  const [badgerModalDealer, setBadgerModalDealer] = useState<{ dealerId: string; dealerName: string } | null>(null);
 
   // Physical button / Enter key search execution
   const executeSearch = useCallback((val?: string) => {
@@ -1393,6 +1395,7 @@ export function DealerTable({
                         onSelectGroup={onSelectGroup}
                         onSelectDealer={onSelectDealer}
                         stateRepMap={stateRepMap}
+                        onOpenBadger={setBadgerModalDealer}
                       />
                     );
                   })
@@ -1406,11 +1409,43 @@ export function DealerTable({
                           onClick={() => onSelectDealer?.(dealer._id)}
                           title="Click to view application history"
                         >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '13px' }}>{dealer.dealerName}</span>
                               <StatusBadge status={deriveStatus(dealer.latestSnapshot)} />
                               {renderDrdBadge(dealer.drd)}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBadgerModalDealer({
+                                    dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
+                                    dealerName: dealer.dealerName
+                                  });
+                                }}
+                                style={{
+                                  background: 'rgba(56, 189, 248, 0.12)',
+                                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                                  color: '#38bdf8',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  lineHeight: '1.4',
+                                  letterSpacing: '0.01em',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                title="View Badger Maps activity, notepad, and log check-ins"
+                              >
+                                📍 Badger Activity
+                              </button>
                             </div>
                             {hasRep && (
                               <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1471,6 +1506,13 @@ export function DealerTable({
           </table>
         )}
       </div>
+      {badgerModalDealer && (
+        <BadgerQuickModal
+          dealerId={badgerModalDealer.dealerId}
+          dealerName={badgerModalDealer.dealerName}
+          onClose={() => setBadgerModalDealer(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1558,6 +1600,7 @@ interface GroupRowsProps {
   onSelectGroup?: (groupSlug: string) => void;
   onSelectDealer?: (dealerId: string) => void;
   stateRepMap?: StateRepMap;
+  onOpenBadger?: (info: { dealerId: string; dealerName: string }) => void;
 }
 
 
@@ -1591,7 +1634,7 @@ function computeCommDaysBestWorst(locations: DealerLocation[]): BestWorst | null
   return { best, worst };
 }
 
-function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns, onSelectGroup, onSelectDealer, stateRepMap }: GroupRowsProps) {
+function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, onToggle, renderChildCells, deriveStatusFn, visibleColumns, onSelectGroup, onSelectDealer, stateRepMap, onOpenBadger }: GroupRowsProps) {
   const s = group.summary;
 
   // Aggregate stats across child locations
@@ -1783,11 +1826,43 @@ function GroupRows({ group, isExpanded, locations, statusFilter, isPrefetching, 
               }}
               title="Click to view Historical MoM & application history"
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ color: '#38bdf8', fontWeight: 500, fontSize: '13px' }}>{loc.dealerName}</span>
                   <StatusBadge status={locStatus} />
                   {renderDrdBadge(loc.drd)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenBadger?.({
+                        dealerId: loc.clientDealerId || loc.dealerId || loc._id,
+                        dealerName: loc.dealerName
+                      });
+                    }}
+                    style={{
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: '#38bdf8',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      lineHeight: '1.4',
+                      letterSpacing: '0.01em',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="View Badger Maps activity, notepad, and log check-ins"
+                  >
+                    📍 Badger Activity
+                  </button>
                 </div>
                 {hasRep && (
                   <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>

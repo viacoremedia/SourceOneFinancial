@@ -10,6 +10,9 @@
 const mongoose = require('mongoose');
 const DealerLocation = require('../models/DealerLocation');
 const DealerProfile = require('../models/DealerProfile');
+const DealerCommunication = require('../models/DealerCommunication');
+const BadgerUpdateLog = require('../models/BadgerUpdateLog');
+const { resolveRepName } = require('../config/repConfig');
 
 const BADGER_BASE_URL = 'https://badgerapis.badgermapping.com/api/2';
 
@@ -57,7 +60,12 @@ async function callBadgerApi(endpoint, options = {}) {
         throw new Error(`Badger API error: HTTP ${res.status} ${res.statusText} for ${url}`);
     }
 
-    return await res.json();
+    if (res.status === 204 || res.headers.get('content-length') === '0') {
+        return { success: true };
+    }
+
+    const text = await res.text();
+    return text ? JSON.parse(text) : { success: true };
 }
 
 /**
@@ -422,10 +430,498 @@ async function syncAllDealersFromBadger({ onProgress = null, concurrency = 8 } =
     }
 }
 
+/**
+ * Helper to resolve DealerLocation and Badger Customer ID from dealerId
+ */
+async function resolveDealerAndBadgerCustomer(dealerId) {
+    if (!dealerId) throw new Error('Dealer ID is required');
+    const rawId = String(dealerId).trim();
+
+    // 1. Resolve DealerLocation from MongoDB first
+    let locDoc = null;
+    if (mongoose.Types.ObjectId.isValid(rawId)) {
+        locDoc = await DealerLocation.findById(rawId).lean();
+    }
+    if (!locDoc) {
+        locDoc = await DealerLocation.findOne({
+            $or: [
+                { clientDealerId: rawId.toUpperCase() },
+                { dealerId: rawId.toUpperCase() },
+                { clientDealerId: rawId },
+                { dealerId: rawId }
+            ]
+        }).lean();
+    }
+
+    const candidateCode = (locDoc?.clientDealerId || locDoc?.dealerId || rawId).toUpperCase();
+    const cleanDealerName = (locDoc?.dealerName || '').toUpperCase().replace(/-[A-Z0-9]+$/i, '').trim();
+
+    // 2. Resolve Badger Customer ID
+    let badgerId = locDoc?.badgerData?.badgerId;
+    let accountName = locDoc?.badgerData?.accountName || locDoc?.dealerName || '';
+
+    if (!badgerId) {
+        // Fetch customer list from Badger to match
+        const customerList = await callBadgerApi('/customers/');
+        let matchedCustomerSummary = null;
+
+        // Match by dealer code
+        for (const c of customerList) {
+            const name = (c.last_name || '').toUpperCase();
+            if (name.includes(`-${candidateCode}`) || 
+                name.includes(` ${candidateCode} `) || 
+                name.includes(`(${candidateCode})`) || 
+                name.endsWith(`-${candidateCode}`) ||
+                name.endsWith(` ${candidateCode}`)
+            ) {
+                matchedCustomerSummary = c;
+                break;
+            }
+        }
+
+        // Match by dealer name similarity
+        if (!matchedCustomerSummary && cleanDealerName.length > 3) {
+            for (const c of customerList) {
+                const name = (c.last_name || '').toUpperCase();
+                if (name.includes(cleanDealerName) || (name.length > 3 && cleanDealerName.includes(name.replace(/-[A-Z0-9]+$/i, '').trim()))) {
+                    matchedCustomerSummary = c;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedCustomerSummary) {
+            throw new Error(`Dealer "${locDoc?.dealerName || candidateCode}" not found in Badger Maps`);
+        }
+
+        badgerId = matchedCustomerSummary.id;
+        accountName = matchedCustomerSummary.last_name || matchedCustomerSummary.full_name || accountName;
+
+        if (locDoc?._id) {
+            await DealerLocation.updateOne(
+                { _id: locDoc._id },
+                { $set: { 'badgerData.badgerId': badgerId, 'badgerData.accountName': accountName } }
+            );
+        }
+    }
+
+    return {
+        locDoc,
+        candidateCode,
+        badgerId,
+        accountName
+    };
+}
+
+/**
+ * Fetch a dealer's full Badger activity (appointments + notepad) in one call.
+ */
+async function getDealerBadgerActivity(dealerId) {
+    const { locDoc, candidateCode, badgerId } = await resolveDealerAndBadgerCustomer(dealerId);
+
+    const dealerCodes = [
+        candidateCode,
+        candidateCode.toUpperCase(),
+        locDoc?.clientDealerId,
+        locDoc?.dealerId
+    ].filter(Boolean);
+
+    // Parallel calls: customer detail + live Badger appointments + MongoDB DealerCommunication history
+    const [customerDetail, appointmentResults, commDocs, recentLogs] = await Promise.all([
+        callBadgerApi(`/customers/${badgerId}/`).catch(err => {
+            console.error(`Failed to fetch customer detail for badgerId ${badgerId}:`, err.message);
+            return null;
+        }),
+        callBadgerApi(`/appointments/?customer_id=${badgerId}&ordering=-log_datetime`).catch(err => {
+            console.error(`Failed to fetch appointments for badgerId ${badgerId}:`, err.message);
+            return [];
+        }),
+        DealerCommunication.find({
+            sourceSystem: 'badger',
+            communicationEventDatetime: { $ne: null },
+            $or: [
+                { internalRelationshipId2: { $in: dealerCodes } },
+                { internalRelationshipId2: new RegExp('^' + candidateCode + '$', 'i') }
+            ]
+        }).sort({ communicationEventDatetime: -1 }).limit(100).lean().catch(err => {
+            console.error(`Failed to fetch DealerCommunication records for ${candidateCode}:`, err.message);
+            return [];
+        }),
+        BadgerUpdateLog.find({ dealerId: candidateCode })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .lean()
+            .catch(() => [])
+    ]);
+
+    const rawAppointments = Array.isArray(appointmentResults)
+        ? appointmentResults
+        : (appointmentResults?.results || []);
+
+    // Filter strictly by customer ID to prevent cross-dealer appointment leak
+    const filteredBadgerAppointments = rawAppointments.filter(apt => {
+        if (!apt || !apt.id) return false;
+        if (apt.customer !== undefined && apt.customer !== null) {
+            return String(apt.customer) === String(badgerId);
+        }
+        return true;
+    });
+
+    const badgerAppointments = filteredBadgerAppointments.map(apt => {
+        const extra = apt.extra_fields || {};
+        const rawRep = apt.created_by || apt.created_by_email || apt.user_name || apt.user?.name || apt.user?.email || customerDetail?.account_owner_name || customerDetail?.account_owner || locDoc?.salesRep;
+        const userName = resolveRepName(rawRep) || rawRep || 'Sales Rep';
+        return {
+            id: apt.id,
+            logDatetime: apt.log_datetime || apt.date || apt.created_at || new Date().toISOString(),
+            userName,
+            disposition: extra['Meeting Disposition'] || apt.disposition || '',
+            feedback: extra['Dealer Feedback'] || apt.feedback || '',
+            notes: extra['Notes'] || apt.notes || ''
+        };
+    });
+
+    // Map MongoDB DealerCommunication records (automated ingestion history)
+    const mongoCheckins = (commDocs || []).map(c => {
+        const rawRep = c.communicationUserFullName || c.communicationUserName || locDoc?.salesRep;
+        const userName = resolveRepName(rawRep) || rawRep || 'Sales Rep';
+        return {
+            id: c.sourceCommunicationId || c._id.toString(),
+            logDatetime: c.communicationEventDatetime || c.createdAt || new Date().toISOString(),
+            userName,
+            disposition: c.communicationResult1 || c.communicationType || 'Field Visit',
+            feedback: c.communicationFeedback1 || '',
+            notes: c.communicationNotes || ''
+        };
+    });
+
+    // Merge and deduplicate by appointment ID / sourceCommunicationId
+    const seenIds = new Set();
+    const allAppointments = [];
+
+    for (const apt of badgerAppointments) {
+        const key = String(apt.id);
+        if (!seenIds.has(key)) {
+            seenIds.add(key);
+            allAppointments.push(apt);
+        }
+    }
+
+    for (const comm of mongoCheckins) {
+        const key = String(comm.id);
+        if (!seenIds.has(key)) {
+            seenIds.add(key);
+            allAppointments.push(comm);
+        }
+    }
+
+    // Sort descending by date (newest first)
+    allAppointments.sort((a, b) => {
+        const dateA = new Date(a.logDatetime).getTime() || 0;
+        const dateB = new Date(b.logDatetime).getTime() || 0;
+        return dateB - dateA;
+    });
+
+    return {
+        dealerId: candidateCode,
+        dealerName: locDoc?.dealerName || customerDetail?.last_name || customerDetail?.full_name || candidateCode,
+        badgerId,
+        accountOwner: customerDetail?.account_owner_name || customerDetail?.account_owner || '',
+        notepad: customerDetail?.notes || '',
+        appointments: allAppointments,
+        recentLogs
+    };
+}
+
+/**
+ * Append a timestamped entry to the dealer's Badger Notepad.
+ */
+async function updateDealerBadgerNotepad(dealerId, { noteText }, user) {
+    if (!noteText || !noteText.trim()) {
+        throw new Error('noteText is required');
+    }
+    const { locDoc, candidateCode, badgerId } = await resolveDealerAndBadgerCustomer(dealerId);
+
+    // Fetch current notes
+    const customerDetail = await callBadgerApi(`/customers/${badgerId}/`);
+    const currentNotes = customerDetail?.notes || '';
+
+    const author = user?.name || user?.email || 'Sales Rep';
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const entry = `${author} - ${dateStr} ${timeStr} - ${noteText.trim()}`;
+    const cleanCurrent = (currentNotes || '').trim();
+    const updatedNotes = cleanCurrent ? `${cleanCurrent}\n\n${entry}` : entry;
+
+    await callBadgerApi(`/customers/${badgerId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: updatedNotes })
+    });
+
+    const matchQuery = locDoc?._id
+        ? { _id: locDoc._id }
+        : { $or: [{ dealerId: candidateCode }, { clientDealerId: candidateCode }] };
+
+    await DealerLocation.findOneAndUpdate(matchQuery, { $set: { 'badgerData.notes': updatedNotes } });
+    await DealerProfile.findOneAndUpdate(
+        { $or: [{ clientDealerId: candidateCode }, ...(locDoc?._id ? [{ dealerLocation: locDoc._id }] : [])] },
+        { $set: { 'badgerData.notes': updatedNotes } }
+    );
+
+    // Record audit history log
+    let updateLog = null;
+    try {
+        updateLog = await BadgerUpdateLog.create({
+            dealerId: candidateCode,
+            dealerLocation: locDoc?._id || null,
+            badgerId,
+            action: 'notepad_update',
+            user: {
+                id: user?._id || null,
+                name: user?.name || user?.email || 'Sales Rep',
+                email: user?.email || null
+            },
+            payload: {
+                previousNotepad: currentNotes,
+                updatedNotepad: updatedNotes,
+                noteText: noteText.trim()
+            }
+        });
+    } catch (logErr) {
+        console.error('Failed to write BadgerUpdateLog for notepad update:', logErr.message);
+    }
+
+    return { notepad: updatedNotes, logId: updateLog?._id };
+}
+
+/**
+ * Log a new field visit — Badger first, MongoDB second.
+ */
+async function createDealerBadgerCheckin(dealerId, { disposition, feedback, notes }, user) {
+    const { locDoc, candidateCode, badgerId } = await resolveDealerAndBadgerCustomer(dealerId);
+
+    // Step 1 — Badger Submission (First)
+    const logDatetime = new Date().toISOString();
+    const appointment = await callBadgerApi('/appointments/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            customer: badgerId,
+            log_datetime: logDatetime,
+            extra_fields: {
+                'Meeting Disposition': disposition,
+                'Dealer Feedback': feedback,
+                'Notes': notes || ''
+            }
+        })
+    });
+
+    if (!appointment?.id) {
+        throw new Error('Badger API did not return an appointment ID — aborting MongoDB write');
+    }
+
+    const rawUserName = user?.name || user?.email || locDoc?.salesRep || 'Sales Rep';
+    const userName = resolveRepName(rawUserName) || rawUserName;
+    const userEmail = user?.email || null;
+    const dealerName = locDoc?.dealerName || candidateCode;
+
+    // Step 2 — Idempotent MongoDB Upsert (Second)
+    const commDoc = await DealerCommunication.findOneAndUpdate(
+        { sourceCommunicationId: String(appointment.id) },
+        {
+            $set: {
+                sourceCommunicationId: String(appointment.id),
+                sourceSystem: 'badger',
+                communicationType: 'Meeting',
+                communicationUserFullName: userName,
+                communicationUserEmail: userEmail,
+                recipientOrganizationName: dealerName,
+                internalRelationshipId1: String(badgerId),
+                internalRelationshipId2: candidateCode,
+                communicationResult1: disposition,
+                communicationFeedback1: feedback,
+                communicationNotes: notes || null,
+                communicationEventDatetime: new Date(appointment.log_datetime || logDatetime),
+                lastIngestionDate: new Date()
+            }
+        },
+        { upsert: true, returnDocument: 'after' }
+    );
+
+    // Step 3 — Update Recency Cache
+    const now = new Date();
+    const matchQuery = locDoc?._id
+        ? { _id: locDoc._id }
+        : { $or: [{ dealerId: candidateCode }, { clientDealerId: candidateCode }] };
+
+    await DealerLocation.findOneAndUpdate(matchQuery, {
+        $set: {
+            'badgerData.lastCheckinDate': now,
+            'badgerData.daysSinceLastCheckin': 0,
+            'badgerData.lastSyncedAt': now
+        }
+    });
+
+    // Record audit history log
+    let updateLog = null;
+    try {
+        updateLog = await BadgerUpdateLog.create({
+            dealerId: candidateCode,
+            dealerLocation: locDoc?._id || null,
+            badgerId,
+            action: 'checkin_create',
+            user: {
+                id: user?._id || null,
+                name: userName,
+                email: userEmail
+            },
+            payload: {
+                appointmentId: appointment.id,
+                disposition,
+                feedback,
+                checkinNotes: notes || ''
+            }
+        });
+    } catch (logErr) {
+        console.error('Failed to write BadgerUpdateLog for check-in:', logErr.message);
+    }
+
+    return {
+        appointment: {
+            id: appointment.id,
+            logDatetime: appointment.log_datetime || logDatetime,
+            userName,
+            disposition,
+            feedback,
+            notes: notes || ''
+        },
+        communicationId: commDoc._id,
+        logId: updateLog?._id
+    };
+}
+
+/**
+ * Undo a recent manual Notepad update from Source One
+ */
+async function undoBadgerNotepadUpdate(dealerId, logId = null, user = null) {
+    const { locDoc, candidateCode, badgerId } = await resolveDealerAndBadgerCustomer(dealerId);
+
+    const query = {
+        dealerId: candidateCode,
+        action: 'notepad_update',
+        isUndone: false
+    };
+    if (logId && mongoose.Types.ObjectId.isValid(logId)) {
+        query._id = logId;
+    }
+
+    const log = await BadgerUpdateLog.findOne(query).sort({ createdAt: -1 });
+    if (!log) {
+        throw new Error('No reversible notepad update found for this dealer');
+    }
+
+    const previousNotepad = log.payload?.previousNotepad ?? '';
+
+    // Revert in Badger Maps
+    await callBadgerApi(`/customers/${badgerId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: previousNotepad })
+    });
+
+    // Revert local cache
+    const matchQuery = locDoc?._id
+        ? { _id: locDoc._id }
+        : { $or: [{ dealerId: candidateCode }, { clientDealerId: candidateCode }] };
+
+    await DealerLocation.findOneAndUpdate(matchQuery, { $set: { 'badgerData.notes': previousNotepad } });
+    await DealerProfile.findOneAndUpdate(
+        { $or: [{ clientDealerId: candidateCode }, ...(locDoc?._id ? [{ dealerLocation: locDoc._id }] : [])] },
+        { $set: { 'badgerData.notes': previousNotepad } }
+    );
+
+    // Mark log as undone
+    log.isUndone = true;
+    log.undoneAt = new Date();
+    log.undoneBy = {
+        name: user?.name || user?.email || 'Sales Rep',
+        email: user?.email || null
+    };
+    await log.save();
+
+    return {
+        success: true,
+        notepad: previousNotepad,
+        undoneLogId: log._id
+    };
+}
+
+/**
+ * Undo / delete a check-in created from Source One
+ */
+async function undoBadgerCheckin(dealerId, appointmentId, user = null) {
+    if (!appointmentId) throw new Error('appointmentId is required');
+    const { candidateCode } = await resolveDealerAndBadgerCustomer(dealerId);
+
+    const aptNum = Number(appointmentId);
+
+    // 1. Delete from Badger Maps
+    try {
+        await callBadgerApi(`/appointments/${aptNum}/`, { method: 'DELETE' });
+    } catch (err) {
+        console.error(`Warning: Failed to delete appointment #${aptNum} in Badger:`, err.message);
+    }
+
+    // 2. Remove DealerCommunication record in MongoDB
+    await DealerCommunication.deleteOne({ sourceCommunicationId: String(aptNum) });
+
+    // 3. Mark update log as undone
+    const log = await BadgerUpdateLog.findOne({
+        dealerId: candidateCode,
+        action: 'checkin_create',
+        'payload.appointmentId': aptNum,
+        isUndone: false
+    });
+
+    if (log) {
+        log.isUndone = true;
+        log.undoneAt = new Date();
+        log.undoneBy = {
+            name: user?.name || user?.email || 'Sales Rep',
+            email: user?.email || null
+        };
+        await log.save();
+    }
+
+    return {
+        success: true,
+        appointmentId: aptNum,
+        message: 'Check-in deleted from Badger Maps & Source One'
+    };
+}
+
+/**
+ * Get recent manual update audit logs for a dealer
+ */
+async function getDealerBadgerAuditLogs(dealerId) {
+    const { candidateCode } = await resolveDealerAndBadgerCustomer(dealerId);
+    return await BadgerUpdateLog.find({ dealerId: candidateCode })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+}
+
 module.exports = {
     getSyncStatus,
     callBadgerApi,
     parseBadgerCustomer,
     syncSingleDealerFromBadger,
-    syncAllDealersFromBadger
+    syncAllDealersFromBadger,
+    getDealerBadgerActivity,
+    updateDealerBadgerNotepad,
+    createDealerBadgerCheckin,
+    undoBadgerNotepadUpdate,
+    undoBadgerCheckin,
+    getDealerBadgerAuditLogs
 };

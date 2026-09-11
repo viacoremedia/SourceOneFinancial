@@ -45,6 +45,7 @@ const dealerCommunicationSchema = new mongoose.Schema({
     // Result / Feedback
     communicationResult1: { type: String, trim: true, default: null },
     communicationFeedback1: { type: String, trim: true, default: null },
+    communicationNotes: { type: String, trim: true, default: null },
 
     // Timing
     communicationEventDatetime: { type: Date, default: null },

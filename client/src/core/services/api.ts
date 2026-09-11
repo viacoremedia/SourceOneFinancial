@@ -1068,5 +1068,103 @@ export async function getExcludedDealers(): Promise<{ success: boolean; excluded
   return data;
 }
 
+// ── Badger Activity Types ──
+
+export interface BadgerAppointment {
+  id: number;
+  logDatetime: string;
+  userName: string;
+  disposition: string;
+  feedback: string;
+  notes: string;
+}
+
+export interface BadgerUpdateLogItem {
+  _id: string;
+  dealerId: string;
+  badgerId: number;
+  action: 'notepad_update' | 'checkin_create';
+  user: {
+    name?: string;
+    email?: string;
+  };
+  payload: {
+    previousNotepad?: string;
+    updatedNotepad?: string;
+    noteText?: string;
+    appointmentId?: number;
+    disposition?: string;
+    feedback?: string;
+    checkinNotes?: string;
+  };
+  isUndone: boolean;
+  undoneAt?: string;
+  createdAt: string;
+}
+
+export interface BadgerActivityData {
+  dealerId: string;
+  dealerName: string;
+  badgerId: number;
+  accountOwner: string;
+  notepad: string;
+  appointments: BadgerAppointment[];
+  recentLogs?: BadgerUpdateLogItem[];
+}
+
+export interface BadgerCheckinPayload {
+  disposition: string;
+  feedback: string;
+  notes?: string;
+}
+
+// ── Badger Activity API ──
+
+export async function getDealerBadgerActivity(
+  dealerId: string
+): Promise<{ success: boolean; activity: BadgerActivityData }> {
+  const { data } = await api.get(`/dealers/${encodeURIComponent(dealerId)}/badger-activity`);
+  return data;
+}
+
+export async function updateDealerBadgerNotepad(
+  dealerId: string,
+  noteText: string
+): Promise<{ success: boolean; notepad: string; logId?: string }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/badger-notepad`, { noteText });
+  return data;
+}
+
+export async function createDealerBadgerCheckin(
+  dealerId: string,
+  payload: BadgerCheckinPayload
+): Promise<{ success: boolean; appointment: BadgerAppointment; communicationId: string; logId?: string }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/badger-checkin`, payload);
+  return data;
+}
+
+export async function undoBadgerNotepadUpdate(
+  dealerId: string,
+  logId?: string
+): Promise<{ success: boolean; notepad: string; undoneLogId: string }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/badger-notepad/undo`, { logId });
+  return data;
+}
+
+export async function undoBadgerCheckin(
+  dealerId: string,
+  appointmentId: number
+): Promise<{ success: boolean; appointmentId: number; message: string }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/badger-checkin/${appointmentId}/undo`);
+  return data;
+}
+
+export async function getDealerBadgerAuditLogs(
+  dealerId: string
+): Promise<{ success: boolean; logs: BadgerUpdateLogItem[] }> {
+  const { data } = await api.get(`/dealers/${encodeURIComponent(dealerId)}/badger-audit-logs`);
+  return data;
+}
+
 export default api;
 

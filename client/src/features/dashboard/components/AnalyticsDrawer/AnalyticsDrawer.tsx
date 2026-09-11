@@ -45,9 +45,11 @@ import {
   EyeOff,
   Eye,
   Copy,
-  Check
+  Check,
+  MapPin
 } from 'lucide-react';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
+import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
 import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './AnalyticsDrawer.module.css';
@@ -545,6 +547,7 @@ export function AnalyticsDrawer({
   };
 
   // Badger Sync, Lifecycle Status & Exclusions
+  const [badgerModalOpen, setBadgerModalOpen] = useState(false);
   const [badgerSyncing, setBadgerSyncing] = useState(false);
   const [badgerSyncMsg, setBadgerSyncMsg] = useState<string | null>(null);
   const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
@@ -821,6 +824,27 @@ export function AnalyticsDrawer({
 
                 {/* Dealer Quick Action Buttons */}
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap' }}>
+                  <button
+                    className={styles.tabBtn}
+                    onClick={() => setBadgerModalOpen(true)}
+                    title="View Badger Maps check-in history, notepad & log visits"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '0.75rem',
+                      background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(59, 130, 246, 0.25) 100%)',
+                      borderColor: 'rgba(56, 189, 248, 0.5)',
+                      color: '#38bdf8',
+                      fontWeight: 600,
+                      boxShadow: '0 2px 8px rgba(6, 182, 212, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <MapPin size={12} />
+                    <span>Badger Activity</span>
+                  </button>
+
                   <button
                     className={styles.tabBtn}
                     onClick={handleSyncBadger}
@@ -2425,8 +2449,35 @@ export function AnalyticsDrawer({
 
         {/* Flag Lifecycle Status Modal */}
         {lifecycleModalOpen && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', width: '460px', maxWidth: '92vw', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px'
+            }}
+            onClick={() => setLifecycleModalOpen(false)}
+          >
+            <div
+              style={{
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: '12px',
+                padding: '24px',
+                maxWidth: '480px',
+                width: '100%',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Skull size={18} color="#f87171" />
                 <span>Flag Dealership Lifecycle Status</span>
@@ -2474,6 +2525,14 @@ export function AnalyticsDrawer({
               </div>
             </div>
           </div>
+        )}
+
+        {badgerModalOpen && selectedDealerId && selectedDealerId !== 'all' && (
+          <BadgerQuickModal
+            dealerId={selectedDealerId}
+            dealerName={profile?.dealerName || headerTitle || selectedDealerId}
+            onClose={() => setBadgerModalOpen(false)}
+          />
         )}
       </div>
     </div>
