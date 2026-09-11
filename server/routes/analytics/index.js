@@ -34,6 +34,116 @@ router.use('/communication', communicationRoutes);
 router.use('/relationship-demand', relationshipDemandRoutes);
 router.use('/pdf-scorecard', pdfScorecardRoutes);
 
+/**
+ * Real-time latest visit date lookup from DealerCommunication for page dealers.
+ * Dynamically computes daysSinceLastVisit relative to maxReportDate or current date,
+ * ensuring the dealer table stays up-to-date daily without relying on static snapshots.
+ */
+async function enrichDealersWithLiveVisits(dealers, drdMap, maxDate) {
+    if (!dealers || dealers.length === 0) return;
+
+    const pageCommKeys = Array.from(new Set(
+        dealers.flatMap(d => [
+            (d.clientDealerId || '').trim().toUpperCase(),
+            (d.dealerId != null ? String(d.dealerId) : '').trim().toUpperCase()
+        ]).filter(Boolean)
+    ));
+
+    const searchKeys = Array.from(new Set([
+        ...pageCommKeys,
+        ...pageCommKeys.map(k => k.toLowerCase()),
+        ...pageCommKeys.map(k => k.toUpperCase())
+    ]));
+
+    const latestVisitMap = new Map();
+    if (searchKeys.length > 0) {
+        const visitMatch = {
+            $or: [
+                { internalRelationshipId2: { $in: searchKeys } },
+                { internalRelationshipId1: { $in: searchKeys } }
+            ],
+            $and: [
+                {
+                    $or: [
+                        { communicationType: { $regex: /visit|meeting|face to face/i } },
+                        { communicationResult1: { $regex: /met with|training|sign up/i } }
+                    ]
+                },
+                { communicationEventDatetime: { $ne: null } }
+            ]
+        };
+
+        const latestVisitsAgg = await DealerCommunication.aggregate([
+            { $match: visitMatch },
+            { $sort: { communicationEventDatetime: -1 } },
+            {
+                $group: {
+                    _id: { $toUpper: '$internalRelationshipId2' },
+                    latestVisitDate: { $first: '$communicationEventDatetime' },
+                    totalVisits: { $sum: 1 }
+                }
+            }
+        ]);
+
+        for (const v of latestVisitsAgg) {
+            if (v._id) latestVisitMap.set(v._id, v);
+        }
+    }
+
+    const DAY_MS = 1000 * 60 * 60 * 24;
+
+    for (const dealer of dealers) {
+        const cKey = (dealer.clientDealerId || '').trim().toUpperCase();
+        const dKey = (dealer.dealerId != null ? String(dealer.dealerId) : '').trim().toUpperCase();
+        const p = drdMap.get(dealer._id.toString()) || (cKey ? drdMap.get(cKey) : null) || (dKey ? drdMap.get(dKey) : null);
+        
+        const liveVisit = (cKey ? latestVisitMap.get(cKey) : null) || (dKey ? latestVisitMap.get(dKey) : null);
+
+        let resolvedLastVisitDate = p?.lastVisitDate || null;
+        let resolvedDaysSince = p?.daysSinceLastVisit != null ? p.daysSinceLastVisit : null;
+
+        if (liveVisit?.latestVisitDate) {
+            const liveDate = new Date(liveVisit.latestVisitDate);
+            if (!resolvedLastVisitDate || liveDate > new Date(resolvedLastVisitDate)) {
+                resolvedLastVisitDate = liveDate;
+            }
+        }
+
+        if (resolvedLastVisitDate) {
+            const base = maxDate ? new Date(maxDate) : new Date();
+            const visit = new Date(resolvedLastVisitDate);
+            if (!isNaN(visit.getTime())) {
+                const bUtc = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate());
+                const vUtc = Date.UTC(visit.getUTCFullYear(), visit.getUTCMonth(), visit.getUTCDate());
+                resolvedDaysSince = Math.max(0, Math.round((bUtc - vUtc) / DAY_MS));
+            }
+        }
+
+        dealer.drd = p ? {
+            segment: p.relationshipDemand,
+            urgencyStatus: p.urgencyStatus,
+            isOverridden: Boolean(p.manualOverride?.isOverridden),
+            overriddenSegment: p.manualOverride?.overriddenSegment,
+            reason: p.manualOverride?.reason,
+            overriddenBy: p.manualOverride?.overriddenBy,
+            lastVisitDate: resolvedLastVisitDate,
+            daysSinceLastVisit: resolvedDaysSince,
+            postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
+            yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
+            totalVisits: Math.max(p.lifetimeStats?.totalVisits || 0, liveVisit?.totalVisits || 0)
+        } : (resolvedLastVisitDate ? {
+            segment: 'insufficient_data',
+            urgencyStatus: 'due_soon',
+            isOverridden: false,
+            lastVisitDate: resolvedLastVisitDate,
+            daysSinceLastVisit: resolvedDaysSince,
+            postVisitLiftPct: null,
+            yieldPerVisit: null,
+            totalVisits: liveVisit?.totalVisits || 1
+        } : null);
+    }
+}
+
 // ==========================================
 // GET /analytics/underwriters
 // Underwriter & Lender Performance Scorecard
@@ -1073,25 +1183,8 @@ router.get('/groups/:groupSlug/locations', async (req, res) => {
             if (p.clientDealerId) drdMap.set(p.clientDealerId.trim().toUpperCase(), p);
         }
 
-        const locationsWithDrd = locationsWithSnapshot.map(loc => {
-            const p = drdMap.get(loc._id.toString()) || (loc.clientDealerId ? drdMap.get(loc.clientDealerId.trim().toUpperCase()) : null);
-            return {
-                ...loc,
-                drd: p ? {
-                    segment: p.relationshipDemand,
-                    urgencyStatus: p.urgencyStatus,
-                    isOverridden: Boolean(p.manualOverride?.isOverridden),
-                    overriddenSegment: p.manualOverride?.overriddenSegment,
-                    reason: p.manualOverride?.reason,
-                    overriddenBy: p.manualOverride?.overriddenBy,
-                    lastVisitDate: p.lastVisitDate || null,
-                    daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
-                    postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
-                    yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
-                    totalVisits: p.lifetimeStats?.totalVisits || 0
-                } : null
-            };
-        });
+        await enrichDealersWithLiveVisits(locationsWithSnapshot, drdMap, null);
+        const locationsWithDrd = locationsWithSnapshot;
 
         res.status(200).json({
             success: true,
@@ -1947,7 +2040,7 @@ router.get('/dealers/small', async (req, res) => {
                         { dealerLocation: { $in: allLocIds } },
                         { clientDealerId: { $in: allClientIds } }
                     ]
-                }).select('dealerLocation clientDealerId lastVisitDate daysSinceLastVisit postVisitBookedLiftPct lifetimeYieldPerVisit lifetimeStats').lean();
+                }).select('dealerLocation clientDealerId relationshipDemand urgencyStatus manualOverride lastVisitDate daysSinceLastVisit postVisitBookedLiftPct lifetimeYieldPerVisit lifetimeStats').lean();
 
                 const drdMap = new Map();
                 for (const p of drdProfiles) {
@@ -1955,17 +2048,8 @@ router.get('/dealers/small', async (req, res) => {
                     if (p.clientDealerId) drdMap.set(p.clientDealerId.trim().toUpperCase(), p);
                 }
 
-                for (const loc of matchingLocations) {
-                    const key = (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase();
-                    const p = drdMap.get(loc._id.toString()) || (key ? drdMap.get(key) : null);
-                    loc.drd = p ? {
-                        lastVisitDate: p.lastVisitDate || null,
-                        daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
-                        postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
-                        yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
-                        totalVisits: p.lifetimeStats?.totalVisits || 0
-                    } : null;
-                }
+                // Enrich all matching locations with live visits before sorting
+                await enrichDealersWithLiveVisits(matchingLocations, drdMap, latestDate);
             }
 
             // 4. Sort matchingLocations in memory
@@ -1973,9 +2057,27 @@ router.get('/dealers/small', async (req, res) => {
                 for (const sc of sortColumns) {
                     let aVal, bVal;
                     if (sc.resolved === 'drdProfile.daysSinceLastVisit') {
-                        const nullVal = sc.dir === 1 ? 99999999 : -1;
-                        aVal = a.drd?.daysSinceLastVisit ?? nullVal;
-                        bVal = b.drd?.daysSinceLastVisit ?? nullVal;
+                        const nullVal = sc.dir === 1 ? 999999999999 : -1;
+                        const baseMs = latestDate ? new Date(latestDate).getTime() : Date.now();
+                        
+                        let aValNum = nullVal;
+                        if (a.drd?.lastVisitDate) {
+                            const t = new Date(a.drd.lastVisitDate).getTime();
+                            if (!isNaN(t)) aValNum = baseMs - t;
+                        } else if (a.drd?.daysSinceLastVisit != null) {
+                            aValNum = a.drd.daysSinceLastVisit * 86400000;
+                        }
+
+                        let bValNum = nullVal;
+                        if (b.drd?.lastVisitDate) {
+                            const t = new Date(b.drd.lastVisitDate).getTime();
+                            if (!isNaN(t)) bValNum = baseMs - t;
+                        } else if (b.drd?.daysSinceLastVisit != null) {
+                            bValNum = b.drd.daysSinceLastVisit * 86400000;
+                        }
+
+                        aVal = aValNum;
+                        bVal = bValNum;
                     } else if (sc.resolved === 'drdProfile.postVisitBookedLiftPct') {
                         const nullVal = sc.dir === 1 ? 99999999 : -99999999;
                         aVal = a.drd?.postVisitLiftPct ?? nullVal;
@@ -2296,22 +2398,7 @@ router.get('/dealers/small', async (req, res) => {
             if (p.clientDealerId) drdMap.set(p.clientDealerId.trim().toUpperCase(), p);
         }
 
-        for (const dealer of dealers) {
-            const p = drdMap.get(dealer._id.toString()) || (dealer.clientDealerId ? drdMap.get(dealer.clientDealerId.trim().toUpperCase()) : null);
-            dealer.drd = p ? {
-                segment: p.relationshipDemand,
-                urgencyStatus: p.urgencyStatus,
-                isOverridden: Boolean(p.manualOverride?.isOverridden),
-                overriddenSegment: p.manualOverride?.overriddenSegment,
-                reason: p.manualOverride?.reason,
-                overriddenBy: p.manualOverride?.overriddenBy,
-                lastVisitDate: p.lastVisitDate || null,
-                daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
-                postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
-                yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
-                totalVisits: p.lifetimeStats?.totalVisits || 0
-            } : null;
-        }
+        await enrichDealersWithLiveVisits(dealers, drdMap, latestDate);
 
         // Populate fundingChildrenDetails for Central Funder parent stores with real snapshot, stats, and DRD
         const parentDealers = dealers.filter(d => d.isFundingParent && Array.isArray(d.fundingChildren) && d.fundingChildren.length > 0);
@@ -2358,18 +2445,8 @@ router.get('/dealers/small', async (req, res) => {
                 c.latestSnapshot = childSnapMap.get(c._id.toString()) || null;
                 const k = (c.clientDealerId || c.dealerId || '').trim().toUpperCase();
                 c.stats = childStatsMap.get(k) || { apps: 0, approvals: 0, inHouse: 0, booked: 0, bookedDollars: 0, lookToBook: 0, approvalToBook: 0 };
-                const p = childDrdMap.get(c._id.toString()) || (k ? childDrdMap.get(k) : null);
-                c.drd = p ? {
-                    segment: p.relationshipDemand,
-                    urgencyStatus: p.urgencyStatus,
-                    isOverridden: Boolean(p.manualOverride?.isOverridden),
-                    lastVisitDate: p.lastVisitDate || null,
-                    daysSinceLastVisit: p.daysSinceLastVisit != null ? p.daysSinceLastVisit : null,
-                    postVisitLiftPct: p.postVisitBookedLiftPct != null ? p.postVisitBookedLiftPct : null,
-                    yieldPerVisit: p.lifetimeYieldPerVisit != null ? p.lifetimeYieldPerVisit : null,
-                    totalVisits: p.lifetimeStats?.totalVisits || 0
-                } : null;
             }
+            await enrichDealersWithLiveVisits(childLocations, childDrdMap, latestDate);
 
             const childMap = new Map(childLocations.map(c => [c._id.toString(), c]));
             for (const pd of parentDealers) {
@@ -2704,7 +2781,7 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
     try {
         const { dealerId } = req.params;
         const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const limit = Math.min(250, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
 
         // Resolve location document or group to find canonical clientDealerId(s)
@@ -2738,7 +2815,9 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
                     $or: [
                         { dealerId: dealerId },
                         { clientDealerId: dealerId },
-                        { omniDealerId: dealerId }
+                        { omniDealerId: dealerId },
+                        { clientDealerId: new RegExp('^' + dealerId + '$', 'i') },
+                        { dealerId: new RegExp('^' + dealerId + '$', 'i') }
                     ]
                 }).lean();
             }
@@ -2754,8 +2833,16 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
                 }
                 if (grp) {
                     const locs = await DealerLocation.find({ dealerGroup: grp._id }).select('clientDealerId dealerId').lean();
-                    const ids = locs.map(l => (l.clientDealerId || l.dealerId || '').trim()).filter(Boolean);
-                    matchQuery = { clientDealerId: { $in: ids } };
+                    const ids = locs.flatMap(l => [(l.clientDealerId || '').trim(), (l.dealerId != null ? String(l.dealerId) : '').trim()]).filter(Boolean);
+                    const idRegexes = ids.map(id => new RegExp('^' + id + '$', 'i'));
+                    matchQuery = {
+                        $or: [
+                            { clientDealerId: { $in: ids } },
+                            { clientDealerId: { $in: idRegexes } },
+                            { dealerId: { $in: ids } },
+                            { dealerId: { $in: idRegexes } }
+                        ]
+                    };
                     headerLocation = {
                         _id: grp._id,
                         dealerName: grp.name,
@@ -2764,11 +2851,70 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
                         statePrefix: (grp.states || []).join(', ')
                     };
                 } else {
-                    return res.status(404).json({ success: false, message: 'Dealer location or group not found' });
+                    // Check if applications exist matching raw parameter directly
+                    const rawParam = (dealerId || '').trim();
+                    const fallbackConditions = [
+                        { clientDealerId: rawParam },
+                        { clientDealerId: new RegExp('^' + rawParam + '$', 'i') },
+                        { dealerId: rawParam },
+                        { dealerId: new RegExp('^' + rawParam + '$', 'i') }
+                    ];
+                    const numRaw = Number(rawParam);
+                    if (!isNaN(numRaw)) {
+                        fallbackConditions.push({ dealerId: numRaw });
+                    }
+                    const sampleApp = await Application.findOne({ $or: fallbackConditions }).lean();
+                    if (sampleApp) {
+                        matchQuery = { $or: fallbackConditions };
+                        headerLocation = {
+                            _id: dealerId,
+                            dealerName: sampleApp.dealerName || rawParam,
+                            dealerId: sampleApp.dealerId || rawParam,
+                            clientDealerId: sampleApp.clientDealerId || rawParam,
+                            statePrefix: sampleApp.dealerState || ''
+                        };
+                    } else {
+                        return res.status(404).json({ success: false, message: 'Dealer location or group not found' });
+                    }
                 }
             } else {
-                const canonicalId = (location.clientDealerId || location.dealerId).trim();
-                matchQuery = { clientDealerId: canonicalId };
+                const cId = (location.clientDealerId || '').trim();
+                const dId = (location.dealerId != null ? String(location.dealerId) : '').trim();
+                const omniId = (location.omniDealerId || '').trim();
+
+                const idConditions = [];
+                if (cId) {
+                    idConditions.push({ clientDealerId: cId });
+                    idConditions.push({ clientDealerId: new RegExp('^' + cId + '$', 'i') });
+                    idConditions.push({ dealerId: cId });
+                    idConditions.push({ dealerId: new RegExp('^' + cId + '$', 'i') });
+                }
+                if (dId) {
+                    idConditions.push({ dealerId: dId });
+                    idConditions.push({ dealerId: new RegExp('^' + dId + '$', 'i') });
+                    idConditions.push({ clientDealerId: dId });
+                    idConditions.push({ clientDealerId: new RegExp('^' + dId + '$', 'i') });
+                    const numD = Number(dId);
+                    if (!isNaN(numD)) {
+                        idConditions.push({ dealerId: numD });
+                    }
+                }
+                if (omniId) {
+                    idConditions.push({ omniDealerId: omniId });
+                }
+                const rawParam = (dealerId || '').trim();
+                if (rawParam && rawParam !== cId && rawParam !== dId) {
+                    idConditions.push({ clientDealerId: rawParam });
+                    idConditions.push({ clientDealerId: new RegExp('^' + rawParam + '$', 'i') });
+                    idConditions.push({ dealerId: rawParam });
+                    idConditions.push({ dealerId: new RegExp('^' + rawParam + '$', 'i') });
+                    const numRaw = Number(rawParam);
+                    if (!isNaN(numRaw)) {
+                        idConditions.push({ dealerId: numRaw });
+                    }
+                }
+
+                matchQuery = { $or: idConditions };
                 headerLocation = {
                     _id: location._id,
                     dealerName: location.dealerName,

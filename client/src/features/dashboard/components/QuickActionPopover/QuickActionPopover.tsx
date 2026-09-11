@@ -4,14 +4,16 @@ import {
   Flag,
   Check,
   Tag,
-  Briefcase,
   AlertTriangle,
   Loader2,
   Building2,
   Radio,
   Plus,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  XCircle,
+  Handshake,
+  Briefcase
 } from 'lucide-react';
 import {
   updateDealerQuickAction,
@@ -167,22 +169,56 @@ export const QuickActionPopover: React.FC<QuickActionPopoverProps> = ({
     const trimmed = tagToAdd.trim();
     if (!trimmed) return;
     if (!tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
-      setTags([...tags, trimmed]);
+      const nextTags = [...tags, trimmed];
+      setTags(nextTags);
+      const lower = trimmed.toLowerCase();
+      if (lower === 'franchise') setBusinessType('franchise');
+      else if (lower === 'non-franchise') setBusinessType('non-franchise');
+      else if (lower === 'broker') setBusinessType('broker');
     }
     setTagInput('');
     setShowAutocomplete(false);
   };
 
   const handleRemoveTag = (indexToRemove: number) => {
-    setTags(tags.filter((_, idx) => idx !== indexToRemove));
+    const tagToRemove = tags[indexToRemove];
+    const confirmed = window.confirm(
+      `Warning: Removing the tag "${tagToRemove}" will update dashboard filters, portfolio segmentation, and reports for this dealership.\n\nAre you sure you want to proceed?`
+    );
+    if (!confirmed) return;
+
+    const nextTags = tags.filter((_, idx) => idx !== indexToRemove);
+    setTags(nextTags);
+    if (businessType && tagToRemove.toLowerCase() === businessType.toLowerCase()) {
+      setBusinessType(null);
+    }
+  };
+
+  const toggleSystemTag = (tagName: string, typeVal: 'franchise' | 'non-franchise' | 'broker') => {
+    const hasTag = tags.some((t) => t.toLowerCase() === tagName.toLowerCase());
+    if (hasTag) {
+      const confirmed = window.confirm(
+        `Warning: Removing the tag "${tagName}" will update dashboard filters, portfolio segmentation, and reports for this dealership.\n\nAre you sure you want to proceed?`
+      );
+      if (!confirmed) return;
+
+      const nextTags = tags.filter((t) => t.toLowerCase() !== tagName.toLowerCase());
+      setTags(nextTags);
+      if (businessType === typeVal) {
+        setBusinessType(null);
+      }
+    } else {
+      // Add tag and sync businessType
+      const filtered = tags.filter((t) => !['franchise', 'non-franchise', 'broker'].includes(t.toLowerCase()));
+      setTags([...filtered, tagName]);
+      setBusinessType(typeVal);
+    }
   };
 
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       handleAddTag(tagInput);
-    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
-      handleRemoveTag(tags.length - 1);
     }
   };
 
@@ -383,7 +419,7 @@ export const QuickActionPopover: React.FC<QuickActionPopoverProps> = ({
                 className={`${styles.statusBtn} ${status === 'active' ? styles.statusBtnActive : ''}`}
                 onClick={() => setStatus('active')}
               >
-                <span>🟢</span>
+                <CheckCircle2 size={12} color="#34d399" />
                 <span>Active</span>
               </button>
 
@@ -392,7 +428,7 @@ export const QuickActionPopover: React.FC<QuickActionPopoverProps> = ({
                 className={`${styles.statusBtn} ${status === 'closed' ? styles.statusBtnClosed : ''}`}
                 onClick={() => setStatus('closed')}
               >
-                <span>🚫</span>
+                <XCircle size={12} color="#f87171" />
                 <span>Closed</span>
               </button>
 
@@ -401,7 +437,7 @@ export const QuickActionPopover: React.FC<QuickActionPopoverProps> = ({
                 className={`${styles.statusBtn} ${status === 'bought_out' ? styles.statusBtnBoughtOut : ''}`}
                 onClick={() => setStatus('bought_out')}
               >
-                <span>🤝</span>
+                <Handshake size={12} color="#fbbf24" />
                 <span>Bought Out</span>
               </button>
 
@@ -410,7 +446,7 @@ export const QuickActionPopover: React.FC<QuickActionPopoverProps> = ({
                 className={`${styles.statusBtn} ${status === 'no_longer_in_service' ? styles.statusBtnOutOfService : ''}`}
                 onClick={() => setStatus('no_longer_in_service')}
               >
-                <span>⚠️</span>
+                <AlertTriangle size={12} color="#f59e0b" />
                 <span>Out of Service</span>
               </button>
             </div>
@@ -426,48 +462,48 @@ export const QuickActionPopover: React.FC<QuickActionPopoverProps> = ({
             )}
           </div>
 
-          {/* Section 2: Business Type */}
+          {/* Section 2: Classification & Tags (Consolidated) */}
           <div className={styles.section}>
             <span className={styles.sectionLabel}>
-              <Briefcase size={12} />
-              <span>Business Type</span>
+              <Tag size={12} />
+              <span>Classification & Custom Tags</span>
             </span>
-            <div className={styles.segmentedGroup}>
+
+            {/* Default System Classification Tags */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
               <button
                 type="button"
-                className={`${styles.segmentBtn} ${businessType === 'franchise' ? styles.segmentBtnSelected : ''}`}
-                onClick={() => setBusinessType(businessType === 'franchise' ? null : 'franchise')}
+                className={`${styles.segmentBtn} ${tags.some(t => t.toLowerCase() === 'franchise') ? styles.segmentBtnSelected : ''}`}
+                onClick={() => toggleSystemTag('Franchise', 'franchise')}
+                style={{ flex: 1, padding: '4px 8px', fontSize: '11px', justifyContent: 'center' }}
+                title="Toggle Franchise classification tag"
               >
-                {businessType === 'franchise' && <Check size={11} />}
+                {tags.some(t => t.toLowerCase() === 'franchise') ? <Check size={11} /> : <Building2 size={11} />}
                 <span>Franchise</span>
               </button>
 
               <button
                 type="button"
-                className={`${styles.segmentBtn} ${businessType === 'non-franchise' ? styles.segmentBtnSelected : ''}`}
-                onClick={() => setBusinessType(businessType === 'non-franchise' ? null : 'non-franchise')}
+                className={`${styles.segmentBtn} ${tags.some(t => t.toLowerCase() === 'non-franchise') ? styles.segmentBtnSelected : ''}`}
+                onClick={() => toggleSystemTag('Non-Franchise', 'non-franchise')}
+                style={{ flex: 1, padding: '4px 8px', fontSize: '11px', justifyContent: 'center' }}
+                title="Toggle Non-Franchise classification tag"
               >
-                {businessType === 'non-franchise' && <Check size={11} />}
+                {tags.some(t => t.toLowerCase() === 'non-franchise') && <Check size={11} />}
                 <span>Non-Franchise</span>
               </button>
 
               <button
                 type="button"
-                className={`${styles.segmentBtn} ${businessType === 'broker' ? styles.segmentBtnSelected : ''}`}
-                onClick={() => setBusinessType(businessType === 'broker' ? null : 'broker')}
+                className={`${styles.segmentBtn} ${tags.some(t => t.toLowerCase() === 'broker') ? styles.segmentBtnSelected : ''}`}
+                onClick={() => toggleSystemTag('Broker', 'broker')}
+                style={{ flex: 1, padding: '4px 8px', fontSize: '11px', justifyContent: 'center' }}
+                title="Toggle Broker classification tag"
               >
-                {businessType === 'broker' && <Check size={11} />}
+                {tags.some(t => t.toLowerCase() === 'broker') ? <Check size={11} /> : <Briefcase size={11} />}
                 <span>Broker</span>
               </button>
             </div>
-          </div>
-
-          {/* Section 3: Custom Tags */}
-          <div className={styles.section}>
-            <span className={styles.sectionLabel}>
-              <Tag size={12} />
-              <span>Custom Tags</span>
-            </span>
             <div className={styles.tagBox}>
               {tags.length > 0 && (
                 <div className={styles.tagChips}>

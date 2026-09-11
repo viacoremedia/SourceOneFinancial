@@ -20,7 +20,11 @@ import {
   Check,
   Tag,
   Building,
-  Layers
+  Building2,
+  Layers,
+  CheckCircle2,
+  XCircle,
+  Zap
 } from 'lucide-react';
 import { 
   getDealerRelationshipDrawer,
@@ -75,7 +79,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
   // Badger Sync & Quick Modal state
   const [badgerSyncing, setBadgerSyncing] = useState<boolean>(false);
-  const [badgerSyncMsg, setBadgerSyncMsg] = useState<string | null>(null);
+  const [badgerSyncMsg, setBadgerSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [badgerModalOpen, setBadgerModalOpen] = useState<boolean>(false);
 
   // Lifecycle Status (Dead Dealer) modal state
@@ -102,11 +106,17 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
       const res = await syncDealerBadger(clientDealerId);
       const matchedInfo = res.data?.matchedCode || res.data?.dealerId || clientDealerId;
       const accountInfo = res.data?.badgerAccountName ? ` ("${res.data.badgerAccountName}" / Badger ID: #${res.data?.badgerId})` : '';
-      setBadgerSyncMsg(`✅ Synced ${res.data?.contacts?.length || 0} contacts for ${matchedInfo}${accountInfo}`);
+      setBadgerSyncMsg({
+        type: 'success',
+        text: `Synced ${res.data?.contacts?.length || 0} contacts for ${matchedInfo}${accountInfo}`,
+      });
       setTimeout(() => setBadgerSyncMsg(null), 5000);
       await reloadDrawerData();
     } catch (err: any) {
-      setBadgerSyncMsg(`❌ ${err.message || 'Dealer not found in Badger Maps'}`);
+      setBadgerSyncMsg({
+        type: 'error',
+        text: err.message || 'Dealer not found in Badger Maps',
+      });
     } finally {
       setBadgerSyncing(false);
     }
@@ -243,15 +253,15 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   const demandLabel = useMemo(() => {
     switch (profile?.relationshipDemand) {
       case 'high_tlc':
-        return '🔴 High TLC (Visit-Dependent)';
+        return 'High TLC (Visit-Dependent)';
       case 'self_sufficient':
-        return '🟢 Self-Sufficient (Autonomous)';
+        return 'Self-Sufficient (Autonomous)';
       case 'comfort_stop':
-        return '🟠 Comfort Stop (Time Sink)';
+        return 'Comfort Stop (Time Sink)';
       case 'lapsed':
-        return '⚠️ Lapsed / Churned';
+        return 'Lapsed / Churned';
       default:
-        return '⚪ Discovery Queue (Low Data)';
+        return 'Discovery Queue (Low Data)';
     }
   }, [profile?.relationshipDemand]);
 
@@ -271,20 +281,20 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
   }, [profile?.urgencyStatus]);
 
   const urgencyLabel = useMemo(() => {
-    if (!profile) return '⚪ NOT MONITORED';
+    if (!profile) return 'NOT MONITORED';
     switch (profile.urgencyStatus) {
       case 'overdue':
-        return `🚨 OVERDUE (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `OVERDUE (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'due_soon':
-        return `⏳ DUE SOON (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `DUE SOON (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'on_track':
-        return `✅ ON TRACK (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `ON TRACK (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'dormant':
-        return `💤 DORMANT (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `DORMANT (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'self_sufficient':
-        return '🟢 AUTONOMOUS (Portal Flow)';
+        return 'AUTONOMOUS (Portal Flow)';
       default:
-        return '⚪ NOT MONITORED';
+        return 'NOT MONITORED';
     }
   }, [profile?.urgencyStatus, profile?.daysSinceLastVisit, profile]);
 
@@ -335,8 +345,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                 </span>
               )}
               {profile?.systemStatus && profile.systemStatus !== 'active' && (
-                <span style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize' }}>
-                  🚫 {profile.systemStatus.replace(/_/g, ' ')}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize' }}>
+                  <XCircle size={12} />
+                  <span>{profile.systemStatus.replace(/_/g, ' ')}</span>
                 </span>
               )}
               {profile?.tags && profile.tags.length > 0 && (
@@ -434,8 +445,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                 </div>
                 <div className={styles.hierarchyBannerDesc}>
                   This dealership does not fund deals under its own account. All contracts and loan originations fund through central master account:
-                  <div style={{ marginTop: '6px', fontWeight: 600, color: '#38bdf8' }}>
-                    🏢 {profile.fundingParent.dealerName} ({profile.fundingParent.clientDealerId || profile.fundingParent.dealerId}{profile.fundingParent.statePrefix ? ` - ${profile.fundingParent.statePrefix}` : ''})
+                  <div style={{ marginTop: '6px', fontWeight: 600, color: '#38bdf8', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Building2 size={14} />
+                    <span>{profile.fundingParent.dealerName} ({profile.fundingParent.clientDealerId || profile.fundingParent.dealerId}{profile.fundingParent.statePrefix ? ` - ${profile.fundingParent.statePrefix}` : ''})</span>
                   </div>
                 </div>
               </div>
@@ -580,8 +592,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
               </div>
 
               {badgerSyncMsg && (
-                <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
-                  {badgerSyncMsg}
+                <div style={{ fontSize: '12px', color: badgerSyncMsg.type === 'success' ? '#059669' : '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {badgerSyncMsg.type === 'success' ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                  <span>{badgerSyncMsg.text}</span>
                 </div>
               )}
 
@@ -704,9 +717,13 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                         borderRadius: '4px',
                         fontSize: '0.72rem',
                         fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}
                     >
-                      🔒 Manually Locked
+                      <Lock size={11} />
+                      <span>Manually Locked</span>
                     </span>
                   ) : (
                     <span
@@ -718,9 +735,13 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                         borderRadius: '4px',
                         fontSize: '0.72rem',
                         fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}
                     >
-                      ⚡ Automated Classification
+                      <Zap size={11} />
+                      <span>Automated Classification</span>
                     </span>
                   )}
                 </div>
@@ -811,10 +832,10 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '10px' }}>
                     {[
-                      { key: 'high_tlc', label: '🔴 High TLC', desc: 'Touch-sensitive, high yield lift from visits' },
-                      { key: 'self_sufficient', label: '🟢 Autonomous', desc: 'Self-sufficient digital portal usage' },
-                      { key: 'comfort_stop', label: '🟠 Comfort Stop', desc: 'Frequent visits with flat/low yield' },
-                      { key: 'insufficient_data', label: '⚪ Discovery Queue', desc: 'Awaiting visit cycle benchmarks' },
+                      { key: 'high_tlc', label: 'High TLC', desc: 'Touch-sensitive, high yield lift from visits' },
+                      { key: 'self_sufficient', label: 'Autonomous', desc: 'Self-sufficient digital portal usage' },
+                      { key: 'comfort_stop', label: 'Comfort Stop', desc: 'Frequent visits with flat/low yield' },
+                      { key: 'insufficient_data', label: 'Discovery Queue', desc: 'Awaiting visit cycle benchmarks' },
                     ].map((opt) => (
                       <button
                         key={opt.key}
@@ -860,8 +881,9 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                   </div>
 
                   {overrideActionError && (
-                    <div style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '8px' }}>
-                      ⚠️ {overrideActionError}
+                    <div style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <AlertTriangle size={13} />
+                      <span>{overrideActionError}</span>
                     </div>
                   )}
 
@@ -949,7 +971,7 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#cbd5e1' }}>
                             <span>
-                              <strong>{h.fromSegment || 'auto'} ➔ {h.toSegment}</strong> by {h.by?.name || h.by?.email || 'Manager'}
+                              <strong>{h.fromSegment || 'auto'} → {h.toSegment}</strong> by {h.by?.name || h.by?.email || 'Manager'}
                             </span>
                             <span style={{ color: '#64748b' }}>
                               {new Date(h.at).toLocaleDateString()}
@@ -983,7 +1005,10 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                     <span className={styles.legendDotBooked} /> Booked $
                   </span>
                   <span className={styles.legendItem}>
-                    <span className={styles.legendPinVisit}>📍</span> In-Person Visit
+                    <span className={styles.legendPinVisit} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <MapPin size={12} color="#ef4444" />
+                    </span>{' '}
+                    In-Person Visit
                   </span>
                 </div>
               </div>
@@ -1053,13 +1078,13 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                           />
                         )}
 
-                        {/* In-Person Visit Pin Flag Overhead 📍 */}
+                        {/* In-Person Visit Pin Flag Overhead */}
                         {item.visitCount > 0 && (
                           <g transform={`translate(${x}, 32)`}>
                             <circle cx="0" cy="0" r="11" fill="rgba(239, 68, 68, 0.25)" />
                             <circle cx="0" cy="0" r="7" fill="#ef4444" />
                             <text x="0" y="3" textAnchor="middle" fill="#ffffff" fontSize="8" fontWeight="bold">
-                              {item.visitCount > 1 ? item.visitCount : '📍'}
+                              {item.visitCount}
                             </text>
                             <line x1="0" y1="7" x2="0" y2="28" stroke="#ef4444" strokeWidth="1.5" />
                           </g>
@@ -1348,10 +1373,10 @@ export const DealerRelationshipDrawer: React.FC<DealerRelationshipDrawerProps> =
                 onChange={(e: any) => setLifecycleStatus(e.target.value)}
                 style={{ background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-primary, #0f172a)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
               >
-                <option value="active">🟢 Active (Normal Operation)</option>
-                <option value="closed">🚫 Closed Dealership</option>
-                <option value="bought_out">🤝 Bought Out / Acquired</option>
-                <option value="no_longer_in_service">⚠️ No Longer In Service</option>
+                <option value="active">Active (Normal Operation)</option>
+                <option value="closed">Closed Dealership</option>
+                <option value="bought_out">Bought Out / Acquired</option>
+                <option value="no_longer_in_service">No Longer In Service</option>
               </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

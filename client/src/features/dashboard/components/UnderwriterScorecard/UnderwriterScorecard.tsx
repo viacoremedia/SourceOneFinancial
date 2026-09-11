@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import styles from './UnderwriterScorecard.module.css';
+import { Zap, Calendar } from 'lucide-react';
 import type { UnderwriterStats } from '../../types';
 import { getUnderwriterScorecardApi } from '../../../../core/services/api';
 
@@ -346,8 +347,9 @@ export function UnderwriterScorecard({ isOpen, onClose, onSelectUnderwriter }: P
       <div className={styles.drawer} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>
-              <span>⚡ Underwriter & Lender Performance Scorecard</span>
+            <h2 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Zap size={18} color="#f59e0b" />
+              <span>Underwriter & Lender Performance Scorecard</span>
             </h2>
             {dateRangeLabel && (
               <span
@@ -360,9 +362,13 @@ export function UnderwriterScorecard({ isOpen, onClose, onSelectUnderwriter }: P
                   padding: '4px 10px',
                   borderRadius: '6px',
                   whiteSpace: 'nowrap',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                📅 {dateRangeLabel}
+                <Calendar size={13} />
+                <span>{dateRangeLabel}</span>
               </span>
             )}
           </div>

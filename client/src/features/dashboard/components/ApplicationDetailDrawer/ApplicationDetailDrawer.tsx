@@ -1,4 +1,17 @@
 import { useEffect } from 'react';
+import {
+  Building2,
+  DollarSign,
+  CreditCard,
+  Truck,
+  Clock,
+  History,
+  Inbox,
+  CheckCircle2,
+  Briefcase,
+  Tag,
+  X
+} from 'lucide-react';
 import type { ApplicationHistoryItem } from '../../types';
 import styles from './ApplicationDetailDrawer.module.css';
 
@@ -74,7 +87,7 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </span>
           </div>
           <button className={styles.closeBtn} onClick={onClose} aria-label="Close detail view">
-            ✕
+            <X size={16} />
           </button>
         </div>
 
@@ -108,10 +121,10 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </div>
           </div>
 
-          {/* 🏢 Dealer & Sales Rep Information */}
+          {/* Dealer & Sales Rep Information */}
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
-              <span style={{ fontSize: '1rem' }}>🏢</span>
+              <Building2 size={16} color="#38bdf8" />
               <h3 className={styles.sectionTitle}>Dealer & Sales Rep Information</h3>
             </div>
             <div className={styles.fieldGrid}>
@@ -148,10 +161,10 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </div>
           </div>
 
-          {/* 💵 Financial Terms & Rates */}
+          {/* Financial Terms & Rates */}
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
-              <span style={{ fontSize: '1rem' }}>💵</span>
+              <DollarSign size={16} color="#34d399" />
               <h3 className={styles.sectionTitle}>Financial Terms & Structure</h3>
             </div>
             <div className={styles.fieldGrid}>
@@ -224,10 +237,10 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </div>
           </div>
 
-          {/* 💳 Credit & Underwriting */}
+          {/* Credit & Underwriting */}
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
-              <span style={{ fontSize: '1rem' }}>💳</span>
+              <CreditCard size={16} color="#fbbf24" />
               <h3 className={styles.sectionTitle}>Credit & Risk Profile</h3>
             </div>
             <div className={styles.fieldGrid}>
@@ -274,10 +287,10 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </div>
           </div>
 
-          {/* 🚘 Collateral Details */}
+          {/* Collateral Details */}
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
-              <span style={{ fontSize: '1rem' }}>🚘</span>
+              <Truck size={16} color="#a78bfa" />
               <h3 className={styles.sectionTitle}>Collateral & Vehicle Info</h3>
             </div>
             <div className={styles.fieldGrid}>
@@ -300,10 +313,10 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </div>
           </div>
 
-          {/* ⏱️ Pipeline Timings & Dates */}
+          {/* Pipeline Timings & Dates */}
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
-              <span style={{ fontSize: '1rem' }}>⏱️</span>
+              <Clock size={16} color="#38bdf8" />
               <h3 className={styles.sectionTitle}>Dates & Turnaround Performance</h3>
             </div>
             <div className={styles.fieldGrid}>
@@ -346,10 +359,89 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             </div>
           </div>
 
-          {/* 🏷️ Flags & Attributes */}
+          {/* Status Progression Timeline */}
           <div className={styles.sectionCard}>
             <div className={styles.sectionHeader}>
-              <span style={{ fontSize: '1rem' }}>🏷️</span>
+              <History size={16} color="#94a3b8" />
+              <h3 className={styles.sectionTitle}>Status Progression & Lifecycle Timeline</h3>
+            </div>
+            {app.statusHistory && app.statusHistory.length > 0 ? (
+              <div className={styles.timelineList}>
+                {app.statusHistory.map((item, idx) => (
+                  <div key={idx} className={styles.timelineItem}>
+                    <div className={styles.timelineNode} />
+                    <div className={styles.timelineTransition}>
+                      {item.fromStatus ? (
+                        <>
+                          <span style={{ opacity: 0.7 }}>{item.fromStatus}</span>
+                          <span>→</span>
+                          <span style={{ color: '#38bdf8' }}>{item.toStatus}</span>
+                        </>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <Inbox size={12} color="#38bdf8" />
+                          <span>Initial Ingestion: <span style={{ color: '#38bdf8' }}>{item.toStatus || 'Submitted'}</span></span>
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.timelineMeta}>
+                      <span>{formatDate(item.changedAt)}</span>
+                      {item.source && <span style={{ marginLeft: '8px', opacity: 0.6 }}>• {item.source}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.timelineList}>
+                {app.applicationDate && (
+                  <div className={styles.timelineItem}>
+                    <div className={styles.timelineNode} />
+                    <div className={styles.timelineTransition}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <Inbox size={12} color="#38bdf8" />
+                        <span>Application Submitted</span>
+                      </div>
+                    </div>
+                    <div className={styles.timelineMeta}>{formatDate(app.applicationDate)}</div>
+                  </div>
+                )}
+                {app.approvalDate && (
+                  <div className={styles.timelineItem}>
+                    <div className={styles.timelineNode} style={{ background: '#38bdf8' }} />
+                    <div className={styles.timelineTransition}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <CheckCircle2 size={12} color="#38bdf8" />
+                        <span>Application Approved</span>
+                      </div>
+                    </div>
+                    <div className={styles.timelineMeta}>{formatDate(app.approvalDate)}</div>
+                  </div>
+                )}
+                {app.bookedDate && (
+                  <div className={styles.timelineItem}>
+                    <div className={styles.timelineNode} style={{ background: '#34d399' }} />
+                    <div className={styles.timelineTransition}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <Briefcase size={12} color="#34d399" />
+                        <span>Deal Funded & Booked</span>
+                      </div>
+                    </div>
+                    <div className={styles.timelineMeta}>{formatDate(app.bookedDate)}</div>
+                  </div>
+                )}
+                {(!app.applicationDate && !app.approvalDate && !app.bookedDate) && (
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', padding: '6px 0' }}>
+                    Current status: {app.status || 'Pending'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Flags & Attributes */}
+          <div className={styles.sectionCard}>
+            <div className={styles.sectionHeader}>
+              <Tag size={16} color="#94a3b8" />
               <h3 className={styles.sectionTitle}>Application Status Flags</h3>
             </div>
             <div className={styles.tagRow}>

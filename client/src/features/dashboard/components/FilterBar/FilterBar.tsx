@@ -408,28 +408,12 @@ export function FilterBar({
               id="filter-drd"
             >
               <option value="">All DRD Segments</option>
-              <option value="high_tlc">🔴 High TLC</option>
-              <option value="self_sufficient">🟢 Autonomous</option>
-              <option value="comfort_stop">🟠 Comfort Stop</option>
-              <option value="lapsed">⚠️ Lapsed / Churned</option>
-              <option value="insufficient_data">⚪ Discovery Queue</option>
-              <option value="overridden">🔒 Manually Reconciled</option>
-            </select>
-          </div>
-
-          {/* Business Type Filter */}
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Type</label>
-            <select
-              className={`${styles.filterSelect} ${selectedBusinessType ? styles.filterActive : ''}`}
-              value={selectedBusinessType}
-              onChange={(e) => onBusinessTypeChange?.(e.target.value)}
-              id="filter-business-type"
-            >
-              <option value="">All Types</option>
-              <option value="franchise">🏢 Franchise</option>
-              <option value="non-franchise">Independent</option>
-              <option value="broker">Broker</option>
+              <option value="high_tlc">High TLC</option>
+              <option value="self_sufficient">Autonomous</option>
+              <option value="comfort_stop">Comfort Stop</option>
+              <option value="lapsed">Lapsed / Churned</option>
+              <option value="insufficient_data">Discovery Queue</option>
+              <option value="overridden">Manually Reconciled</option>
             </select>
           </div>
 
@@ -917,7 +901,7 @@ export function FilterBar({
           {activeFilterCount > 0 ? (
             <span className={styles.mobileActiveBadge}>{activeFilterCount} Active</span>
           ) : (
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Tap to customize ⚙️</span>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Tap to customize</span>
           )}
         </button>
       </div>
@@ -1007,29 +991,6 @@ export function FilterBar({
                   ))}
                 </div>
               </div>
-
-              {/* Business Type (Mobile) */}
-              {onBusinessTypeChange && (
-                <div className={styles.mobileFilterSection}>
-                  <span className={styles.mobileSectionTitle}>Business Type</span>
-                  <div className={styles.mobilePresetGrid}>
-                    {[
-                      { key: '', label: 'All Types' },
-                      { key: 'franchise', label: '🏢 Franchise' },
-                      { key: 'non-franchise', label: 'Independent' },
-                      { key: 'broker', label: 'Broker' },
-                    ].map((bt) => (
-                      <button
-                        key={bt.key}
-                        className={`${styles.mobileChip} ${selectedBusinessType === bt.key ? styles.mobileChipActive : ''}`}
-                        onClick={() => onBusinessTypeChange(bt.key)}
-                      >
-                        {bt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Custom Tags (Mobile) */}
               {onTagsChange && availableTags.length > 0 && (

@@ -38,16 +38,18 @@ import {
   Lock,
   Unlock,
   History,
-  Phone,
-  Mail,
   RefreshCw,
   Skull,
   EyeOff,
   Eye,
-  Copy,
-  Check,
-  MapPin
+  MapPin,
+  LayoutGrid,
+  CheckCircle,
+  Phone,
+  Mail,
+  Zap
 } from 'lucide-react';
+import { DealerPipelineView } from '../DealerPipelineView';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
@@ -67,7 +69,7 @@ interface AnalyticsDrawerProps {
   initialStartDate?: string | null;
   initialEndDate?: string | null;
   initialDatePreset?: string | null;
-  initialTab?: 'drd' | 'mom' | 'applications' | 'communications';
+  initialTab?: 'pipeline' | 'drd' | 'mom' | 'applications' | 'communications';
   tableRowData?: any | null;
   comparisonLabel?: string;
   datePresetLabel?: string;
@@ -136,7 +138,7 @@ export function AnalyticsDrawer({
   initialStartDate = null,
   initialEndDate = null,
   initialDatePreset = null,
-  initialTab = 'drd',
+  initialTab = 'pipeline',
   tableRowData = null,
   comparisonLabel,
   datePresetLabel,
@@ -148,8 +150,8 @@ export function AnalyticsDrawer({
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
-  // Active Tab: 'drd' | 'mom' | 'applications' | 'communications'
-  const [activeTab, setActiveTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>(initialTab);
+  // Active Tab: 'pipeline' | 'drd' | 'mom' | 'applications' | 'communications'
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'drd' | 'mom' | 'applications' | 'communications'>(initialTab);
 
   // Selected Dealer Filter (ID or Mongo _id)
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(initialDealerId);
@@ -240,6 +242,8 @@ export function AnalyticsDrawer({
     if (isOpen) {
       setActiveTab(initialTab);
       setSelectedDealerId(initialDealerId);
+      setSelectedDealerObj(null);
+      setDrdData(null);
       if (initialUnderwriter != null) {
         setSelectedUnderwriter(initialUnderwriter);
       }
@@ -252,9 +256,6 @@ export function AnalyticsDrawer({
       if (initialDatePreset) {
         setAppDatePreset(initialDatePreset);
       }
-      if (!initialDealerId) {
-        setSelectedDealerObj(null);
-      }
       setSelectedGroup(initialGroupSlug || '');
       if (isInsideRep && assignedRep) {
         setSelectedRep(assignedRep);
@@ -265,6 +266,14 @@ export function AnalyticsDrawer({
       setCommHistoryData(null);
     }
   }, [isOpen, initialDealerId, initialGroupSlug, initialUnderwriter, initialStartDate, initialEndDate, initialDatePreset, initialTab, isInsideRep, assignedRep]);
+
+  // Immediately clear stale dealer state when selected dealer changes
+  useEffect(() => {
+    setSelectedDealerObj(null);
+    setDrdData(null);
+    setAppHistoryData(null);
+    setCommHistoryData(null);
+  }, [selectedDealerId]);
 
   const handleAppDatePresetChange = (preset: string) => {
     setAppDatePreset(preset);
@@ -428,8 +437,8 @@ export function AnalyticsDrawer({
   // Load DRD Profile when a dealer is selected
   useEffect(() => {
     setBadgerSyncMsg(null);
+    setDrdData(null);
     if (!isOpen || !selectedDealerId || selectedDealerId === 'all') {
-      setDrdData(null);
       setDrdError(null);
       return;
     }
@@ -495,12 +504,12 @@ export function AnalyticsDrawer({
       setSelectedDealerId(null);
       setSelectedDealerObj(null);
       onSelectDealerId?.(null);
-      if (activeTab === 'drd') setActiveTab('mom');
+      if (activeTab === 'pipeline' || activeTab === 'drd') setActiveTab('mom');
     } else {
       setSelectedDealerId(dealer.dealerId || dealer._id || dealer.clientDealerId);
       setSelectedDealerObj(dealer);
       onSelectDealerId?.(dealer.dealerId || dealer._id || dealer.clientDealerId);
-      setActiveTab('drd');
+      setActiveTab('pipeline');
     }
     setDealerSearchOpen(false);
     setAppHistoryPage(1);
@@ -552,7 +561,7 @@ export function AnalyticsDrawer({
     setSelectedDealerId(null);
     setSelectedDealerObj(null);
     onSelectDealerId?.(null);
-    if (activeTab === 'drd') setActiveTab('mom');
+    if (activeTab === 'pipeline' || activeTab === 'drd') setActiveTab('mom');
   };
 
   // Badger Sync, Lifecycle Status & Exclusions
@@ -563,13 +572,6 @@ export function AnalyticsDrawer({
   const [lifecycleStatus, setLifecycleStatus] = useState<'active' | 'closed' | 'bought_out' | 'no_longer_in_service'>('closed');
   const [lifecycleReason, setLifecycleReason] = useState('');
   const [lifecycleSubmitting, setLifecycleSubmitting] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  const copyToClipboard = (text: string, fieldId: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(fieldId);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
 
   const handleSyncBadger = async () => {
     if (!selectedDealerId || selectedDealerId === 'all') return;
@@ -579,12 +581,12 @@ export function AnalyticsDrawer({
       const res = await syncDealerBadger(selectedDealerId);
       const matchedInfo = res.data?.matchedCode || res.data?.dealerId || selectedDealerId;
       const accountInfo = res.data?.badgerAccountName ? ` ("${res.data.badgerAccountName}" / Badger ID: #${res.data?.badgerId})` : '';
-      setBadgerSyncMsg(`✅ Synced ${res.data?.contacts?.length || 0} contacts for ${matchedInfo}${accountInfo}`);
+      setBadgerSyncMsg(`Synced ${res.data?.contacts?.length || 0} contacts for ${matchedInfo}${accountInfo}`);
       setTimeout(() => setBadgerSyncMsg(null), 5000);
       const updated = await getDealerRelationshipDrawer(selectedDealerId);
       setDrdData(updated);
     } catch (err: any) {
-      setBadgerSyncMsg(`❌ ${err.message || 'Dealer not found in Badger Maps'}`);
+      setBadgerSyncMsg(err.message || 'Dealer not found in Badger Maps');
     } finally {
       setBadgerSyncing(false);
     }
@@ -644,13 +646,13 @@ export function AnalyticsDrawer({
   const demandLabel = useMemo(() => {
     switch (profile?.relationshipDemand) {
       case 'high_tlc':
-        return '🔴 High TLC (Spike & Decay)';
+        return 'High TLC (Spike & Decay)';
       case 'self_sufficient':
-        return '🟢 Autonomous (Organic Flow)';
+        return 'Autonomous (Organic Flow)';
       case 'comfort_stop':
-        return '🟠 Comfort Stop (Time Sink)';
+        return 'Comfort Stop (Time Sink)';
       default:
-        return '⚪ Discovery Queue';
+        return 'Discovery Queue';
     }
   }, [profile?.relationshipDemand]);
 
@@ -670,20 +672,20 @@ export function AnalyticsDrawer({
   }, [profile?.urgencyStatus]);
 
   const urgencyLabel = useMemo(() => {
-    if (!profile) return '⚪ NOT MONITORED';
+    if (!profile) return 'NOT MONITORED';
     switch (profile.urgencyStatus) {
       case 'overdue':
-        return `🚨 OVERDUE (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `OVERDUE (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'due_soon':
-        return `⏳ DUE SOON (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `DUE SOON (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'on_track':
-        return `✅ ON TRACK (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `ON TRACK (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'dormant':
-        return `💤 DORMANT (${profile.daysSinceLastVisit || 0}d unvisited)`;
+        return `DORMANT (${profile.daysSinceLastVisit || 0}d unvisited)`;
       case 'self_sufficient':
-        return '🟢 AUTONOMOUS (Portal Flow)';
+        return 'AUTONOMOUS (Portal Flow)';
       default:
-        return '⚪ NOT MONITORED';
+        return 'NOT MONITORED';
     }
   }, [profile?.urgencyStatus, profile?.daysSinceLastVisit, profile]);
 
@@ -719,7 +721,13 @@ export function AnalyticsDrawer({
       );
       if (found) return found;
     }
-    return tableRowData || null;
+    if (tableRowData && selectedDealerId) {
+      const matches = tableRowData._id === selectedDealerId ||
+                      tableRowData.dealerId === selectedDealerId ||
+                      tableRowData.clientDealerId === selectedDealerId;
+      if (matches) return tableRowData;
+    }
+    return null;
   }, [selectedDealerId, tableRowData, allTableDealers]);
 
   const tableStats = currentTableDealer?.stats || currentTableDealer?.rollingAvg || (currentTableDealer as any)?.stat;
@@ -823,8 +831,8 @@ export function AnalyticsDrawer({
                         </span>
                       )}
                       {profile.systemStatus && profile.systemStatus !== 'active' && (
-                        <span style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize' }}>
-                          🚫 {profile.systemStatus.replace(/_/g, ' ')}
+                        <span style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertTriangle size={11} /> {profile.systemStatus.replace(/_/g, ' ')}
                         </span>
                       )}
                     </div>
@@ -887,6 +895,12 @@ export function AnalyticsDrawer({
                     </button>
                   )}
                 </div>
+                {badgerSyncMsg && (
+                  <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '4px', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckCircle size={12} />
+                    <span>{badgerSyncMsg}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div>
@@ -903,6 +917,15 @@ export function AnalyticsDrawer({
 
           {/* Header Tab Buttons */}
           <div className={styles.drawerTabs}>
+            {isDealerSelected && (
+              <button
+                className={`${styles.tabBtn} ${activeTab === 'pipeline' ? styles.tabBtnActive : ''}`}
+                onClick={() => setActiveTab('pipeline')}
+              >
+                <LayoutGrid size={14} />
+                <span>Opportunity Pipeline</span>
+              </button>
+            )}
             {isDealerSelected && (
               <button
                 className={`${styles.tabBtn} ${activeTab === 'drd' ? styles.tabBtnActive : ''}`}
@@ -1007,6 +1030,42 @@ export function AnalyticsDrawer({
           </div>
         )}
 
+        {/* TAB: OPPORTUNITY PIPELINE (DEFAULT MAIN LANDING VIEW) */}
+        {activeTab === 'pipeline' && isDealerSelected && (
+          <div className={styles.pipelineTabContainer}>
+            <DealerPipelineView
+              key={`${selectedDealerId || 'none'}-${selectedDealerObj?.clientDealerId || drdData?.profile?.clientDealerId || ''}`}
+              dealerId={selectedDealerId || ''}
+              clientDealerId={
+                (selectedDealerObj?.dealerId === selectedDealerId || selectedDealerObj?.clientDealerId === selectedDealerId || selectedDealerObj?._id === selectedDealerId)
+                  ? selectedDealerObj.clientDealerId
+                  : (drdData?.profile?.clientDealerId === selectedDealerId || (drdData?.profile as any)?.dealerId === selectedDealerId)
+                    ? drdData?.profile?.clientDealerId
+                    : undefined
+              }
+              dealerName={
+                (selectedDealerObj?.dealerId === selectedDealerId || selectedDealerObj?.clientDealerId === selectedDealerId || selectedDealerObj?._id === selectedDealerId)
+                  ? selectedDealerObj.dealerName
+                  : (drdData?.profile?.clientDealerId === selectedDealerId || (drdData?.profile as any)?.dealerId === selectedDealerId)
+                    ? drdData?.profile?.dealerName
+                    : headerTitle || 'Dealership'
+              }
+              contacts={
+                (drdData?.profile?.clientDealerId === selectedDealerId || (drdData?.profile as any)?.dealerId === selectedDealerId)
+                  ? (drdData?.profile?.contacts || [])
+                  : []
+              }
+              badgerData={
+                (drdData?.profile?.clientDealerId === selectedDealerId || (drdData?.profile as any)?.dealerId === selectedDealerId)
+                  ? (drdData?.profile?.badgerData || null)
+                  : null
+              }
+              onSyncBadger={handleSyncBadger}
+              onSelectApplication={(app) => setSelectedAppDetail(app)}
+            />
+          </div>
+        )}
+
         {/* TAB 0: RELATIONSHIP DEMAND (DRD) PROFILE */}
         {activeTab === 'drd' && isDealerSelected && (
           <div className={styles.drdContent}>
@@ -1101,106 +1160,6 @@ export function AnalyticsDrawer({
                   </div>
                 </div>
 
-                {/* Contacts & Badger Maps Communication Roster */}
-                <div style={{
-                  background: 'var(--bg-card-subtle, #f8fafc)',
-                  border: '1px solid var(--border-subtle, #e2e8f0)',
-                  borderRadius: '10px',
-                  padding: '14px 16px',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Phone size={14} color="#0284c7" />
-                      <span>Dealer Contacts</span>
-                      {profile.contacts && profile.contacts.length > 0 && (
-                        <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0284c7', padding: '1px 7px', borderRadius: '999px', fontWeight: 600 }}>
-                          {profile.contacts.length} Contacts
-                        </span>
-                      )}
-                      {profile.badgerData?.badgerId && (
-                        <span style={{ fontSize: '11px', background: 'var(--bg-surface, #ffffff)', color: 'var(--text-secondary, #64748b)', border: '1px solid var(--border-subtle, #e2e8f0)', padding: '2px 8px', borderRadius: '6px' }}>
-                          Badger Account: #{profile.badgerData.badgerId} {profile.badgerData.accountName ? `(${profile.badgerData.accountName})` : ''}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {badgerSyncMsg && (
-                    <div style={{ fontSize: '12px', color: badgerSyncMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
-                      {badgerSyncMsg}
-                    </div>
-                  )}
-
-                  {profile.contacts && profile.contacts.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-                      {profile.contacts.map((c: any, i: number) => (
-                        <div
-                          key={i}
-                          style={{
-                            background: c.isPrimary ? '#eff6ff' : 'var(--bg-surface, #ffffff)',
-                            border: `1px solid ${c.isPrimary ? '#93c5fd' : 'var(--border-subtle, #e2e8f0)'}`,
-                            borderRadius: '8px',
-                            padding: '10px 12px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '6px',
-                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary, #0f172a)' }}>{c.name || 'Contact'}</span>
-                            {c.isPrimary && (
-                              <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                                PRIMARY
-                              </span>
-                            )}
-                          </div>
-                          {c.title && <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #64748b)' }}>{c.title}</div>}
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
-                            {c.phone && (
-                              <a
-                                href={`tel:${c.phone}`}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', background: 'var(--bg-card-subtle, #f1f5f9)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '6px', fontSize: '0.75rem', color: '#0284c7', textDecoration: 'none', maxWidth: '100%' }}
-                                title={`Call ${c.phone}`}
-                              >
-                                <Phone size={11} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.phone}</span>
-                              </a>
-                            )}
-                            {c.email && (
-                              <a
-                                href={`mailto:${c.email}`}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', background: 'var(--bg-card-subtle, #f1f5f9)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '6px', fontSize: '0.75rem', color: '#0284c7', textDecoration: 'none', maxWidth: '100%' }}
-                                title={`Email ${c.email}`}
-                              >
-                                <Mail size={11} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '175px' }}>{c.email}</span>
-                              </a>
-                            )}
-                            {c.email && (
-                              <button
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 6px', background: 'var(--bg-card-subtle, #f1f5f9)', border: '1px solid var(--border-subtle, #cbd5e1)', borderRadius: '6px', fontSize: '0.75rem', color: '#0284c7', cursor: 'pointer' }}
-                                onClick={() => copyToClipboard(c.email, `ad_email_${i}`)}
-                                title="Copy Email"
-                              >
-                                {copiedField === `ad_email_${i}` ? <Check size={11} color="#059669" /> : <Copy size={11} />}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', padding: '4px 0' }}>
-                      No contacts loaded yet. Click "Sync Badger" in the top header to pull contacts from Badger Maps.
-                    </div>
-                  )}
-                </div>
-
                 {/* Decision Audit Box */}
                 <div className={styles.decisionAuditBox}>
                   <div className={styles.auditHeader}>
@@ -1266,6 +1225,9 @@ export function AnalyticsDrawer({
                       {profile.manualOverride?.isOverridden ? (
                         <span
                           style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                             background: 'rgba(234, 179, 8, 0.18)',
                             color: '#facc15',
                             border: '1px solid rgba(234, 179, 8, 0.4)',
@@ -1275,11 +1237,14 @@ export function AnalyticsDrawer({
                             fontWeight: 700,
                           }}
                         >
-                          🔒 Manually Locked
+                          <Lock size={11} /> Manually Locked
                         </span>
                       ) : (
                         <span
                           style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                             background: 'rgba(16, 185, 129, 0.15)',
                             color: '#34d399',
                             border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -1289,7 +1254,7 @@ export function AnalyticsDrawer({
                             fontWeight: 600,
                           }}
                         >
-                          ⚡ Automated Classification
+                          <Zap size={11} /> Automated Classification
                         </span>
                       )}
                     </div>
@@ -1380,10 +1345,10 @@ export function AnalyticsDrawer({
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '10px' }}>
                         {[
-                          { key: 'high_tlc', label: '🔴 High TLC', desc: 'Touch-sensitive, high yield lift from visits' },
-                          { key: 'self_sufficient', label: '🟢 Autonomous', desc: 'Self-sufficient digital portal usage' },
-                          { key: 'comfort_stop', label: '🟠 Comfort Stop', desc: 'Frequent visits with flat/low yield' },
-                          { key: 'insufficient_data', label: '⚪ Discovery Queue', desc: 'Awaiting visit cycle benchmarks' },
+                          { key: 'high_tlc', label: 'High TLC', desc: 'Touch-sensitive, high yield lift from visits' },
+                          { key: 'self_sufficient', label: 'Autonomous', desc: 'Self-sufficient digital portal usage' },
+                          { key: 'comfort_stop', label: 'Comfort Stop', desc: 'Frequent visits with flat/low yield' },
+                          { key: 'insufficient_data', label: 'Discovery Queue', desc: 'Awaiting visit cycle benchmarks' },
                         ].map((opt) => (
                           <button
                             key={opt.key}
@@ -1429,8 +1394,8 @@ export function AnalyticsDrawer({
                       </div>
 
                       {overrideActionError && (
-                        <div style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '8px' }}>
-                          ⚠️ {overrideActionError}
+                        <div style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertTriangle size={12} /> {overrideActionError}
                         </div>
                       )}
 
@@ -1515,7 +1480,7 @@ export function AnalyticsDrawer({
                               }}
                             >
                               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', marginBottom: '2px' }}>
-                                <span><strong>{entry.action?.toUpperCase() || 'CHANGE'}</strong>: {entry.previousSegment || 'system'} ➔ <strong style={{ color: '#38bdf8' }}>{entry.newSegment || 'system'}</strong></span>
+                                <span><strong>{entry.action?.toUpperCase() || 'CHANGE'}</strong>: {entry.previousSegment || 'system'} → <strong style={{ color: '#38bdf8' }}>{entry.newSegment || 'system'}</strong></span>
                                 <span>{entry.changedAt ? new Date(entry.changedAt).toLocaleString() : '—'}</span>
                               </div>
                               <div style={{ color: '#cbd5e1' }}>"{entry.reason || 'No reason provided'}"</div>
@@ -1546,7 +1511,7 @@ export function AnalyticsDrawer({
                           <span className={styles.legendDotBooked} /> Booked $
                         </span>
                         <span className={styles.legendItem}>
-                          <span className={styles.legendPinVisit}>📍</span> In-Person Visit
+                          <span className={styles.legendPinVisit}><MapPin size={11} /></span> In-Person Visit
                         </span>
                       </div>
                     </div>
@@ -1615,14 +1580,10 @@ export function AnalyticsDrawer({
                                       />
                                     )}
                                     {hasVisit && (
-                                      <text
-                                        x={x + barWidth / 2}
-                                        y={Math.min(appY, bookedY) - 6}
-                                        textAnchor="middle"
-                                        fontSize="12"
-                                      >
-                                        📍
-                                      </text>
+                                      <g transform={`translate(${x + barWidth / 2 - 5}, ${Math.min(appY, bookedY) - 16})`}>
+                                        <circle cx="5" cy="5" r="4.5" fill="#f59e0b" stroke="#ffffff" strokeWidth="1.2" />
+                                        <circle cx="5" cy="5" r="1.8" fill="#ffffff" />
+                                      </g>
                                     )}
                                     {idx % 2 === 0 && (
                                       <text
@@ -2286,28 +2247,35 @@ export function AnalyticsDrawer({
               </div>
               <div style={{ display: 'flex', gap: '6px' }}>
                 {[
-                  { key: 'all', label: 'All Touchpoints' },
-                  { key: 'visit', label: '📍 In-Person Visits' },
-                  { key: 'call', label: '📞 Phone Calls' },
-                  { key: 'email', label: '✉️ Emails / Other' },
-                ].map((tf) => (
-                  <button
-                    key={tf.key}
-                    onClick={() => { setCommTypeFilter(tf.key as any); setCommHistoryPage(1); }}
-                    style={{
-                      background: commTypeFilter === tf.key ? '#1e40af' : 'var(--bg-input, #ffffff)',
-                      color: commTypeFilter === tf.key ? '#ffffff' : 'var(--text-secondary, #64748b)',
-                      border: '1px solid var(--border-default, #cbd5e1)',
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {tf.label}
-                  </button>
-                ))}
+                  { key: 'all', label: 'All Touchpoints', icon: null },
+                  { key: 'visit', label: 'In-Person Visits', icon: MapPin },
+                  { key: 'call', label: 'Phone Calls', icon: Phone },
+                  { key: 'email', label: 'Emails / Other', icon: Mail },
+                ].map((tf) => {
+                  const Icon = tf.icon;
+                  return (
+                    <button
+                      key={tf.key}
+                      onClick={() => { setCommTypeFilter(tf.key as any); setCommHistoryPage(1); }}
+                      style={{
+                        background: commTypeFilter === tf.key ? '#1e40af' : 'var(--bg-input, #ffffff)',
+                        color: commTypeFilter === tf.key ? '#ffffff' : 'var(--text-secondary, #64748b)',
+                        border: '1px solid var(--border-default, #cbd5e1)',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      {Icon && <Icon size={12} />}
+                      {tf.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -2505,10 +2473,10 @@ export function AnalyticsDrawer({
                   onChange={(e: any) => setLifecycleStatus(e.target.value)}
                   style={{ background: 'var(--bg-input, #ffffff)', border: '1px solid var(--border-default, #cbd5e1)', color: 'var(--text-primary, #0f172a)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px' }}
                 >
-                  <option value="active">🟢 Active (Normal Operation)</option>
-                  <option value="closed">🚫 Closed Dealership</option>
-                  <option value="bought_out">🤝 Bought Out / Acquired</option>
-                  <option value="no_longer_in_service">⚠️ No Longer In Service</option>
+                  <option value="active">Active (Normal Operation)</option>
+                  <option value="closed">Closed Dealership</option>
+                  <option value="bought_out">Bought Out / Acquired</option>
+                  <option value="no_longer_in_service">No Longer In Service</option>
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

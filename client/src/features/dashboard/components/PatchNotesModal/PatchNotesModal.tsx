@@ -9,6 +9,9 @@ import {
   Zap,
   RotateCcw,
   Layers,
+  Building2,
+  GitPullRequest,
+  LayoutGrid
 } from 'lucide-react';
 import styles from './PatchNotesModal.module.css';
 
@@ -93,7 +96,7 @@ export function PatchNotesModal({ isOpen: controlledIsOpen, onClose: controlledO
           <div className={styles.toastBody}>
             <h4 className={styles.toastTitle}>What's New in Source One</h4>
             <p className={styles.toastDesc}>
-              Light Mode by default, Badger quick notes, batch actions, and table improvements are now live.
+              Opportunity Pipeline, Dealer Groups &amp; Proposal Desk, Centralized Funding, and Corporate Light Mode are now live.
             </p>
           </div>
 
@@ -259,6 +262,48 @@ export function PatchNotesModal({ isOpen: controlledIsOpen, onClose: controlledO
                       </p>
                       <div className={styles.howToUse}>
                         <strong>How to use:</strong> Click any dealer row to inspect their 360 overview, monthly metrics, and touchpoint timeline.
+                      </div>
+                    </div>
+
+                    {/* 8. Dealer Groups CRUD & Rep Proposal Desk */}
+                    <div className={styles.featureCard}>
+                      <div className={styles.featureCardHeader}>
+                        <Building2 size={17} className={styles.featureIcon} />
+                        <span className={styles.featureName}>Dealer Groups CRUD & Rep Proposal Desk</span>
+                      </div>
+                      <p className={styles.featureDesc}>
+                        Multi-rooftop enterprise management with single-tenancy guardrails. Sales reps can propose grouping accounts with justification notes, while managers can review, cherry-pick stores, and approve or reject submissions in the Approval Desk.
+                      </p>
+                      <div className={styles.howToUse}>
+                        <strong>How to use:</strong> Open the "Dealer Groups" manager from the header to create or propose groups. Admins can view the Proposal Desk tab to approve submissions.
+                      </div>
+                    </div>
+
+                    {/* 9. Centralized Funding Hierarchy */}
+                    <div className={styles.featureCard}>
+                      <div className={styles.featureCardHeader}>
+                        <GitPullRequest size={17} className={styles.featureIcon} />
+                        <span className={styles.featureName}>Centralized Funding Hierarchy</span>
+                      </div>
+                      <p className={styles.featureDesc}>
+                        Designate parent locations as the Central Funder for corporate auto groups. Satellite dealerships route contracts and funding through the parent entity while maintaining distinct rooftop tracking.
+                      </p>
+                      <div className={styles.howToUse}>
+                        <strong>How to use:</strong> In Group Manager, designate an account as Central Funder or inspect multi-store funding relationships.
+                      </div>
+                    </div>
+
+                    {/* 10. Opportunity Pipeline & Day-over-Day Funnel */}
+                    <div className={styles.featureCard}>
+                      <div className={styles.featureCardHeader}>
+                        <LayoutGrid size={17} className={styles.featureIcon} />
+                        <span className={styles.featureName}>Opportunity Pipeline & Day-over-Day Funnel</span>
+                      </div>
+                      <p className={styles.featureDesc}>
+                        Dealer 360 now opens directly to an interactive Kanban Opportunity Pipeline (New, Underwriting, Approvals, Funded Deals, Declines). Overnight status movements are automatically highlighted in a day-over-day funnel banner.
+                      </p>
+                      <div className={styles.howToUse}>
+                        <strong>How to use:</strong> Click any dealer row to open the Opportunity Pipeline. Click any card to inspect full application progression and status history.
                       </div>
                     </div>
                   </div>

@@ -12,8 +12,23 @@ import type {
   OverviewStats,
 } from '../../features/dashboard/types';
 
+function resolveBaseURL(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    // Route dev client previews directly to the dev server
+    if (host.includes('source-one-client-dev') || host.includes('client-dev')) {
+      return 'https://source-one-server-dev.vercel.app';
+    }
+    // Route production client domains to the production server if VITE_API_URL not specified
+    if (host.includes('source-one-data-transfer') || host.includes('sourceone-client')) {
+      return 'https://source-one-data-transfer.vercel.app';
+    }
+  }
+  return import.meta.env.VITE_API_URL || '';
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: resolveBaseURL(),
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -922,6 +937,7 @@ export async function overrideDealerRelationshipSegment(
   reason: string
 ): Promise<{ success: boolean; profile: any; message?: string }> {
   const { data } = await api.post(`/analytics/relationship-demand/dealers/${encodeURIComponent(clientDealerId)}/override`, {
+    segment: overriddenSegment,
     overriddenSegment,
     reason,
   });

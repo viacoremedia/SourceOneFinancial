@@ -8,6 +8,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom';
 import { useRepScorecard } from '../../hooks/useRepScorecard';
 import styles from './RepScorecard.module.css';
+import { Zap, AlertTriangle, Settings, BookOpen } from 'lucide-react';
 import type { RepScorecardEntry, RollingWindow, FinPeriod } from '../../types';
 import { resolveRepDisplayName } from '../../../../core/utils/repNames';
 
@@ -119,8 +120,18 @@ function HeatTooltipPortal({
       <div className={styles.tooltipTitle}>
         Heat Index: <strong>{rep.heatIndex ?? '—'}</strong>/100
         {rep.capacityFlag && (
-          <span className={styles.tooltipFlag}>
-            {rep.capacityFlag === 'overburdened' ? ' ⚡ Overburdened' : ' ⚠ Underperforming'}
+          <span className={styles.tooltipFlag} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            {rep.capacityFlag === 'overburdened' ? (
+              <>
+                <Zap size={11} color="#f97316" />
+                <span>Overburdened</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle size={11} color="#ef4444" />
+                <span>Underperforming</span>
+              </>
+            )}
           </span>
         )}
       </div>
@@ -193,7 +204,10 @@ function WeightConfiguratorModal({
     <div className={styles.configModalOverlay}>
       <div className={styles.configModal}>
         <div className={styles.configHeader}>
-          <h3>⚙ Sales Manager Weight Configurator</h3>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Settings size={18} />
+            <span>Sales Manager Weight Configurator</span>
+          </h3>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
         <p className={styles.configSubtext}>
@@ -284,14 +298,18 @@ function InfoPanel({
   return (
     <div className={styles.infoPanel}>
       <div className={styles.infoPanelHeader}>
-        <span className={styles.infoPanelTitle}>📖 Column Guide & Scoring Methodology</span>
+        <span className={styles.infoPanelTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <BookOpen size={16} />
+          <span>Column Guide & Scoring Methodology</span>
+        </span>
         <button className={styles.closeBtn} onClick={onClose}>✕</button>
       </div>
       <div className={styles.infoPanelBody}>
         {isCustom && (
           <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 600 }}>
-              ⚡ Custom Manager Weights Active — Column Guide displays currently applied weights.
+            <span style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Zap size={14} color="#fbbf24" />
+              <span>Custom Manager Weights Active — Column Guide displays currently applied weights.</span>
             </span>
             <button className={styles.resetBtn} onClick={onResetWeights}>Reset to Company Defaults</button>
           </div>
@@ -322,8 +340,16 @@ function InfoPanel({
           <div className={styles.infoLegend}>
             <span><span className={styles.legendDot} style={{ background: '#34d399' }} /> <strong>Strong (≥70)</strong> — Top performer across engagement and conversion</span>
             <span><span className={styles.legendDot} style={{ background: '#fbbf24' }} /> <strong>Average</strong> — Middle of the pack, balanced performance</span>
-            <span><span className={styles.legendDot} style={{ background: '#f97316' }} /> <strong>⚡ Overburdened</strong> — HI {'<'} 50 BUT capacity {'>'} 1.3x avg. Heavy dealer load, given benefit of doubt</span>
-            <span><span className={styles.legendDot} style={{ background: '#ef4444' }} /> <strong>⚠ Underperforming</strong> — HI {'<'} 40 AND capacity ≤ 1.0x avg. Light load but behind on engagement</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className={styles.legendDot} style={{ background: '#f97316' }} />
+              <Zap size={11} color="#f97316" />
+              <strong>Overburdened</strong> — HI {'<'} 50 BUT capacity {'>'} 1.3x avg. Heavy dealer load, given benefit of doubt
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className={styles.legendDot} style={{ background: '#ef4444' }} />
+              <AlertTriangle size={11} color="#ef4444" />
+              <strong>Underperforming</strong> — HI {'<'} 40 AND capacity ≤ 1.0x avg. Light load but behind on engagement
+            </span>
           </div>
         </div>
         <div className={styles.infoSection}>
@@ -851,8 +877,9 @@ export function RepScorecard({
           <div className={styles.headerLeft}>
             <h2 className={styles.title}>Rep Scorecard</h2>
             {customWeights && (
-              <div className={styles.customBadge} title="Using custom Sales Manager weights">
-                ⚡ Custom Weights Active
+              <div className={styles.customBadge} title="Using custom Sales Manager weights" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <Zap size={12} />
+                <span>Custom Weights Active</span>
                 <button
                   className={styles.customBadgeReset}
                   onClick={handleResetCustomWeights}
@@ -946,9 +973,10 @@ export function RepScorecard({
               className={styles.resetBtn}
               onClick={() => setShowConfig(true)}
               title="Customize Heat Index weights"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 10px' }}
             >
-              ⚙ Configurator
+              <Settings size={13} />
+              <span>Configurator</span>
             </button>
             <button
               className={`${styles.infoBtn} ${showInfo ? styles.infoBtnActive : ''}`}
@@ -1071,8 +1099,8 @@ export function RepScorecard({
                                   rep.capacityFlag === 'overburdened'
                                     ? styles.capacityOverburdened
                                     : styles.capacityUnderperforming
-                                }`}>
-                                  {rep.capacityFlag === 'overburdened' ? '⚡' : '⚠'}
+                                }`} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {rep.capacityFlag === 'overburdened' ? <Zap size={10} /> : <AlertTriangle size={10} />}
                                 </span>
                               )}
                             </>

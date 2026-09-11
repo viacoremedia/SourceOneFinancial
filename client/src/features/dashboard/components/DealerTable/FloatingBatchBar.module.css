@@ -342,10 +342,55 @@
   color: #dc2626;
 }
 
-[data-theme="light"] .popoverMenu {
+/* ============================================
+   LIGHT MODE OVERRIDES FOR FLOATING BATCH BAR
+   ============================================ */
+[data-theme="light"] .floatingBarContainer {
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .countPill {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.25);
+  color: #0284c7;
+}
+
+[data-theme="light"] .actionBtn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+[data-theme="light"] .actionBtn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0284c7;
+}
+
+[data-theme="light"] .actionBtnActive {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+[data-theme="light"] .clearBtn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .clearBtn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+[data-theme="light"] .popoverFlyout {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14), 0 2px 10px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .popoverHeader {
@@ -360,33 +405,82 @@
   color: #64748b;
 }
 
-[data-theme="light"] .selectInput,
-[data-theme="light"] .textInput {
+[data-theme="light"] .popoverClose:hover {
+  color: #0f172a;
+}
+
+[data-theme="light"] .tagInputBox {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+}
+
+[data-theme="light"] .tagPill {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+[data-theme="light"] .tagPillRemove {
+  color: #0369a1;
+}
+
+[data-theme="light"] .tagInputField {
+  color: #0f172a;
+}
+
+[data-theme="light"] .tagInputField::placeholder {
+  color: #94a3b8;
+}
+
+[data-theme="light"] .suggestionsList {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .suggestionItem {
+  color: #334155;
+}
+
+[data-theme="light"] .suggestionItem:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="light"] .optionCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+[data-theme="light"] .optionCard:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .optionCardSelected {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+[data-theme="light"] .reasonInput {
   background: #ffffff;
   border: 1px solid #cbd5e1;
   color: #0f172a;
 }
 
-[data-theme="light"] .radioCard {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+[data-theme="light"] .reasonInput::placeholder {
+  color: #94a3b8;
 }
 
-[data-theme="light"] .radioCardActive {
-  background: rgba(30, 64, 175, 0.08);
-  border-color: #1e40af;
+[data-theme="light"] .reasonInput:focus {
+  border-color: #0284c7;
 }
 
-[data-theme="light"] .radioTitle {
-  color: #0f172a;
-}
-
-[data-theme="light"] .clearSelectionBtn {
-  color: #64748b;
-}
-
-[data-theme="light"] .clearSelectionBtn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+[data-theme="light"] .submitBtn {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #ffffff;
 }
 

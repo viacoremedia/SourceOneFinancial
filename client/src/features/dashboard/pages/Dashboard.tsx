@@ -145,13 +145,13 @@ function DashboardContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
   const [drawerGroupSlug, setDrawerGroupSlug] = useState<string | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'drd' | 'mom' | 'applications' | 'communications'>('drd');
+  const [drawerTab, setDrawerTab] = useState<'pipeline' | 'drd' | 'mom' | 'applications' | 'communications'>('pipeline');
   const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
     setDrawerDealerId(dealerId);
     setDrawerGroupSlug(null);
-    setDrawerTab('drd');
+    setDrawerTab('pipeline');
     setDrawerOpen(true);
   }, []);
 
@@ -675,6 +675,7 @@ function DashboardContent() {
 
       {/* Unified Tabbed Historical MoM & Application History Drawer */}
       <AnalyticsDrawer
+        key={`${drawerDealerId || drawerGroupSlug || 'closed'}`}
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         availableStates={repMappings?.allStates || Object.keys(stateRepMap)}

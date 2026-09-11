@@ -18,7 +18,7 @@ import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
 import { QuickActionPopover, type QuickActionDealer } from '../QuickActionPopover/QuickActionPopover';
 import { undoDealerQuickAction, undoBatchDealerAction, type UniversalTag } from '../../../../core/services/api';
 import { FloatingBatchBar } from './FloatingBatchBar';
-import { RotateCcw, X, CheckSquare } from 'lucide-react';
+import { RotateCcw, X, CheckSquare, Lock, Building2, MapPin, Flag, Calendar, BarChart2 } from 'lucide-react';
 import { getDaysSinceHeatmap, getCommDaysHeatmap } from '../../../../core/utils/heatmap';
 import type { StateRepMap } from '../../../../core/services/api';
 import type {
@@ -295,7 +295,7 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
           }}
           title={isOverridden ? `Overridden to High TLC: ${drd.reason || ''}` : 'High TLC (Touch-Sensitive Account)'}
         >
-          {isOverridden && <span>🔒</span>}🔴 TLC
+          {isOverridden && <Lock size={10} />}TLC
         </span>
       );
     case 'self_sufficient':
@@ -317,7 +317,7 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
           }}
           title={isOverridden ? `Overridden to Autonomous: ${drd.reason || ''}` : 'Autonomous (Self-Sufficient Flow)'}
         >
-          {isOverridden && <span>🔒</span>}🟢 Auto
+          {isOverridden && <Lock size={10} />}Auto
         </span>
       );
     case 'comfort_stop':
@@ -339,7 +339,7 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
           }}
           title={isOverridden ? `Overridden to Comfort Stop: ${drd.reason || ''}` : 'Comfort Stop (Low Touch-Sensitivity)'}
         >
-          {isOverridden && <span>🔒</span>}🟠 Comfort
+          {isOverridden && <Lock size={10} />}Comfort
         </span>
       );
     case 'insufficient_data':
@@ -360,7 +360,7 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
           }}
           title={isOverridden ? `Overridden to Discovery: ${drd.reason || ''}` : 'Discovery Queue (<2 Visits)'}
         >
-          {isOverridden && <span>🔒</span>}⚪ Discovery
+          {isOverridden && <Lock size={10} />}Discovery
         </span>
       );
     case 'lapsed':
@@ -382,7 +382,7 @@ function renderDrdBadge(drd?: DealerLocation['drd']) {
           }}
           title={isOverridden ? `Overridden to Lapsed: ${drd.reason || ''}` : 'Lapsed / Churned (180+ Days Inactive)'}
         >
-          {isOverridden && <span>🔒</span>}⚠️ Lapsed
+          {isOverridden && <Lock size={10} />}Lapsed
         </span>
       );
     default:
@@ -416,7 +416,7 @@ function renderStatusRedFlag(dealer: {
       }}
       title={dealer.systemStatusReason || dealer.systemStatus}
     >
-      {dealer.systemStatus === 'closed' ? '🚫 Closed' : dealer.systemStatus === 'bought_out' ? '🤝 Bought Out' : '⚠️ Out of Service'}
+      {dealer.systemStatus === 'closed' ? 'Closed' : dealer.systemStatus === 'bought_out' ? 'Bought Out' : 'Out of Service'}
     </span>
   );
 }
@@ -443,7 +443,7 @@ function renderMetaBadges(dealer: {
             whiteSpace: 'nowrap'
           }}
         >
-          {dealer.businessType === 'franchise' ? '🏢 Franchise' : dealer.businessType === 'non-franchise' ? 'Independent' : 'Broker'}
+          {dealer.businessType === 'franchise' ? 'Franchise' : dealer.businessType === 'non-franchise' ? 'Independent' : 'Broker'}
         </span>
       )}
 
@@ -581,11 +581,13 @@ function renderGroupLastVisit(locations: DealerLocation[]) {
     return <span style={{ color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>Never</span>;
   }
   let bestLoc = visitedLocs[0];
-  let minDays = bestLoc.drd?.daysSinceLastVisit ?? 99999;
+  let bestTime = bestLoc.drd?.lastVisitDate ? new Date(bestLoc.drd.lastVisitDate).getTime() : 0;
   for (const loc of visitedLocs) {
-    const d = loc.drd?.daysSinceLastVisit ?? 99999;
-    if (d < minDays) {
-      minDays = d;
+    const t = loc.drd?.lastVisitDate ? new Date(loc.drd.lastVisitDate).getTime() : 0;
+    if (t > bestTime) {
+      bestTime = t;
+      bestLoc = loc;
+    } else if (t === bestTime && (loc.drd?.daysSinceLastVisit ?? 99999) < (bestLoc.drd?.daysSinceLastVisit ?? 99999)) {
       bestLoc = loc;
     }
   }
@@ -612,12 +614,15 @@ function renderGroupYield(locations: DealerLocation[]) {
 
 // ── Sort Helpers ──
 
-/** Compute days since a date string, relative to now */
+/** Compute calendar days since a date string, relative to UTC date */
 function daysSinceDate(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;
-  return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  const nowUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const dUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.max(0, Math.round((nowUtc - dUtc) / (1000 * 60 * 60 * 24)));
 }
 
 function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: string | null): number | string {
@@ -631,8 +636,16 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
       return s?.daysSinceApproval?.best ?? 99999;
     case 'daysSinceLastBooking':
       return s?.daysSinceBooking?.best ?? 99999;
-    case 'lastVisit':
+    case 'lastVisit': {
+      const dateStr = group.drd?.latestVisitDate ?? s?.drd?.latestVisitDate;
+      if (dateStr) {
+        const t = new Date(dateStr).getTime();
+        if (!isNaN(t)) {
+          return (Date.now() - t) / 86400000;
+        }
+      }
       return group.drd?.minDaysSinceLastVisit ?? s?.drd?.minDaysSinceLastVisit ?? 99999;
+    }
     case 'postVisitLift':
       return group.drd?.avgLift ?? s?.drd?.avgLift ?? -99999;
     case 'yieldPerVisit':
@@ -694,8 +707,18 @@ function getLocationSortValue(loc: DealerLocation, key: string): number | string
       return snap?.daysSinceLastApproval ?? 99999;
     case 'daysSinceLastBooking':
       return snap?.daysSinceLastBooking ?? 99999;
-    case 'lastVisit':
-      return loc.drd?.daysSinceLastVisit ?? 99999;
+    case 'lastVisit': {
+      if (loc.drd?.lastVisitDate) {
+        const t = new Date(loc.drd.lastVisitDate).getTime();
+        if (!isNaN(t)) {
+          return (Date.now() - t) / 86400000;
+        }
+      }
+      if (loc.drd?.daysSinceLastVisit != null) {
+        return loc.drd.daysSinceLastVisit;
+      }
+      return 99999;
+    }
     case 'postVisitLift':
       return loc.drd?.postVisitLiftPct ?? -99999;
     case 'yieldPerVisit':
@@ -1511,7 +1534,10 @@ export function DealerTable({
           {maxReportDate && (
             <span
               style={{
-                fontSize: '11px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '0.78rem',
                 color: '#38bdf8',
                 background: 'rgba(56, 189, 248, 0.08)',
                 border: '1px solid rgba(56, 189, 248, 0.2)',
@@ -1522,7 +1548,8 @@ export function DealerTable({
               }}
               title="Latest report data date available in database"
             >
-              📅 Data through {new Date(maxReportDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+              <Calendar size={13} />
+              <span>Data through {new Date(maxReportDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>
             </span>
           )}
 
@@ -1617,7 +1644,8 @@ export function DealerTable({
               }}
               title="Exact date ranges compared for stats and trends"
             >
-              📅 {comparisonLabel}
+              <Calendar size={12} />
+              <span>{comparisonLabel}</span>
             </span>
           )}
         </div>
@@ -1637,7 +1665,8 @@ export function DealerTable({
             </button>
           ) : (
             <span className={styles.allMatchingSelectedText}>
-              ✓ All <strong>{totalCount}</strong> dealers matching current filters are selected.
+              <CheckSquare size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+              All <strong>{totalCount}</strong> dealers matching current filters are selected.
               <button
                 type="button"
                 className={styles.clearAllMatchingBtn}
@@ -1736,7 +1765,7 @@ export function DealerTable({
                   </div>
                 </div>
                 <div className={styles.mobileCardFooter}>
-                  <span>Tap for details & app history ➔</span>
+                  <span>Tap for details & app history →</span>
                   {snap?.daysSinceLastApplication != null && (
                     <span>Last App: {snap.daysSinceLastApplication}d ago</span>
                   )}
@@ -1751,7 +1780,9 @@ export function DealerTable({
       <div className={styles.tableScroll} ref={scrollRef}>
         {isEmpty ? (
           <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📊</div>
+            <div className={styles.emptyIcon} style={{ display: 'flex', justifyContent: 'center' }}>
+              <BarChart2 size={36} color="var(--text-muted, #64748b)" />
+            </div>
             <div className={styles.emptyTitle}>
               {(committedQuery || searchInput) ? 'No results found' : 'No data available'}
             </div>
@@ -1920,7 +1951,10 @@ export function DealerTable({
                                     }}
                                     title="Central Funder corporate account - click to toggle satellite stores"
                                   >
-                                    <span>🏢 Central Funder ({childCount} store{childCount === 1 ? '' : 's'})</span>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <Building2 size={11} />
+                                      <span>Central Funder ({childCount} store{childCount === 1 ? '' : 's'})</span>
+                                    </span>
                                     <span style={{ fontSize: '9px', marginLeft: '2px' }}>{isParentExpanded ? '▲' : '▼'}</span>
                                   </button>
                                 )}
@@ -1959,7 +1993,10 @@ export function DealerTable({
                                     }}
                                     title="View Badger Maps activity, notepad, and log check-ins"
                                   >
-                                    📍 Badger
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <MapPin size={11} />
+                                      <span>Badger</span>
+                                    </span>
                                   </button>
 
                                   <button
@@ -1984,7 +2021,10 @@ export function DealerTable({
                                     }}
                                     title="Quick Action: Red flag dealership, change business type, add tags, or manage funding hierarchy"
                                   >
-                                    <span>{dealer.systemStatus && dealer.systemStatus !== 'active' ? '🚩 Flagged' : '🚩 Actions'}</span>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <Flag size={11} />
+                                      <span>{dealer.systemStatus && dealer.systemStatus !== 'active' ? 'Flagged' : 'Actions'}</span>
+                                    </span>
                                   </button>
                                 </div>
                               </div>
@@ -2079,7 +2119,10 @@ export function DealerTable({
                                         }}
                                         title="View Badger Maps activity, notepad, and log check-ins"
                                       >
-                                        📍 Badger
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                          <MapPin size={11} />
+                                          <span>Badger</span>
+                                        </span>
                                       </button>
                                       <button
                                         type="button"
@@ -2666,7 +2709,10 @@ function GroupRows({
                       }}
                       title="View Badger Maps activity, notepad, and log check-ins"
                     >
-                      📍 Badger
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <MapPin size={11} />
+                        <span>Badger</span>
+                      </span>
                     </button>
 
                     <button
@@ -2687,7 +2733,10 @@ function GroupRows({
                       }}
                       title="Quick Action: Red flag dealership, change business type, or add tags"
                     >
-                      <span>{loc.systemStatus && loc.systemStatus !== 'active' ? '🚩 Flagged' : '🚩 Actions'}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <Flag size={11} />
+                        <span>{loc.systemStatus && loc.systemStatus !== 'active' ? 'Flagged' : 'Actions'}</span>
+                      </span>
                     </button>
                   </div>
                 </div>

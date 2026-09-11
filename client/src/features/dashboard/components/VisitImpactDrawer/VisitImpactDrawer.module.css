@@ -299,6 +299,22 @@
   font-weight: 500;
 }
 
+.timeframeSelect {
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.tableFooter {
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+  background: #090d16;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
 .searchInput {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1316,6 +1332,40 @@
 
 [data-theme="light"] .matrixTableScroll {
   border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sectionTitle {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .dealerNameLink {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .dealerNameLink:hover {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .timeframeSelect {
+  background: #f0f9ff !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .tableFooter {
+  background: #f1f5f9 !important;
+  border-top: 2px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tableFooter td {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .filterSelect {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
 

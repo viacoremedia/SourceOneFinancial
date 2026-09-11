@@ -15,6 +15,7 @@ const DealerLocation = require('../../models/DealerLocation');
 const Application = require('../../models/Application');
 const DealerCommunication = require('../../models/DealerCommunication');
 const { recomputeAllProfiles, classifyCommType } = require('../../services/dealerRelationshipEngine');
+const { getLatestDataDate } = require('../../utils/dateUtils');
 const { getRepSearchTerms, getRepQuery, resolveRepName, isInactiveRep, isExcludedRep } = require('../../config/repConfig');
 
 // ==========================================
@@ -322,6 +323,27 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
             req.user.excludedDealers.includes(clientDealerId)
         );
 
+        // Dynamic last visit date check: prioritize real-time latest visit from DealerCommunication
+        const maxDate = await getLatestDataDate();
+        const maxDateMs = maxDate ? maxDate.getTime() : Date.now();
+        const DAY_MS = 1000 * 60 * 60 * 24;
+
+        let liveLastVisitDate = profile.lastVisitDate || null;
+        const newestVisitComm = recentCommunications.find(c => c.channel === 'visit');
+        if (newestVisitComm?.date) {
+            const vDate = new Date(newestVisitComm.date);
+            if (!liveLastVisitDate || vDate > new Date(liveLastVisitDate)) {
+                liveLastVisitDate = vDate;
+            }
+        }
+        let liveDaysSinceLastVisit = profile.daysSinceLastVisit;
+        if (liveLastVisitDate) {
+            liveDaysSinceLastVisit = Math.max(0, Math.floor((maxDateMs - new Date(liveLastVisitDate).getTime()) / DAY_MS));
+        }
+
+        profile.lastVisitDate = liveLastVisitDate;
+        profile.daysSinceLastVisit = liveDaysSinceLastVisit;
+
         res.status(200).json({
             success: true,
             profile: {
@@ -377,7 +399,8 @@ router.get('/dealers/:clientDealerId/drawer', async (req, res) => {
 router.post('/dealers/:clientDealerId/override', async (req, res) => {
     try {
         const rawId = (req.params.clientDealerId || '').trim();
-        const { segment, reason } = req.body;
+        const segment = req.body.segment || req.body.overriddenSegment;
+        const reason = req.body.reason;
 
         const VALID_SEGMENTS = ['high_tlc', 'self_sufficient', 'comfort_stop', 'lapsed', 'insufficient_data'];
         if (!VALID_SEGMENTS.includes(segment)) {
@@ -461,7 +484,7 @@ router.post('/dealers/:clientDealerId/override', async (req, res) => {
         profile.relationshipDemand = segment;
         profile.decisionRationale = profile.decisionRationale || [];
         profile.decisionRationale.unshift(
-            `🔒 MANUALLY RECONCILED: Classification overridden to "${segment.replace(/_/g, ' ').toUpperCase()}" by ${userName} on ${new Date().toLocaleDateString()} — "${reason.trim()}"`
+            `MANUALLY RECONCILED: Classification overridden to "${segment.replace(/_/g, ' ').toUpperCase()}" by ${userName} on ${new Date().toLocaleDateString()} — "${reason.trim()}"`
         );
 
         await profile.save();

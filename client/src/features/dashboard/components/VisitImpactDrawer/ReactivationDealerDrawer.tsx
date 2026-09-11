@@ -5,7 +5,8 @@ import {
   TrendingUp,
   Activity,
   FileText,
-  MessageSquare
+  MessageSquare,
+  MapPin
 } from 'lucide-react';
 import { getDealerRelationshipDrawer } from '../../../../core/services/api';
 import type { RelationshipDemandDrawerResponse } from '../../../../core/services/api';
@@ -89,10 +90,10 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
     : styles.outcomeMaintenance;
 
   const outcomeLabel = dealer.outcome === 'reactivated'
-    ? `🟢 Reactivated (+${formatDollar(dealer.reactivatedVolume)})`
+    ? `Reactivated (+${formatDollar(dealer.reactivatedVolume)})`
     : dealer.outcome === 'no_response'
-    ? `🔴 No Response (${windowDays}d Window)`
-    : `🟡 Maintenance`;
+    ? `No Response (${windowDays}d Window)`
+    : `Maintenance`;
 
   const statusLabel = dealer.statusAtVisit === 'active'
     ? 'Active'
@@ -245,8 +246,9 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                   <span className={styles.legendItem}>
                     <span className={styles.dotBooked} /> Booked $
                   </span>
-                  <span className={styles.legendItem}>
-                    📍 Visit Touchpoint
+                  <span className={styles.legendItem} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={12} color="#ef4444" />
+                    <span>Visit Touchpoint</span>
                   </span>
                 </div>
               </div>
@@ -256,8 +258,9 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                 <div className={styles.hoverMetricsBar}>
                   <strong style={{ color: '#38bdf8' }}>{relevantTimeline[hoveredIdx].monthKey}</strong>
                   {relevantTimeline[hoveredIdx].monthKey === visitMonthKey && (
-                    <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>
-                      📍 Visit Month
+                    <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <MapPin size={10} color="#38bdf8" />
+                      <span>Visit Month</span>
                     </span>
                   )}
                   <span>Apps: <strong style={{ color: 'var(--text-primary, #ffffff)' }}>{relevantTimeline[hoveredIdx].appCount}</strong></span>
@@ -350,14 +353,16 @@ export const ReactivationDealerDrawer: React.FC<ReactivationDealerDrawerProps> =
                           {/* Visit Marker Pin */}
                           {(isVisitMonth || item.visitCount > 0) && (
                             <g>
-                              <circle cx={x} cy={Math.max(22, 110 - appHeight)} r="10" fill="rgba(239, 68, 68, 0.25)" stroke="#ef4444" strokeWidth="1.5" />
+                              <circle cx={x} cy={Math.max(22, 110 - appHeight)} r="9" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
                               <text
                                 x={x}
                                 y={Math.max(22, 110 - appHeight) + 4}
-                                fontSize="11"
+                                fontSize="9"
+                                fontWeight="bold"
+                                fill="#ffffff"
                                 textAnchor="middle"
                               >
-                                📍
+                                {item.visitCount > 0 ? item.visitCount : '1'}
                               </text>
                             </g>
                           )}

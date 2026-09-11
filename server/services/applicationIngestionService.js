@@ -106,8 +106,8 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
         const { rows } = parseCSV(csvContent, parserConfig.expectedHeaders);
         console.log(`  application ingestion: parsed ${rows.length} rows from "${fileName}"`);
 
-        // Step 3: Build bulk upsert operations
-        const bulkOps = [];
+        // Step 3: Build parsed document list
+        const parsedDocs = [];
         let skipped = 0;
 
         for (const row of rows) {
@@ -168,30 +168,97 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
                 lastIngestionDate: new Date()
             };
 
-            bulkOps.push({
-                updateOne: {
-                    filter: { applicationId },
-                    update: { $set: doc },
-                    upsert: true
-                }
-            });
+            parsedDocs.push(doc);
         }
 
-        // Step 4: Execute bulk upsert in batches
+        // Step 4: Execute bulk upsert in batches with status transition tracking
         let totalUpserted = 0;
         let totalModified = 0;
+        let totalStatusTransitions = 0;
         const BATCH_SIZE = 500;
 
-        for (let i = 0; i < bulkOps.length; i += BATCH_SIZE) {
-            const batch = bulkOps.slice(i, i + BATCH_SIZE);
-            const result = await Application.bulkWrite(batch, { ordered: false });
-            totalUpserted += result.upsertedCount || 0;
-            totalModified += result.modifiedCount || 0;
+        for (let i = 0; i < parsedDocs.length; i += BATCH_SIZE) {
+            const batchDocs = parsedDocs.slice(i, i + BATCH_SIZE);
+            const batchAppIds = batchDocs.map(d => d.applicationId);
+
+            // Fetch existing application status in batch (fast lean index query)
+            const existingApps = await Application.find(
+                { applicationId: { $in: batchAppIds } },
+                { applicationId: 1, status: 1 }
+            ).lean();
+            const existingMap = new Map(existingApps.map(a => [a.applicationId, a.status]));
+
+            const batchOps = [];
+            const now = new Date();
+
+            for (const doc of batchDocs) {
+                if (existingMap.has(doc.applicationId)) {
+                    const oldStatus = existingMap.get(doc.applicationId);
+                    const isTransition = doc.status && oldStatus && 
+                        doc.status.trim().toLowerCase() !== oldStatus.trim().toLowerCase();
+
+                    if (isTransition) {
+                        doc.previousStatus = oldStatus;
+                        doc.statusChangedAt = now;
+                        totalStatusTransitions++;
+
+                        batchOps.push({
+                            updateOne: {
+                                filter: { applicationId: doc.applicationId },
+                                update: {
+                                    $set: doc,
+                                    $push: {
+                                        statusHistory: {
+                                            fromStatus: oldStatus,
+                                            toStatus: doc.status,
+                                            changedAt: now,
+                                            source: 'omni_ingest'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        batchOps.push({
+                            updateOne: {
+                                filter: { applicationId: doc.applicationId },
+                                update: { $set: doc }
+                            }
+                        });
+                    }
+                } else {
+                    // New record
+                    doc.previousStatus = null;
+                    doc.statusChangedAt = now;
+                    if (doc.status) {
+                        doc.statusHistory = [{
+                            fromStatus: null,
+                            toStatus: doc.status,
+                            changedAt: now,
+                            source: 'initial_import'
+                        }];
+                    }
+
+                    batchOps.push({
+                        updateOne: {
+                            filter: { applicationId: doc.applicationId },
+                            update: { $set: doc },
+                            upsert: true
+                        }
+                    });
+                }
+            }
+
+            if (batchOps.length > 0) {
+                const result = await Application.bulkWrite(batchOps, { ordered: false });
+                totalUpserted += result.upsertedCount || 0;
+                totalModified += result.modifiedCount || 0;
+            }
         }
 
         const processingTimeMs = Date.now() - startTime;
-        console.log(`  application ingestion: upserted ${totalUpserted} new, updated ${totalModified} existing`);
-        console.log(`  application ingestion: completed CSV parsing in ${processingTimeMs}ms — ${bulkOps.length} records`);
+        console.log(`  application ingestion: upserted ${totalUpserted} new, updated ${totalModified} existing, ${totalStatusTransitions} status transitions`);
+        console.log(`  application ingestion: completed CSV parsing in ${processingTimeMs}ms — ${parsedDocs.length} records`);
 
         // Step 5: Automatically trigger 3-month snapshot and monthly rollup rebuild
         let rebuildResult = null;
@@ -245,7 +312,7 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
             const reportDate = rebuildResult?.toDate ? new Date(rebuildResult.toDate) : new Date();
             await runPostIngestionReports({
                 rowCount: rows.length,
-                dealersProcessed: bulkOps.length,
+                dealersProcessed: parsedDocs.length,
                 newDealers: totalUpserted,
                 processingTimeMs
             }, reportDate);
@@ -263,7 +330,7 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
                     $set: {
                         status: 'completed',
                         rowCount: rows.length,
-                        dealersProcessed: bulkOps.length,
+                        dealersProcessed: parsedDocs.length,
                         newDealers: totalUpserted,
                         reportDate: rebuildResult?.toDate ? new Date(rebuildResult.toDate) : null,
                         errorReason: errors.length > 0 ? errors.slice(0, 10).join('; ') : null,
@@ -276,9 +343,10 @@ async function ingestApplicationCSV(csvContent, webhookPayloadId, fileName = '')
 
         return {
             rowCount: rows.length,
-            recordsProcessed: bulkOps.length,
+            recordsProcessed: parsedDocs.length,
             newRecords: totalUpserted,
             updatedRecords: totalModified,
+            statusTransitions: totalStatusTransitions,
             skipped,
             errors,
             processingTimeMs: totalOverallMs,

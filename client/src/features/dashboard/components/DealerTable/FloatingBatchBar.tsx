@@ -1,13 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Tag,
-  Briefcase,
   Flag,
   X,
   Check,
   Loader2,
   Trash2,
-  Plus
+  Plus,
+  Zap,
+  CheckCircle2,
+  XCircle,
+  Handshake,
+  AlertTriangle
 } from 'lucide-react';
 import {
   executeBatchDealerAction,
@@ -26,7 +30,7 @@ export interface FloatingBatchBarProps {
   onBatchSuccess: (updatedDealers: any[], batchId: string, actionLabel: string) => void;
 }
 
-type FlyoutType = 'tags' | 'type' | 'status' | null;
+type FlyoutType = 'tags' | 'status' | null;
 
 export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
   selectedIds,
@@ -44,9 +48,6 @@ export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
   const [tagMode, setTagMode] = useState<'add' | 'remove'>('add');
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [tagInputText, setTagInputText] = useState('');
-
-  // Business Type flyout state
-  const [selectedType, setSelectedType] = useState<'franchise' | 'non-franchise' | 'broker' | ''>('franchise');
 
   // Status flyout state
   const [selectedStatus, setSelectedStatus] = useState<'active' | 'closed' | 'bought_out' | 'no_longer_in_service'>('closed');
@@ -134,7 +135,7 @@ export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
     <div className={styles.floatingBarContainer} ref={containerRef}>
       {/* Pill count */}
       <div className={styles.countPill}>
-        <span>⚡</span>
+        <Zap size={13} color="#38bdf8" />
         <span>{effectiveCount} Selected</span>
         {selectAllAcrossPages && (
           <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.2)', padding: '1px 5px', borderRadius: '4px', color: '#38bdf8' }}>
@@ -156,16 +157,6 @@ export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
           <span>Tags</span>
         </button>
 
-        {/* Business Type action */}
-        <button
-          type="button"
-          className={`${styles.actionBtn} ${activeFlyout === 'type' ? styles.actionBtnActive : ''}`}
-          onClick={() => setActiveFlyout(activeFlyout === 'type' ? null : 'type')}
-          disabled={isSubmitting}
-        >
-          <Briefcase size={13} />
-          <span>Type</span>
-        </button>
 
         {/* Status action */}
         <button
@@ -272,17 +263,39 @@ export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
             </div>
           )}
 
+          {/* Quick preset tags */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            {['Franchise', 'Non-Franchise', 'Broker'].map(sysTag => (
+              <button
+                key={sysTag}
+                type="button"
+                className={styles.actionBtn}
+                style={{ padding: '2px 8px', fontSize: '10px', height: 'auto', lineHeight: '1.4' }}
+                onClick={() => handleAddPendingTag(sysTag)}
+                title={`Add ${sysTag} to batch selection`}
+              >
+                + {sysTag}
+              </button>
+            ))}
+          </div>
+
           <button
             type="button"
             className={styles.submitBtn}
             disabled={isSubmitting || pendingTags.length === 0}
-            onClick={() =>
+            onClick={() => {
+              if (tagMode === 'remove') {
+                const confirmed = window.confirm(
+                  `Warning: Removing tag(s) "${pendingTags.join(', ')}" across ${selectedIds.length} dealerships will alter dashboard filters, segmentation, and reports.\n\nAre you sure you want to proceed?`
+                );
+                if (!confirmed) return;
+              }
               executeBatch(
                 tagMode === 'add' ? 'add_tags' : 'remove_tags',
                 { tags: pendingTags },
                 tagMode === 'add' ? `Added ${pendingTags.join(', ')}` : `Removed ${pendingTags.join(', ')}`
-              )
-            }
+              );
+            }}
           >
             {isSubmitting ? (
               <Loader2 size={13} className={styles.spin} />
@@ -294,71 +307,6 @@ export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
         </div>
       )}
 
-      {/* ── Flyout: Business Type ── */}
-      {activeFlyout === 'type' && (
-        <div className={styles.popoverFlyout}>
-          <div className={styles.popoverHeader}>
-            <div className={styles.popoverTitle}>
-              <Briefcase size={14} color="#2dd4bf" />
-              <span>Set Business Type ({selectedIds.length} stores)</span>
-            </div>
-            <button
-              type="button"
-              className={styles.popoverClose}
-              onClick={() => setActiveFlyout(null)}
-            >
-              <X size={13} />
-            </button>
-          </div>
-
-          <div className={styles.optionsGrid}>
-            <div
-              className={`${styles.optionCard} ${selectedType === 'franchise' ? styles.optionCardSelected : ''}`}
-              onClick={() => setSelectedType('franchise')}
-            >
-              <span>🏢 Franchise</span>
-            </div>
-            <div
-              className={`${styles.optionCard} ${selectedType === 'non-franchise' ? styles.optionCardSelected : ''}`}
-              onClick={() => setSelectedType('non-franchise')}
-            >
-              <span>Independent</span>
-            </div>
-            <div
-              className={`${styles.optionCard} ${selectedType === 'broker' ? styles.optionCardSelected : ''}`}
-              onClick={() => setSelectedType('broker')}
-            >
-              <span>Broker</span>
-            </div>
-            <div
-              className={`${styles.optionCard} ${selectedType === '' ? styles.optionCardSelected : ''}`}
-              onClick={() => setSelectedType('')}
-            >
-              <span style={{ opacity: 0.7 }}>✕ Clear Type</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className={styles.submitBtn}
-            disabled={isSubmitting}
-            onClick={() =>
-              executeBatch(
-                'set_business_type',
-                { businessType: selectedType || null },
-                `Set type to ${selectedType || 'None'}`
-              )
-            }
-          >
-            {isSubmitting ? (
-              <Loader2 size={13} className={styles.spin} />
-            ) : (
-              <Check size={13} />
-            )}
-            <span>Update Business Type</span>
-          </button>
-        </div>
-      )}
 
       {/* ── Flyout: Status ── */}
       {activeFlyout === 'status' && (
@@ -382,25 +330,37 @@ export const FloatingBatchBar: React.FC<FloatingBatchBarProps> = ({
               className={`${styles.optionCard} ${selectedStatus === 'active' ? styles.optionCardSelected : ''}`}
               onClick={() => setSelectedStatus('active')}
             >
-              <span>🟢 Active</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <CheckCircle2 size={13} color="#34d399" />
+                <span>Active</span>
+              </div>
             </div>
             <div
               className={`${styles.optionCard} ${selectedStatus === 'closed' ? styles.optionCardSelected : ''}`}
               onClick={() => setSelectedStatus('closed')}
             >
-              <span>🔴 Closed</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <XCircle size={13} color="#f87171" />
+                <span>Closed</span>
+              </div>
             </div>
             <div
               className={`${styles.optionCard} ${selectedStatus === 'bought_out' ? styles.optionCardSelected : ''}`}
               onClick={() => setSelectedStatus('bought_out')}
             >
-              <span>🤝 Bought Out</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <Handshake size={13} color="#fbbf24" />
+                <span>Bought Out</span>
+              </div>
             </div>
             <div
               className={`${styles.optionCard} ${selectedStatus === 'no_longer_in_service' ? styles.optionCardSelected : ''}`}
               onClick={() => setSelectedStatus('no_longer_in_service')}
             >
-              <span>⚠️ Out of Service</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <AlertTriangle size={13} color="#f59e0b" />
+                <span>Out of Service</span>
+              </div>
             </div>
           </div>
 

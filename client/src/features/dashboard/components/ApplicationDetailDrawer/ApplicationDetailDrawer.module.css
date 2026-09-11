@@ -331,3 +331,89 @@
   border: 1px solid #cbd5e1;
 }
 
+/* ── Status Progression Timeline ── */
+.timelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  padding-left: 22px;
+  margin-top: 8px;
+}
+
+.timelineList::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="light"] .timelineList::before {
+  background: #cbd5e1;
+}
+
+.timelineItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timelineNode {
+  position: absolute;
+  left: -22px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+
+[data-theme="light"] .timelineNode {
+  border-color: #ffffff;
+  background: #0284c7;
+}
+
+.timelineTransition {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-theme="light"] .timelineTransition {
+  color: #0f172a;
+}
+
+.timelineMeta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+[data-theme="light"] .timelineMeta {
+  color: #64748b;
+}
+
+.timelineBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+[data-theme="light"] .timelineBadge {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+

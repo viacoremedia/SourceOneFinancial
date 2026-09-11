@@ -24,6 +24,14 @@ const applicationSchema = new mongoose.Schema({
 
     // Pipeline / Status
     status: { type: String, trim: true, default: null },
+    previousStatus: { type: String, trim: true, default: null },
+    statusChangedAt: { type: Date, default: null },
+    statusHistory: [{
+        fromStatus: { type: String, trim: true, default: null },
+        toStatus: { type: String, trim: true, default: null },
+        changedAt: { type: Date, default: Date.now },
+        source: { type: String, trim: true, default: 'omni_ingest' }
+    }],
     underwriter: { type: String, trim: true, default: null },
     lender: { type: String, trim: true, default: null },
 
@@ -128,5 +136,9 @@ applicationSchema.index({ status: 1, bookedDate: -1 }, { name: 'status_booked_da
 // Date range scans
 applicationSchema.index({ applicationDate: -1 }, { name: 'app_date_desc' });
 applicationSchema.index({ bookedDate: -1 }, { name: 'booked_date_desc' });
+
+// Pipeline queries: status movement tracking
+applicationSchema.index({ clientDealerId: 1, statusChangedAt: -1 }, { name: 'dealer_status_changed' });
+applicationSchema.index({ statusChangedAt: -1 }, { name: 'status_changed_desc' });
 
 module.exports = mongoose.model('Application', applicationSchema);

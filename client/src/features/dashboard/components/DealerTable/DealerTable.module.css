@@ -68,9 +68,9 @@
   background: #38bdf8;
   color: #0f172a;
   font-weight: 600;
-  font-size: 0.75rem;
-  padding: 3px 10px;
-  border-radius: 4px;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -78,6 +78,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .searchSubmitBtn:hover {

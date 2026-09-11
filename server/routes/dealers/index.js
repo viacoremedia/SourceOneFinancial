@@ -350,6 +350,26 @@ router.get('/tags', requireAuth, async (req, res) => {
         }
 
         const resultMap = new Map();
+
+        // Ensure default system tags are always present
+        const SYSTEM_DEFAULTS = [
+            { tag: 'Franchise', color: '#38bdf8', description: 'Franchise rooftop store', isSystem: true },
+            { tag: 'Non-Franchise', color: '#a855f7', description: 'Independent dealership', isSystem: true },
+            { tag: 'Broker', color: '#f59e0b', description: 'Broker or intermediary', isSystem: true }
+        ];
+        for (const s of SYSTEM_DEFAULTS) {
+            const key = s.tag.toLowerCase();
+            const existingCount = countMap.get(key)?.count || 0;
+            resultMap.set(key, {
+                tag: s.tag,
+                count: existingCount,
+                color: s.color,
+                description: s.description,
+                isGlobal: true,
+                isSystem: true
+            });
+        }
+
         // First, add all defined global tags (with count = 0 by default)
         for (const gt of globalTags) {
             const key = gt.name.trim().toLowerCase();
@@ -474,6 +494,14 @@ router.delete('/tags/:tag', requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Tag name is required' });
         }
 
+        const SYSTEM_PROTECTED = ['franchise', 'non-franchise', 'broker'];
+        if (SYSTEM_PROTECTED.includes(cleanTag.toLowerCase())) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `"${cleanTag}" is a core system classification tag and cannot be deleted.` 
+            });
+        }
+
         const existingTag = await GlobalTag.findOne({ name: new RegExp('^' + cleanTag + '$', 'i') });
         let affectedDealerKeys = [];
         if (req.query.cascade === 'true') {
@@ -576,6 +604,23 @@ router.patch('/:dealerId/quick-action', requireAuth, async (req, res) => {
             const cleanTags = Array.from(new Set(tags.map(t => String(t).trim()).filter(Boolean)));
             updateData.tags = cleanTags;
             newState.tags = cleanTags;
+
+            // Bi-directional sync: If a system type tag is present, sync businessType
+            const lowerTags = cleanTags.map(t => t.toLowerCase());
+            if (lowerTags.includes('franchise')) {
+                updateData.businessType = 'franchise';
+                newState.businessType = 'franchise';
+            } else if (lowerTags.includes('non-franchise')) {
+                updateData.businessType = 'non-franchise';
+                newState.businessType = 'non-franchise';
+            } else if (lowerTags.includes('broker')) {
+                updateData.businessType = 'broker';
+                newState.businessType = 'broker';
+            } else if (businessType === undefined && ['franchise', 'non-franchise', 'broker'].includes(currentLoc.businessType)) {
+                // If a previous system tag was removed and no explicit businessType was passed
+                updateData.businessType = null;
+                newState.businessType = null;
+            }
         }
 
         if (industry !== undefined) {
@@ -1163,12 +1208,31 @@ router.post('/batch-action', requireAuth, async (req, res) => {
                 loc.tags = mergedTags;
                 loc.isManuallyClassified = true;
                 next.tags = mergedTags;
+
+                // Sync businessType if system tag was added
+                const lowerTags = mergedTags.map(t => t.toLowerCase());
+                if (lowerTags.includes('franchise')) {
+                    loc.businessType = 'franchise';
+                    next.businessType = 'franchise';
+                } else if (lowerTags.includes('non-franchise')) {
+                    loc.businessType = 'non-franchise';
+                    next.businessType = 'non-franchise';
+                } else if (lowerTags.includes('broker')) {
+                    loc.businessType = 'broker';
+                    next.businessType = 'broker';
+                }
             } else if (action === 'remove_tags') {
                 const tagsToRemove = new Set((payload?.tags || []).map(t => String(t).trim().toLowerCase()));
                 const filteredTags = (loc.tags || []).filter(t => !tagsToRemove.has(String(t).toLowerCase()));
                 loc.tags = filteredTags;
                 loc.isManuallyClassified = true;
                 next.tags = filteredTags;
+
+                // If active businessType tag was removed, clear businessType
+                if (loc.businessType && tagsToRemove.has(loc.businessType.toLowerCase())) {
+                    loc.businessType = null;
+                    next.businessType = null;
+                }
             } else if (action === 'set_business_type') {
                 const bt = payload?.businessType || null;
                 loc.businessType = bt;

@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { MapPin, Phone, Mail, FileText, Target, Zap, Calendar, Building2, Lightbulb } from 'lucide-react';
 import styles from './VisitImpactDrawer.module.css';
 import { RelationshipDemandView } from './RelationshipDemandView';
 import { ReactivationDealerDrawer, type ReactivationDealerItem } from './ReactivationDealerDrawer';
@@ -199,13 +200,28 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
   const renderTypeBadge = (typeStr: string) => {
     const t = typeStr.toLowerCase();
     if (t.includes('visit') || t.includes('meeting')) {
-      return <span className={styles.badgeVisit}>📍 {typeStr}</span>;
+      return (
+        <span className={styles.badgeVisit} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <MapPin size={11} />
+          <span>{typeStr}</span>
+        </span>
+      );
     }
     if (t.includes('call') || t.includes('phone')) {
-      return <span className={styles.badgeCall}>📞 {typeStr}</span>;
+      return (
+        <span className={styles.badgeCall} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <Phone size={11} />
+          <span>{typeStr}</span>
+        </span>
+      );
     }
     if (t.includes('email')) {
-      return <span className={styles.badgeEmail}>✉️ {typeStr}</span>;
+      return (
+        <span className={styles.badgeEmail} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <Mail size={11} />
+          <span>{typeStr}</span>
+        </span>
+      );
     }
     return <span className={styles.badgeOther}>{typeStr}</span>;
   };
@@ -267,7 +283,10 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                 <button className={styles.backBtn} onClick={handleBackToLift}>
                   ← Back to Rep Lift Performance
                 </button>
-                <h2 className={styles.title}>📋 Communication History — {selectedRep}</h2>
+                <h2 className={styles.title} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileText size={18} />
+                  <span>Communication History — {selectedRep}</span>
+                </h2>
               </div>
             ) : (
               <>
@@ -275,14 +294,18 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                   <button
                     className={`${styles.topNavBtn} ${mainTab === 'demand' ? styles.topNavBtnActive : ''}`}
                     onClick={() => setMainTab('demand')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    🎯 Relationship Demand & Allocation (TLC)
+                    <Target size={14} />
+                    <span>Relationship Demand & Allocation (TLC)</span>
                   </button>
                   <button
                     className={`${styles.topNavBtn} ${mainTab === 'reactivation' ? styles.topNavBtnActive : ''}`}
                     onClick={() => setMainTab('reactivation')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    ⚡ Visit Reactivation Diagnostic
+                    <Zap size={14} />
+                    <span>Visit Reactivation Diagnostic</span>
                   </button>
                 </div>
 
@@ -297,10 +320,14 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                       padding: '4px 10px',
                       borderRadius: '6px',
                       whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
                     }}
                     title="Analysis period for visit data"
                   >
-                    📅 {impactData.dateRangeLabel}
+                    <Calendar size={13} />
+                    <span>{impactData.dateRangeLabel}</span>
                   </span>
                 )}
                 {mainTab === 'reactivation' && (
@@ -309,13 +336,12 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                     <select
                       value={timeframe}
                       onChange={(e) => setTimeframe(e.target.value as any)}
-                      className={styles.filterSelect}
-                      style={{ background: '#0f172a', borderColor: '#38bdf8', color: '#38bdf8', fontWeight: 600, padding: '4px 8px', borderRadius: '6px' }}
+                      className={`${styles.filterSelect} ${styles.timeframeSelect}`}
                       title="Select timeframe of visits to analyze"
                     >
-                      <option value="ytd">📅 YTD 2026</option>
-                      <option value="30d">📅 Last 30 Days Visits</option>
-                      <option value="60d">📅 Last 60 Days Visits</option>
+                      <option value="ytd">YTD 2026</option>
+                      <option value="30d">Last 30 Days Visits</option>
+                      <option value="60d">Last 60 Days Visits</option>
                     </select>
 
                     {[14, 30, 60].map((w) => (
@@ -324,8 +350,10 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                         className={`${styles.windowBtn} ${windowDays === w ? styles.windowBtnActive : ''}`}
                         onClick={() => setWindowDays(w)}
                         title={`Attribute app to visit if submitted within ${w} days post-visit`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                       >
-                        ⚡ {w}d Conversion Window {w === 30 ? '(Default)' : ''}
+                        <Zap size={11} />
+                        <span>{w}d Window {w === 30 ? '(Default)' : ''}</span>
                       </button>
                     ))}
                     <button
@@ -333,7 +361,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                       onClick={() => setTouchpointMode(touchpointMode === 'visits' ? 'all' : 'visits')}
                       style={{ marginLeft: '8px' }}
                     >
-                      {touchpointMode === 'visits' ? '📍 Visits Only' : '📞 All Touchpoints'}
+                      {touchpointMode === 'visits' ? 'Visits Only' : 'All Touchpoints'}
                     </button>
                   </div>
                 )}
@@ -570,13 +598,19 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                     fontSize: '12px',
                     color: '#94a3b8',
                     lineHeight: '1.4',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
                   }}
                 >
-                  💡 <strong style={{ color: '#38bdf8' }}>Methodology:</strong> A dealer is marked <strong>"Inactive"</strong> if zero applications were submitted in the 60 days prior to a visit. <strong>"Reactivated"</strong> = dealer submitted a new application within <strong>{windowDays} days post-visit</strong>. <strong>Visit Date</strong> in the table shows the exact date when the reactivation visit occurred. Select a <strong>Visit Timeframe</strong> above (e.g. Last 30 Days) to focus on recent visits.
+                  <Lightbulb size={16} color="#38bdf8" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ color: '#38bdf8' }}>Methodology:</strong> A dealer is marked <strong>"Inactive"</strong> if zero applications were submitted in the 60 days prior to a visit. <strong>"Reactivated"</strong> = dealer submitted a new application within <strong>{windowDays} days post-visit</strong>. <strong>Visit Date</strong> in the table shows the exact date when the reactivation visit occurred. Select a <strong>Visit Timeframe</strong> above (e.g. Last 30 Days) to focus on recent visits.
+                  </div>
                 </div>
 
                 <h3 className={styles.sectionTitle} style={{ marginTop: '12px' }}>
-                  📊 Rep Reactivation Performance ({windowDays}-Day Window)
+                  Rep Reactivation Performance ({windowDays}-Day Window)
                   <span style={{ fontSize: '12px', fontWeight: 400, color: '#94a3b8', marginLeft: '8px' }}>
                     (Click any column header to sort · Click any Rep name for logs)
                   </span>
@@ -705,11 +739,12 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                                 <div className={styles.subTableContainer}>
                                   <div className={styles.subTableHeaderRow}>
                                     <div>
-                                      <div className={styles.subTableTitle}>
-                                        🏢 Dealers Contacted by {r.rep} ({r.dealers?.length || 0})
+                                      <div className={styles.subTableTitle} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Building2 size={13} />
+                                        <span>Dealers Contacted by {r.rep} ({r.dealers?.length || 0})</span>
                                         {r.matrix && (
                                           <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '12px' }}>
-                                            Matrix: 🎯 {r.matrix.targeted} targeted · ⚠️ {r.matrix.neglected} neglected · ✅ {r.matrix.maintained} maintained · 🟢 {r.matrix.selfSufficient} self-sufficient
+                                            Matrix: {r.matrix.targeted} targeted · {r.matrix.neglected} neglected · {r.matrix.maintained} maintained · {r.matrix.selfSufficient} self-sufficient
                                           </span>
                                         )}
                                       </div>
@@ -717,9 +752,9 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                                       <div className={styles.outcomeFilterBar}>
                                         {[
                                           { key: 'all', label: `All (${r.dealers?.length || 0})` },
-                                          { key: 'reactivated', label: `🟢 Reactivated (${r.dealers?.filter((d) => d.outcome === 'reactivated').length || 0})` },
-                                          { key: 'no_response', label: `🔴 No Response (${r.dealers?.filter((d) => d.outcome === 'no_response').length || 0})` },
-                                          { key: 'maintenance', label: `🟡 Maintenance (${r.dealers?.filter((d) => d.outcome === 'maintenance').length || 0})` },
+                                          { key: 'reactivated', label: `Reactivated (${r.dealers?.filter((d) => d.outcome === 'reactivated').length || 0})` },
+                                          { key: 'no_response', label: `No Response (${r.dealers?.filter((d) => d.outcome === 'no_response').length || 0})` },
+                                          { key: 'maintenance', label: `Maintenance (${r.dealers?.filter((d) => d.outcome === 'maintenance').length || 0})` },
                                         ].map((f) => (
                                           <button
                                             key={f.key}
@@ -800,10 +835,10 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                                           <tbody>
                                             {filteredDealers.map((d) => {
                                               const outcomeBadge = d.outcome === 'reactivated'
-                                                ? { label: '🟢 Reactivated', color: '#34d399' }
+                                                ? { label: 'Reactivated', color: '#34d399' }
                                                 : d.outcome === 'no_response'
-                                                  ? { label: '🔴 No Response', color: '#f87171' }
-                                                  : { label: '🟡 Maintenance', color: '#fbbf24' };
+                                                  ? { label: 'No Response', color: '#f87171' }
+                                                  : { label: 'Maintenance', color: '#fbbf24' };
 
                                               const statusLabel = d.statusAtVisit === 'active' ? 'Active'
                                                 : d.statusAtVisit === 'never_active' ? 'Never Active'
@@ -866,7 +901,7 @@ export function VisitImpactDrawer({ open, onClose }: VisitImpactDrawerProps) {
                       );
                     })}
                   </tbody>
-                  <tfoot style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)', background: '#090d16', fontWeight: 700 }}>
+                  <tfoot className={styles.tableFooter}>
                     <tr>
                       <td style={{ color: '#38bdf8' }}>Network Total</td>
                       <td>{impactData.overall.totalVisits}</td>

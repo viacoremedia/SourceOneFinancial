@@ -105,6 +105,14 @@ export interface ApplicationHistoryItem {
   _id: string;
   applicationId: string;
   status: string | null;
+  previousStatus?: string | null;
+  statusChangedAt?: string | null;
+  statusHistory?: Array<{
+    fromStatus: string | null;
+    toStatus: string | null;
+    changedAt: string;
+    source?: string;
+  }>;
   underwriter?: string | null;
   lender?: string | null;
   applicationDate: string | null;

@@ -213,7 +213,7 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
   // Contacts states (Condensed All-In-One Roster)
   const [contacts, setContacts] = useState<BadgerContact[]>([]);
   const [isSyncingContacts, setIsSyncingContacts] = useState(false);
-  const [contactsSyncMsg, setContactsSyncMsg] = useState<string | null>(null);
+  const [contactsSyncMsg, setContactsSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedContactField, setCopiedContactField] = useState<string | null>(null);
   const [isContactsCollapsed, setIsContactsCollapsed] = useState(false);
 
@@ -239,11 +239,11 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
       const syncedContacts = res.data?.contacts || [];
       setContacts(syncedContacts);
       const count = syncedContacts.length;
-      setContactsSyncMsg(`✅ Synced ${count} contact${count === 1 ? '' : 's'}`);
+      setContactsSyncMsg({ type: 'success', text: `Synced ${count} contact${count === 1 ? '' : 's'}` });
       setTimeout(() => setContactsSyncMsg(null), 4000);
       loadActivity();
     } catch (err: any) {
-      setContactsSyncMsg(`❌ ${err.message || 'Failed to sync contacts'}`);
+      setContactsSyncMsg({ type: 'error', text: err.message || 'Failed to sync contacts' });
       setTimeout(() => setContactsSyncMsg(null), 5000);
     } finally {
       setIsSyncingContacts(false);
@@ -736,8 +736,8 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
               <div key={log._id} className={styles.auditCard}>
                 <div className={styles.auditCardHeader}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className={`${styles.auditActionBadge} ${isNotepad ? styles.badgeNotepad : styles.badgeCheckin}`}>
-                      {isNotepad ? '📝 Note Added' : '📍 Check-In'}
+                    <span className={`${styles.auditActionBadge} ${isNotepad ? styles.badgeNotepad : styles.badgeCheckin}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      {isNotepad ? <><FileText size={11} /> Note Added</> : <><MapPin size={11} /> Check-In</>}
                     </span>
                     <span className={log.isUndone ? styles.statusPillReverted : styles.statusPillActive}>
                       {log.isUndone ? 'Reverted' : 'Active'}
@@ -1026,8 +1026,9 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
 
         <div className={styles.contactsBarActions}>
           {contactsSyncMsg && (
-            <span className={contactsSyncMsg.startsWith('✅') ? styles.syncSuccessMsg : styles.syncErrorMsg}>
-              {contactsSyncMsg}
+            <span className={contactsSyncMsg.type === 'success' ? styles.syncSuccessMsg : styles.syncErrorMsg} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              {contactsSyncMsg.type === 'success' ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+              {contactsSyncMsg.text}
             </span>
           )}
 

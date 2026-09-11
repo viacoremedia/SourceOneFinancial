@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Calendar } from 'lucide-react';
 import styles from './CustomDatePicker.module.css';
 
 interface CustomDatePickerProps {
@@ -66,8 +67,10 @@ export function CustomDatePicker({
         className={styles.triggerBtn}
         onClick={() => setIsOpen(!isOpen)}
         title="Select custom date range"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
       >
-        <span>📅 {displayText}</span>
+        <Calendar size={13} />
+        <span>{displayText}</span>
       </button>
 
       {isOpen && (

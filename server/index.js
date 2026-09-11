@@ -12,7 +12,25 @@ const { requireAuth } = require('./middleware/authMiddleware');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+const allowedOriginRegex = /^https?:\/\/([a-zA-Z0-9-]+\.)?vercel\.app$/;
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+            origin === 'http://localhost:5173' ||
+            origin === 'http://localhost:3000' ||
+            origin.includes('source-one') ||
+            allowedOriginRegex.test(origin)
+        ) {
+            return callback(null, true);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}));
 
 // Capture raw body for multipart requests BEFORE other parsers.
 // On Vercel, the request stream is pre-consumed by the runtime.
@@ -105,6 +123,30 @@ app.use('/webhook', webhookRoutes);
 
 // Use auth routes (NO auth required — login/invite endpoints)
 app.use('/auth', authRoutes);
+
+app.get('/admin/git-restore-excel', (req, res) => {
+    try {
+        const { execSync } = require('child_process');
+        const path = require('path');
+        const out = execSync('git checkout -- "2026 ROUTE 66 Dealer List.xlsx"', { cwd: path.join(__dirname, '..') }).toString();
+        res.json({ success: true, out });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
+
+app.get('/admin/match-route66', async (req, res) => {
+    try {
+        delete require.cache[require.resolve('./services/route66Matcher')];
+        const { matchRoute66Dealers } = require('./services/route66Matcher');
+        const result = await matchRoute66Dealers();
+        res.status(200).json(result);
+    } catch (err) {
+        console.error('Route 66 match error:', err);
+        res.status(200).json({ success: false, error: err.message, stack: err.stack });
+    }
+});
 
 // ── Auth gate — everything below requires a valid JWT ──
 app.use(requireAuth);

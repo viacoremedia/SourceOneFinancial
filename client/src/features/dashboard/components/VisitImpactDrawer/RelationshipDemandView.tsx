@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import styles from './VisitImpactDrawer.module.css';
 import {
   getRelationshipDemandSummary,
@@ -243,7 +244,7 @@ export function RelationshipDemandView() {
             <div className={`${styles.heroKpiCard} ${styles.kpiCardHighTlc}`}>
               <div className={styles.heroKpiTopRow}>
                 <span className={styles.heroKpiBadge}>
-                  🔴 High TLC (Visit-Dependent)
+                  High TLC (Visit-Dependent)
                 </span>
                 <span className={styles.heroKpiPct}>
                   {summary?.segments.high_tlc.pct || 0}%
@@ -256,7 +257,7 @@ export function RelationshipDemandView() {
                 Funded Volume: <strong>{formatDollar(summary?.segments.high_tlc.bookedVolume || 0)}</strong>
               </div>
               <div className={styles.heroKpiAlert}>
-                🚨 {summary?.urgency.overdue || 0} Overdue • ⏳ {summary?.urgency.due_soon || 0} Due Soon
+                {summary?.urgency.overdue || 0} Overdue • {summary?.urgency.due_soon || 0} Due Soon
               </div>
             </div>
 
@@ -264,7 +265,7 @@ export function RelationshipDemandView() {
             <div className={`${styles.heroKpiCard} ${styles.kpiCardSelfSuff}`}>
               <div className={styles.heroKpiTopRow}>
                 <span className={styles.heroKpiBadge}>
-                  🟢 Self-Sufficient (Organic)
+                  Self-Sufficient (Organic)
                 </span>
                 <span className={styles.heroKpiPct}>
                   {summary?.segments.self_sufficient.pct || 0}%
@@ -277,7 +278,7 @@ export function RelationshipDemandView() {
                 Funded Volume: <strong>{formatDollar(summary?.segments.self_sufficient.bookedVolume || 0)}</strong>
               </div>
               <div className={styles.heroKpiAlert}>
-                ✅ Portal flow — Deprioritize road trips
+                Portal flow — Deprioritize road trips
               </div>
             </div>
 
@@ -285,7 +286,7 @@ export function RelationshipDemandView() {
             <div className={`${styles.heroKpiCard} ${styles.kpiCardComfortStop}`}>
               <div className={styles.heroKpiTopRow}>
                 <span className={styles.heroKpiBadge}>
-                  🟠 Comfort Stop (Time Sink)
+                  Comfort Stop (Time Sink)
                 </span>
                 <span className={styles.heroKpiPct}>
                   {summary?.segments.comfort_stop.pct || 0}%
@@ -298,7 +299,7 @@ export function RelationshipDemandView() {
                 Wasted Visits: <strong>{summary?.segments.comfort_stop.totalVisits.toLocaleString() || 0} visits</strong>
               </div>
               <div className={styles.heroKpiAlert}>
-                ⚠️ $0 Booked Loans — Freeze visits
+                $0 Booked Loans — Freeze visits
               </div>
             </div>
 
@@ -306,7 +307,7 @@ export function RelationshipDemandView() {
             <div className={`${styles.heroKpiCard} ${styles.kpiCardDiscovery}`}>
               <div className={styles.heroKpiTopRow}>
                 <span className={styles.heroKpiBadge}>
-                  ⚪ Discovery Queue (Low Data)
+                  Discovery Queue (Low Data)
                 </span>
                 <span className={styles.heroKpiPct}>
                   {summary?.segments.insufficient_data.pct || 0}%
@@ -319,7 +320,7 @@ export function RelationshipDemandView() {
                 Unexplored: <strong>&lt;2 visits / &lt;5 apps</strong>
               </div>
               <div className={styles.heroKpiAlert}>
-                🔍 Schedule baseline check-in
+                Schedule baseline check-in
               </div>
             </div>
           </div>
@@ -343,11 +344,11 @@ export function RelationshipDemandView() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-subtle, #e2e8f0)', background: 'var(--bg-surface-hover, #f8fafc)', color: 'var(--text-secondary, #475569)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
                     <th style={{ padding: '10px 12px' }}>Sales Representative</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>🔴 High TLC Overdue</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>⏳ High TLC Due Soon</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>✅ High TLC On Track</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>🟢 Autonomous</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>🟠 Comfort Stops</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>High TLC Overdue</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>High TLC Due Soon</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>High TLC On Track</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>Autonomous</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>Comfort Stops</th>
                     <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Booked Volume</th>
                   </tr>
                 </thead>
@@ -381,7 +382,7 @@ export function RelationshipDemandView() {
                               }}
                               title={`View ${r.overdueCount} Overdue accounts for ${r.rep}`}
                             >
-                              🚨 {r.overdueCount} Overdue
+                              {r.overdueCount} Overdue
                             </button>
                           ) : (
                             <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0</span>
@@ -466,11 +467,11 @@ export function RelationshipDemandView() {
               style={{ background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary, #0f172a)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="all">All Relationship Segments</option>
-              <option value="high_tlc">🔴 High TLC (Visit-Dependent)</option>
-              <option value="self_sufficient">🟢 Self-Sufficient (Autonomous)</option>
-              <option value="comfort_stop">🟠 Comfort Stop (Time Sink)</option>
-              <option value="lapsed">⚠️ Lapsed / Churned</option>
-              <option value="insufficient_data">⚪ Discovery Queue (Low Data)</option>
+              <option value="high_tlc">High TLC (Visit-Dependent)</option>
+              <option value="self_sufficient">Self-Sufficient (Autonomous)</option>
+              <option value="comfort_stop">Comfort Stop (Time Sink)</option>
+              <option value="lapsed">Lapsed / Churned</option>
+              <option value="insufficient_data">Discovery Queue (Low Data)</option>
             </select>
 
             {/* Urgency Filter */}
@@ -480,11 +481,11 @@ export function RelationshipDemandView() {
               style={{ background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary, #0f172a)', border: '1px solid var(--border-default, #cbd5e1)', borderRadius: '6px', padding: '6px 10px', fontSize: '0.8rem', outline: 'none' }}
             >
               <option value="all">All Urgency Statuses</option>
-              <option value="overdue">🚨 Overdue Visits</option>
-              <option value="due_soon">⏳ Due Soon (Within 7d)</option>
-              <option value="on_track">✅ On Track</option>
-              <option value="self_sufficient">🟢 Autonomous</option>
-              <option value="not_monitored">⚪ Not Monitored</option>
+              <option value="overdue">Overdue Visits</option>
+              <option value="due_soon">Due Soon (Within 7d)</option>
+              <option value="on_track">On Track</option>
+              <option value="self_sufficient">Autonomous</option>
+              <option value="not_monitored">Not Monitored</option>
             </select>
 
             {/* Rep Filter */}
@@ -586,23 +587,23 @@ export function RelationshipDemandView() {
                         <td style={{ padding: '12px 14px' }}>
                           {d.relationshipDemand === 'high_tlc' ? (
                             <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                              🔴 High TLC
+                              High TLC
                             </span>
                           ) : d.relationshipDemand === 'self_sufficient' ? (
                             <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                              🟢 Self-Sufficient
+                              Self-Sufficient
                             </span>
                           ) : d.relationshipDemand === 'comfort_stop' ? (
                             <span style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                              🟠 Comfort Stop
+                              Comfort Stop
                             </span>
                           ) : d.relationshipDemand === 'lapsed' ? (
                             <span style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#d97706', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                              ⚠️ Lapsed
+                              Lapsed
                             </span>
                           ) : (
                             <span style={{ background: 'rgba(148, 163, 184, 0.15)', color: '#64748b', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                              ⚪ Discovery
+                              Discovery
                             </span>
                           )}
                         </td>
@@ -610,15 +611,15 @@ export function RelationshipDemandView() {
                         <td style={{ padding: '12px 14px' }}>
                           {d.urgencyStatus === 'overdue' ? (
                             <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.78rem' }}>
-                              🚨 Overdue ({d.daysSinceLastVisit || 0}d)
+                              Overdue ({d.daysSinceLastVisit || 0}d)
                             </span>
                           ) : d.urgencyStatus === 'due_soon' ? (
                             <span style={{ color: '#f59e0b', fontWeight: 600, fontSize: '0.78rem' }}>
-                              ⏳ Due Soon ({d.daysSinceLastVisit || 0}d)
+                              Due Soon ({d.daysSinceLastVisit || 0}d)
                             </span>
                           ) : d.urgencyStatus === 'on_track' ? (
                             <span style={{ color: '#10b981', fontSize: '0.78rem' }}>
-                              ✅ On Track ({d.daysSinceLastVisit || 0}d)
+                              On Track ({d.daysSinceLastVisit || 0}d)
                             </span>
                           ) : (
                             <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
@@ -726,8 +727,9 @@ export function RelationshipDemandView() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary, #0f172a)' }}>{r.rep}</span>
                       {r.misallocatedWarning && (
-                        <span style={{ background: '#ffedd5', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700 }}>
-                          ⚠️ Misallocation Alert
+                        <span style={{ background: '#ffedd5', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertTriangle size={11} color="#ea580c" />
+                          <span>Misallocation Alert</span>
                         </span>
                       )}
                     </div>
@@ -744,9 +746,9 @@ export function RelationshipDemandView() {
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
-                    <span style={{ color: '#ef4444', fontWeight: 600 }}>🔴 High TLC: {r.highTlcVisitPct}% ({r.highTlcVisits} visits)</span>
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>🟢 Autonomous: {r.selfSuffVisitPct}% ({r.selfSuffVisits} visits)</span>
-                    <span style={{ color: '#f97316', fontWeight: 600 }}>🟠 Comfort Stops: {r.comfortStopVisitPct}% ({r.comfortStopVisits} visits)</span>
+                    <span style={{ color: '#ef4444', fontWeight: 600 }}>High TLC: {r.highTlcVisitPct}% ({r.highTlcVisits} visits)</span>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>Autonomous: {r.selfSuffVisitPct}% ({r.selfSuffVisits} visits)</span>
+                    <span style={{ color: '#f97316', fontWeight: 600 }}>Comfort Stops: {r.comfortStopVisitPct}% ({r.comfortStopVisits} visits)</span>
                   </div>
                 </div>
               ))}

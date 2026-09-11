@@ -200,7 +200,7 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
       return (
         <div className={styles.diffContainer}>
           <span className={styles.diffPill}>{prev?.systemStatus || 'active'}</span>
-          <span>➔</span>
+          <span>→</span>
           <span className={styles.diffPillNew}>{next?.systemStatus || 'active'}</span>
         </div>
       );
@@ -210,7 +210,7 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
       return (
         <div className={styles.diffContainer}>
           <span className={styles.diffPill}>{prev?.businessType || 'none'}</span>
-          <span>➔</span>
+          <span>→</span>
           <span className={styles.diffPillNew}>{next?.businessType || 'none'}</span>
         </div>
       );
@@ -262,7 +262,7 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
       return (
         <div className={styles.diffContainer}>
           <span className={styles.diffPill}>{prevTags.length} tag(s)</span>
-          <span>➔</span>
+          <span>→</span>
           <span className={styles.diffPillNew}>{nextTags.length} tag(s)</span>
         </div>
       );
@@ -287,7 +287,7 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
         return (
           <div className={styles.diffContainer}>
             <span className={styles.diffPill}>{prev?.name || 'Group'}</span>
-            <span>➔</span>
+            <span>→</span>
             <span className={styles.diffPillNew}>{next?.name || 'Group'}</span>
           </div>
         );
