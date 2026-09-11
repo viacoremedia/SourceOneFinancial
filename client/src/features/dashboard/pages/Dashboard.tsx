@@ -248,6 +248,7 @@ function DashboardContent() {
         case '60d_inactive': return g.summary.inactive60Count > 0;
         case '90d_inactive': return (g.summary.inactive90Count ?? 0) > 0;
         case 'long_inactive': return g.summary.longInactiveCount > 0;
+        case 'never_active': return (g.summary.neverActiveCount ?? 0) > 0;
         default: return true;
       }
     });
@@ -506,6 +507,7 @@ function DashboardContent() {
       case '60d_inactive': return dealerStatusBreakdown.inactive60 ?? dealerStatusBreakdown.inactive60d;
       case '90d_inactive': return dealerStatusBreakdown.inactive90 ?? dealerStatusBreakdown.inactive90d;
       case 'long_inactive': return dealerStatusBreakdown.longInactive;
+      case 'never_active': return dealerStatusBreakdown.neverActive;
       default: return totalSmallDealers || undefined;
     }
   }, [statusFilter, totalSmallDealers, dealerStatusBreakdown]);

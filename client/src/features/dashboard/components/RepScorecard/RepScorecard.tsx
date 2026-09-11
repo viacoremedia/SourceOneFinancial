@@ -47,7 +47,9 @@ const COLUMN_DESCRIPTIONS: Record<string, string> = {
   activeCount: 'Dealers with an application in the last 30 days.',
   inactive30Count: 'Dealers whose last application was 31–60 days ago.',
   inactive60Count: 'Dealers whose last application was 61–90 days ago.',
-  longInactiveCount: 'Dealers with no application in 90+ days.',
+  inactive90Count: 'Dealers whose last application was 91–120 days ago.',
+  longInactiveCount: 'Dealers with no application in 120+ days.',
+  neverActiveCount: 'Dealers who have never submitted an application.',
 
   avgApp: 'Average days since last application across all dealers.',
   avgApproval: 'Average days since last approval across all dealers.',
@@ -478,6 +480,16 @@ const COLUMNS: ScorecardColumn[] = [
     staticColor: 'var(--color-red, #ef4444)',
     filterKey: 'long',
   },
+  {
+    key: 'neverActiveCount', label: 'Never Active', short: 'Nvr',
+    align: 'center',
+    getValue: (r) => r.neverActiveCount || 0,
+    formatFull: (r) => r.totalDealers > 0
+      ? `${r.neverActiveCount || 0} (${Math.round(((r.neverActiveCount || 0) / r.totalDealers) * 100)}%)`
+      : String(r.neverActiveCount || 0),
+    staticColor: '#64748b',
+    filterKey: 'never',
+  },
 
   {
     key: 'avgApp', label: 'Avg App Days', short: 'App',
@@ -697,7 +709,7 @@ export function RepScorecard({
 
   // Map UI filter to API activityStatus values
   const statusFilterValues = drawerStatusFilter
-    ? { active: ['active'], '30d': ['30d_inactive'], '60d': ['60d_inactive'], long: ['long_inactive'] }[drawerStatusFilter] || undefined
+    ? { active: ['active'], '30d': ['30d_inactive'], '60d': ['60d_inactive'], '90d': ['90d_inactive'], long: ['long_inactive'], never: ['never_active'] }[drawerStatusFilter] || undefined
     : undefined;
 
   const [finPeriod, setFinPeriod] = useState<FinPeriod>('mtd');
@@ -905,7 +917,9 @@ export function RepScorecard({
                 { key: 'active', label: 'Active' },
                 { key: '30d', label: '30d' },
                 { key: '60d', label: '60d' },
+                { key: '90d', label: '90d' },
                 { key: 'long', label: 'Long' },
+                { key: 'never', label: 'Never' },
               ].map((f) => (
                 <button
                   key={f.key ?? 'all'}
@@ -1176,6 +1190,11 @@ export function RepScorecard({
                                 ? `${st.longInactiveCount} (${Math.round((st.longInactiveCount / st.totalDealers) * 100)}%)`
                                 : String(st.longInactiveCount);
                               cellColor = 'var(--color-red, #ef4444)';
+                            } else if (col.key === 'neverActiveCount') {
+                              val = st.totalDealers > 0
+                                ? `${st.neverActiveCount || 0} (${Math.round(((st.neverActiveCount || 0) / st.totalDealers) * 100)}%)`
+                                : String(st.neverActiveCount || 0);
+                              cellColor = '#64748b';
                             } else if (col.key === 'reactivatedCount') {
                               val = '—'; // column removed but guard kept for safety
                             } else if (col.key === 'avgApp' && st.rollingAvg) {

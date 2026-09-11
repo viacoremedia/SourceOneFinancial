@@ -112,6 +112,7 @@ async function aggregateMetrics(dates, locationFilter, statusFilter = null, acti
                             { case: { $lte: [daysField, 30] }, then: 'active' },
                             { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
                             { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+                            { case: { $lte: [daysField, 120] }, then: '90d_inactive' },
                         ],
                         default: 'long_inactive',
                     },
@@ -271,10 +272,11 @@ function buildDynStatusSwitch(daysField) {
     return {
         $switch: {
             branches: [
-                { case: { $eq: [daysField, null] }, then: 'long_inactive' },
+                { case: { $eq: [daysField, null] }, then: 'never_active' },
                 { case: { $lte: [daysField, 30] }, then: 'active' },
                 { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
                 { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+                { case: { $lte: [daysField, 120] }, then: '90d_inactive' },
             ],
             default: 'long_inactive',
         },
@@ -504,6 +506,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             inactive60Count: 0,
             inactive90Count: 0,
             longInactiveCount: 0,
+            neverActiveCount: 0,
             reactivatedCount: 0,
             locationIds: [],
             stateData: {},
@@ -532,10 +535,10 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             case '30d_inactive': repData[rep].inactive30Count++; break;
             case '60d_inactive': repData[rep].inactive60Count++; break;
             case '90d_inactive': repData[rep].inactive90Count++; break;
-            case 'long_inactive':
-            case 'never_active':
+            case 'long_inactive': repData[rep].longInactiveCount++; break;
+            case 'never_active': repData[rep].neverActiveCount++; break;
             default:
-                repData[rep].longInactiveCount++;
+                repData[rep].neverActiveCount++;
                 break;
         }
         if (snap.reactivatedAfterVisit) repData[rep].reactivatedCount++;
@@ -546,6 +549,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             repData[rep].stateData[st] = {
                 state: st, totalDealers: 0, activeCount: 0,
                 inactive30Count: 0, inactive60Count: 0, inactive90Count: 0, longInactiveCount: 0,
+                neverActiveCount: 0,
                 reactivatedCount: 0, locationIds: [],
             };
         }
@@ -556,10 +560,10 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
             case '30d_inactive': sd.inactive30Count++; break;
             case '60d_inactive': sd.inactive60Count++; break;
             case '90d_inactive': sd.inactive90Count++; break;
-            case 'long_inactive':
-            case 'never_active':
+            case 'long_inactive': sd.longInactiveCount++; break;
+            case 'never_active': sd.neverActiveCount++; break;
             default:
-                sd.longInactiveCount++;
+                sd.neverActiveCount++;
                 break;
         }
         if (snap.reactivatedAfterVisit) sd.reactivatedCount++;
@@ -877,6 +881,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
                         inactive60Count: sd.inactive60Count,
                         inactive90Count: sd.inactive90Count,
                         longInactiveCount: sd.longInactiveCount,
+                        neverActiveCount: sd.neverActiveCount || 0,
                         reactivatedCount: sd.reactivatedCount,
                         rollingAvg: sCurrent,
                         statusFlows: sFlows,
@@ -893,6 +898,7 @@ async function computeRepScorecard(windowSize, statusFilter = null, activityMode
                 inactive60Count: repData[rep].inactive60Count,
                 inactive90Count: repData[rep].inactive90Count,
                 longInactiveCount: repData[rep].longInactiveCount,
+                neverActiveCount: repData[rep].neverActiveCount || 0,
                 reactivatedCount: repData[rep].reactivatedCount,
                 rollingAvg: current,
                 deltas,

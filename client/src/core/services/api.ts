@@ -168,6 +168,7 @@ export interface DealerStatusBreakdown {
   inactive60d?: number;
   inactive90d?: number;
   longInactive: number;
+  neverActive?: number;
 }
 
 export interface PaginatedDealers {

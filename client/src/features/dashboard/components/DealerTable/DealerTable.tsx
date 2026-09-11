@@ -663,6 +663,7 @@ function getGroupSortValue(group: DealerGroup, key: string, statusFilter?: strin
         case '60d_inactive': return s.inactive60Count;
         case '90d_inactive': return s.inactive90Count ?? 0;
         case 'long_inactive': return s.longInactiveCount;
+        case 'never_active': return s.neverActiveCount ?? 0;
         case 'reactivated': return s.reactivatedCount;
         default: return s.locationCount;
       }
@@ -1268,10 +1269,10 @@ export function DealerTable({
 
   // Derive status from the appropriate daysSince field based on activityMode
   const deriveStatus = (snap: DealerLocation['latestSnapshot']): ActivityStatus => {
-    if (!snap) return 'long_inactive';
-    if (activityMode === 'application') return snap.activityStatus;
+    if (!snap) return 'never_active';
+    if (activityMode === 'application') return snap.activityStatus || 'never_active';
     const days = activityMode === 'approval' ? snap.daysSinceLastApproval : snap.daysSinceLastBooking;
-    if (days == null) return 'long_inactive';
+    if (days == null) return 'never_active';
     if (days <= 30) return 'active';
     if (days <= 60) return '30d_inactive';
     if (days <= 90) return '60d_inactive';
@@ -2474,7 +2475,9 @@ function GroupRows({
       case 'active': displayCount = s.activeCount; break;
       case '30d_inactive': displayCount = s.inactive30Count; break;
       case '60d_inactive': displayCount = s.inactive60Count; break;
+      case '90d_inactive': displayCount = s.inactive90Count ?? 0; break;
       case 'long_inactive': displayCount = s.longInactiveCount; break;
+      case 'never_active': displayCount = s.neverActiveCount ?? 0; break;
       case 'reactivated': displayCount = s.reactivatedCount; break;
     }
   }

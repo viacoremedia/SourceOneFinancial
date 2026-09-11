@@ -316,7 +316,7 @@ async function collectDigestData(reportDate, activityMode = 'application', repFi
             inactive30: statusMap['30d_inactive'] || 0,
             inactive60: statusMap['60d_inactive'] || 0,
             inactive90: statusMap['90d_inactive'] || 0,
-            longInactive: (statusMap['long_inactive'] || 0) + (statusMap['never_active'] || 0),
+            longInactive: statusMap['long_inactive'] || 0,
             neverActive: statusMap['never_active'] || 0,
         },
         statusChanges: {
@@ -324,8 +324,8 @@ async function collectDigestData(reportDate, activityMode = 'application', repFi
             inactive30: (statusMap['30d_inactive'] || 0) - (yesterdayMap['30d_inactive'] || 0),
             inactive60: (statusMap['60d_inactive'] || 0) - (yesterdayMap['60d_inactive'] || 0),
             inactive90: (statusMap['90d_inactive'] || 0) - (yesterdayMap['90d_inactive'] || 0),
-            longInactive: ((statusMap['long_inactive'] || 0) + (statusMap['never_active'] || 0)) -
-                          ((yesterdayMap['long_inactive'] || 0) + (yesterdayMap['never_active'] || 0)),
+            longInactive: (statusMap['long_inactive'] || 0) - (yesterdayMap['long_inactive'] || 0),
+            neverActive: (statusMap['never_active'] || 0) - (yesterdayMap['never_active'] || 0),
         },
         events,
         atRiskDealers,
@@ -388,7 +388,8 @@ async function generateDailyDigest(reportDate) {
         '30d_inactive': { in: 0, out: 0 },
         '60d_inactive': { in: 0, out: 0 },
         '90d_inactive': { in: 0, out: 0 },
-        long_inactive: { in: 0, out: 0 }
+        long_inactive: { in: 0, out: 0 },
+        never_active: { in: 0, out: 0 }
     };
     for (const t of data.statusTransitions) {
         if (flows[t.from]) flows[t.from].out++;
@@ -465,6 +466,11 @@ async function generateDailyDigest(reportDate) {
         <div style="font-size:24px;font-weight:700;color:#ef4444;">${data.status.longInactive.toLocaleString()}</div>
         <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Long Inact</div>
         ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('long_inactive')}</div>` : ''}
+      </div>
+      <div style="flex:1;background:#162031;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:#64748b;">${data.status.neverActive.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;">Never Act</div>
+        ${data.hasYesterdayData ? `<div style="font-size:11px;margin-top:4px;">${flowHtml('never_active')}</div>` : ''}
       </div>
     </div>
 

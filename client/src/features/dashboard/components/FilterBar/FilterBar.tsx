@@ -206,6 +206,7 @@ export function FilterBar({
     let inactive60 = 0;
     let inactive90 = 0;
     let longInactive = 0;
+    let neverActive = 0;
 
     for (const g of filteredGroups) {
       if (g.summary) {
@@ -215,6 +216,7 @@ export function FilterBar({
         inactive60 += g.summary.inactive60Count;
         inactive90 += g.summary.inactive90Count ?? 0;
         longInactive += g.summary.longInactiveCount;
+        neverActive += g.summary.neverActiveCount ?? 0;
       }
     }
 
@@ -231,6 +233,7 @@ export function FilterBar({
       inactive60,
       inactive90,
       longInactive,
+      neverActive,
     };
   }, [filteredGroups]);
 
@@ -239,7 +242,7 @@ export function FilterBar({
     if (!dealerStatusBreakdown) {
       return {
         groups: 0, locations: 0, activeCount: 0, activePercent: 0,
-        inactive30: 0, inactive60: 0, inactive90: 0, longInactive: 0,
+        inactive30: 0, inactive60: 0, inactive90: 0, longInactive: 0, neverActive: 0,
       };
     }
     const b = dealerStatusBreakdown;
@@ -253,6 +256,7 @@ export function FilterBar({
       inactive60: b.inactive60 ?? b.inactive60d ?? 0,
       inactive90: b.inactive90 ?? b.inactive90d ?? 0,
       longInactive: b.longInactive || 0,
+      neverActive: b.neverActive || 0,
     };
   }, [dealerStatusBreakdown]);
 
@@ -849,6 +853,14 @@ export function FilterBar({
           <span className={`${styles.statValue} ${styles.statDanger}`}>{stats.longInactive}</span>
           <span className={styles.statLabel}>Long Inactive</span>
         </button>
+        <button
+          className={`${styles.statItem} ${styles.statClickable} ${statusFilter === 'never_active' ? styles.statSelected : ''}`}
+          onClick={() => handleStatClick('never_active')}
+          title="Filter to dealers who have never been active"
+        >
+          <span className={`${styles.statValue} ${styles.statNever}`}>{stats.neverActive}</span>
+          <span className={styles.statLabel}>Never Active</span>
+        </button>
       </div>
 
       {/* Status Transition Pills — separate row below stats */}
@@ -980,6 +992,7 @@ export function FilterBar({
                     { key: '60d_inactive', label: `60d Inactive (${stats.inactive60})` },
                     { key: '90d_inactive', label: `90d Inactive (${stats.inactive90 || 0})` },
                     { key: 'long_inactive', label: `Long Inactive (${stats.longInactive})` },
+                    { key: 'never_active', label: `Never Active (${stats.neverActive})` },
                   ].map((s) => (
                     <button
                       key={s.key || 'all'}

@@ -16,6 +16,7 @@ export interface GroupSummary {
   inactive60Count: number;
   inactive90Count?: number;
   longInactiveCount: number;
+  neverActiveCount?: number;
   reactivatedCount: number;
   daysSinceApp: BestWorst;
   daysSinceApproval: BestWorst;
@@ -99,6 +100,7 @@ export interface DealerStatusBreakdown {
   inactive60d: number;
   inactive90d: number;
   longInactive: number;
+  neverActive?: number;
 }
 
 export interface ApplicationHistoryItem {
@@ -459,6 +461,7 @@ export interface RepScorecardEntry {
   inactive60Count: number;
   inactive90Count?: number;
   longInactiveCount: number;
+  neverActiveCount?: number;
   reactivatedCount: number;     // reactivations within the rolling window
 
   // Rolling averages (current window)
@@ -499,6 +502,7 @@ export interface StateBreakdown {
   inactive60Count: number;
   inactive90Count?: number;
   longInactiveCount: number;
+  neverActiveCount?: number;
   reactivatedCount: number;
   rollingAvg: RollingAvgMetrics;
   statusFlows?: StatusFlowData;
@@ -568,6 +572,7 @@ export interface HistoricalMoMItem {
     inactive60: number;
     inactive90: number;
     longInactive: number;
+    neverActive?: number;
     total: number;
     activePct: number;
   };

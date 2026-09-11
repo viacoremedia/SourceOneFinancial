@@ -24,6 +24,7 @@ interface DigestData {
     inactive60: number;
     inactive90: number;
     longInactive: number;
+    neverActive?: number;
   };
   events: {
     newApplications: number;
@@ -149,6 +150,7 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
     '60d_inactive': { in: 0, out: 0 },
     '90d_inactive': { in: 0, out: 0 },
     long_inactive: { in: 0, out: 0 },
+    never_active: { in: 0, out: 0 },
   };
 
   if (data) {
@@ -331,6 +333,19 @@ export function DigestPanel({ open, onClose }: DigestPanelProps) {
                     {flows.long_inactive.in > 0 && <span className={styles.flowIn}>↑{flows.long_inactive.in}</span>}
                     {flows.long_inactive.out > 0 && <span className={styles.flowOut}>↓{flows.long_inactive.out}</span>}
                     {flows.long_inactive.in === 0 && flows.long_inactive.out === 0 && <span className={styles.flowNone}>—</span>}
+                  </div>
+                )}
+              </div>
+              <div className={styles.statusCard}>
+                <div className={styles.statusValue} style={{ color: '#64748b' }}>
+                  {(data.status.neverActive || 0).toLocaleString()}
+                </div>
+                <div className={styles.statusLabel}>Never Active</div>
+                {data.hasYesterdayData && (
+                  <div className={styles.statusFlow}>
+                    {flows.never_active.in > 0 && <span className={styles.flowIn}>↑{flows.never_active.in}</span>}
+                    {flows.never_active.out > 0 && <span className={styles.flowOut}>↓{flows.never_active.out}</span>}
+                    {flows.never_active.in === 0 && flows.never_active.out === 0 && <span className={styles.flowNone}>—</span>}
                   </div>
                 )}
               </div>

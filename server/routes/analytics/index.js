@@ -415,7 +415,8 @@ router.get('/executive-summary', async (req, res) => {
                     else if (statusFilter === '30d_inactive') snapMatch.activityStatus = '30d_inactive';
                     else if (statusFilter === '60d_inactive') snapMatch.activityStatus = '60d_inactive';
                     else if (statusFilter === '90d_inactive') snapMatch.activityStatus = '90d_inactive';
-                    else if (statusFilter === 'long_inactive') snapMatch.activityStatus = { $in: ['long_inactive', 'never_active'] };
+                    else if (statusFilter === 'long_inactive') snapMatch.activityStatus = 'long_inactive';
+                    else if (statusFilter === 'never_active') snapMatch.activityStatus = 'never_active';
 
                     const matchingSnaps = await DailyDealerSnapshot.find(snapMatch).select('dealerLocation').lean();
                     const matchedLocIdSet = new Set(matchingSnaps.map(s => s.dealerLocation.toString()));
@@ -693,7 +694,7 @@ router.get('/historical/mom', async (req, res) => {
                 }
                 const latestSnap = await DailyDealerSnapshot.findOne(snapMatch).sort({ reportDate: -1 }).select('reportDate').lean();
                 
-                let cohorts = { active: 0, inactive30: 0, inactive60: 0, inactive90: 0, longInactive: 0, total: 0, activePct: 0 };
+                let cohorts = { active: 0, inactive30: 0, inactive60: 0, inactive90: 0, longInactive: 0, neverActive: 0, total: 0, activePct: 0 };
                 if (latestSnap) {
                     const cohortMatch = { reportDate: latestSnap.reportDate };
                     if (filterDealerLocationIds) {
@@ -714,9 +715,10 @@ router.get('/historical/mom', async (req, res) => {
                         else if (item._id === '30d_inactive') cohorts.inactive30 = item.count;
                         else if (item._id === '60d_inactive') cohorts.inactive60 = item.count;
                         else if (item._id === '90d_inactive') cohorts.inactive90 = item.count;
-                        else if (item._id === 'long_inactive' || item._id === 'never_active') cohorts.longInactive += item.count;
+                        else if (item._id === 'long_inactive') cohorts.longInactive = item.count;
+                        else if (item._id === 'never_active') cohorts.neverActive = item.count;
                     }
-                    cohorts.total = cohorts.active + cohorts.inactive30 + cohorts.inactive60 + cohorts.inactive90 + cohorts.longInactive;
+                    cohorts.total = cohorts.active + cohorts.inactive30 + cohorts.inactive60 + cohorts.inactive90 + cohorts.longInactive + cohorts.neverActive;
                     cohorts.activePct = cohorts.total > 0 ? Number(((cohorts.active / cohorts.total) * 100).toFixed(1)) : 0;
                 }
 
@@ -1337,7 +1339,10 @@ router.get('/groups', async (req, res) => {
                         $sum: { $cond: [{ $eq: [statusExpr, '90d_inactive'] }, 1, 0] }
                     },
                     longInactiveCount: {
-                        $sum: { $cond: [{ $in: [statusExpr, ['long_inactive', 'never_active']] }, 1, 0] }
+                        $sum: { $cond: [{ $eq: [statusExpr, 'long_inactive'] }, 1, 0] }
+                    },
+                    neverActiveCount: {
+                        $sum: { $cond: [{ $eq: [statusExpr, 'never_active'] }, 1, 0] }
                     },
                     reactivatedCount: {
                         $sum: { $cond: [{ $eq: ['$reactivatedAfterVisit', true] }, 1, 0] }
@@ -1410,6 +1415,7 @@ router.get('/groups', async (req, res) => {
                 inactive60Count: s.inactive60Count,
                 inactive90Count: s.inactive90Count,
                 longInactiveCount: s.longInactiveCount,
+                neverActiveCount: s.neverActiveCount || 0,
                 reactivatedCount: s.reactivatedCount,
                 daysSinceApp: {
                     best: s.minDaysSinceApp === 99999 ? null : s.minDaysSinceApp,
@@ -1471,6 +1477,7 @@ router.get('/groups', async (req, res) => {
                                         { case: { $lte: [daysField, 30] }, then: 'active' },
                                         { case: { $lte: [daysField, 60] }, then: '30d_inactive' },
                                         { case: { $lte: [daysField, 90] }, then: '60d_inactive' },
+                                        { case: { $lte: [daysField, 120] }, then: '90d_inactive' },
                                     ],
                                     default: 'long_inactive'
                                 }
@@ -2256,8 +2263,8 @@ router.get('/dealers/small', async (req, res) => {
         let statusBreakdown = null;
         if (latestDate) {
             if (req.destroyed || res.writableEnded) return;
-            // Always scope breakdown by baseMatch (respects state filter + scope)
-            // Exclude transition _id filter from breakdown to show full counts
+            // Scope breakdown by baseMatch but exclude transition _id filter
+            // so badges show full counts for each status category
             const breakdownBaseMatch = { ...baseMatch };
             delete breakdownBaseMatch._id;
             const hasFilters = Object.keys(breakdownBaseMatch).length > 0;
@@ -2303,17 +2310,18 @@ router.get('/dealers/small', async (req, res) => {
 
             const breakdownAgg = await DailyDealerSnapshot.aggregate(breakdownPipeline);
 
-            const b = { active: 0, inactive30d: 0, inactive60d: 0, inactive90d: 0, longInactive: 0 };
+            const b = { active: 0, inactive30d: 0, inactive60d: 0, inactive90d: 0, longInactive: 0, neverActive: 0 };
             for (const item of breakdownAgg) {
                 if (item._id === 'active') b.active = item.count;
                 else if (item._id === '30d_inactive') b.inactive30d = item.count;
                 else if (item._id === '60d_inactive') b.inactive60d = item.count;
                 else if (item._id === '90d_inactive') b.inactive90d = item.count;
-                else if (item._id === 'long_inactive' || item._id === 'never_active') b.longInactive += item.count;
+                else if (item._id === 'long_inactive') b.longInactive = item.count;
+                else if (item._id === 'never_active') b.neverActive = item.count;
             }
 
             statusBreakdown = {
-                total: b.active + b.inactive30d + b.inactive60d + b.inactive90d + b.longInactive,
+                total: b.active + b.inactive30d + b.inactive60d + b.inactive90d + b.longInactive + b.neverActive,
                 active: b.active,
                 inactive30: b.inactive30d,
                 inactive60: b.inactive60d,
@@ -2322,6 +2330,7 @@ router.get('/dealers/small', async (req, res) => {
                 inactive60d: b.inactive60d,
                 inactive90d: b.inactive90d,
                 longInactive: b.longInactive,
+                neverActive: b.neverActive,
             };
         }
 
