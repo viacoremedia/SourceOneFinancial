@@ -88,7 +88,11 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
   }, [onClose]);
 
   const handleUndo = async (log: SystemAuditLogItem) => {
-    if (!window.confirm(`Undo action "${formatActionName(log.action)}" for ${log.dealerName}?`)) {
+    const isBatch = log.action.startsWith('batch_') || log.dealerId === 'BULK' || (log.previousState?.dealers && log.previousState.dealers.length > 0);
+    const confirmPrompt = isBatch
+      ? `Undo batch action "${formatActionName(log.action)}" for ${log.dealerName}? This will revert all dealerships in this batch back to their previous states.`
+      : `Undo action "${formatActionName(log.action)}" for ${log.dealerName}?`;
+    if (!window.confirm(confirmPrompt)) {
       return;
     }
     setUndoingLogId(log._id);
@@ -98,7 +102,7 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
         setToastMsg(`Successfully reverted: ${log.dealerName}`);
         // Mark as undone locally
         setLogs((prev) =>
-          prev.map((l) => (l._id === log._id ? { ...l, isUndone: true, undoneAt: new Date().toISOString() } : l))
+          prev.map((l) => (l._id === log._id || (log.batchId && l.batchId === log.batchId) ? { ...l, isUndone: true, undoneAt: new Date().toISOString() } : l))
         );
         onUndoSuccess?.();
       }
@@ -155,6 +159,42 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
   const formatDiff = (log: SystemAuditLogItem) => {
     const prev = log.previousState;
     const next = log.newState;
+
+    if (log.action.startsWith('batch_')) {
+      const count = prev?.affectedCount || prev?.dealers?.length || next?.affectedCount || 'Bulk';
+      if (log.action === 'batch_tags_add') {
+        const tags = next?.payload?.tags || next?.tags || [];
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPillNew}>+{tags.join(', ')} ({count} dealers)</span>
+          </div>
+        );
+      }
+      if (log.action === 'batch_tags_remove') {
+        const tags = next?.payload?.tags || next?.tags || [];
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPill}>-{tags.join(', ')} ({count} dealers)</span>
+          </div>
+        );
+      }
+      if (log.action === 'batch_status_change') {
+        const st = next?.payload?.systemStatus || next?.systemStatus || 'active';
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPillNew}>Status: {st} ({count} dealers)</span>
+          </div>
+        );
+      }
+      if (log.action === 'batch_business_type_change') {
+        const bt = next?.payload?.businessType || next?.businessType || 'none';
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPillNew}>Type: {bt} ({count} dealers)</span>
+          </div>
+        );
+      }
+    }
 
     if (log.action.includes('status')) {
       return (
@@ -471,7 +511,12 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
 
                       <td className={styles.logCell}>
                         <div className={styles.targetInfo}>
-                          <span className={styles.targetName}>{log.dealerName}</span>
+                          <span className={styles.targetName}>
+                            {log.dealerId === 'BULK' && (
+                              <Layers size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: '-1px', color: '#f59e0b' }} />
+                            )}
+                            {log.dealerName}
+                          </span>
                           {log.dealerId && log.dealerId !== 'GLOBAL' && (
                             <span className={styles.targetId}>{log.dealerId}</span>
                           )}

@@ -75,6 +75,7 @@ interface AnalyticsDrawerProps {
   allTableDealers?: any[];
   businessType?: string | null;
   tags?: string[];
+  excludeTags?: string[];
   onSelectDealerId?: (dealerId: string | null) => void;
   onSelectGroupSlug?: (groupSlug: string | null) => void;
 }
@@ -143,6 +144,7 @@ export function AnalyticsDrawer({
   allTableDealers = [],
   businessType = null,
   tags = [],
+  excludeTags = [],
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
@@ -335,7 +337,8 @@ export function AnalyticsDrawer({
       selectedGroup || undefined,
       selectedDealerId || undefined,
       businessType || undefined,
-      tags && tags.length > 0 ? tags : undefined
+      tags && tags.length > 0 ? tags : undefined,
+      excludeTags && excludeTags.length > 0 ? excludeTags : undefined
     )
       .then((res) => {
         if (active) {
@@ -352,7 +355,7 @@ export function AnalyticsDrawer({
       active = false;
       document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup, selectedDealerId, businessType, tags]);
+  }, [isOpen, trendMode, selectedState, selectedRep, selectedGroup, selectedDealerId, businessType, tags, excludeTags]);
 
   // Load Application History data when target, filters or page changes
   useEffect(() => {

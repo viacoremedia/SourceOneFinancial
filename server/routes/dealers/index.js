@@ -679,11 +679,53 @@ router.get('/audit-history', requireAuth, async (req, res) => {
         }
 
         const total = await AuditLog.countDocuments(query);
-        const logs = await AuditLog.find(query)
+        const rawLogs = await AuditLog.find(query)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
             .lean();
+
+        // Consolidate any legacy multi-entry batch records sharing a batchId into 1 entry
+        const consolidatedLogs = [];
+        const seenBatches = new Map();
+
+        for (const log of rawLogs) {
+            if (log.batchId && log.dealerId !== 'BULK') {
+                if (seenBatches.has(log.batchId)) {
+                    const existing = consolidatedLogs[seenBatches.get(log.batchId)];
+                    if (!existing.previousState) existing.previousState = {};
+                    if (!existing.previousState.dealers) {
+                        existing.previousState.dealers = [];
+                    }
+                    existing.previousState.dealers.push({
+                        dealerId: log.dealerId,
+                        dealerName: log.dealerName,
+                        previous: log.previousState
+                    });
+                    existing.previousState.affectedCount = existing.previousState.dealers.length;
+                    existing.dealerName = `${existing.previousState.affectedCount} Dealerships`;
+                    if (!log.isUndone) existing.isUndone = false;
+                } else {
+                    const cloned = {
+                        ...log,
+                        dealerId: 'BULK',
+                        dealerName: '1 Dealership',
+                        previousState: {
+                            affectedCount: 1,
+                            dealers: [{
+                                dealerId: log.dealerId,
+                                dealerName: log.dealerName,
+                                previous: log.previousState
+                            }]
+                        }
+                    };
+                    seenBatches.set(log.batchId, consolidatedLogs.length);
+                    consolidatedLogs.push(cloned);
+                }
+            } else {
+                consolidatedLogs.push(log);
+            }
+        }
 
         res.json({
             success: true,
@@ -691,7 +733,7 @@ router.get('/audit-history', requireAuth, async (req, res) => {
             page,
             limit,
             totalPages: Math.ceil(total / limit),
-            logs
+            logs: consolidatedLogs
         });
     } catch (err) {
         console.error('Error fetching system audit history:', err);
@@ -910,6 +952,74 @@ router.post('/audit-history/:logId/undo', requireAuth, async (req, res) => {
                 await dealerGroupService.recalculateGroupCounts(Array.from(affectedGroupIds));
             }
             updatedLoc = { proposal: log.newState?.groupName, undone: true };
+        } else if (log.action.startsWith('batch_') || (log.previousState?.dealers && Array.isArray(log.previousState.dealers))) {
+            const dealersList = log.previousState?.dealers || [];
+            const revertedList = [];
+            for (const item of dealersList) {
+                const prev = item.previous;
+                if (!prev) continue;
+                const revertData = {
+                    systemStatus: prev.systemStatus || 'active',
+                    systemStatusReason: prev.systemStatusReason || null,
+                    businessType: prev.businessType || null,
+                    tags: prev.tags || [],
+                    isManuallyClassified: prev.isManuallyClassified || false
+                };
+                const cleanId = item.dealerId ? item.dealerId.trim().toUpperCase() : null;
+                const matchConditions = [];
+                if (item.dealerLocationId) matchConditions.push({ _id: item.dealerLocationId });
+                if (cleanId) {
+                    matchConditions.push({ dealerId: cleanId });
+                    matchConditions.push({ clientDealerId: cleanId });
+                }
+                const updated = await DealerLocation.findOneAndUpdate(
+                    { $or: matchConditions },
+                    { $set: revertData },
+                    { returnDocument: 'after' }
+                );
+                if (updated) {
+                    await DealerProfile.findOneAndUpdate(
+                        { $or: [{ clientDealerId: cleanId }, { dealerLocation: updated._id }] },
+                        { $set: revertData }
+                    );
+                    revertedList.push(updated);
+                }
+            }
+
+            // If there's a batchId, ensure any legacy sibling records are also marked undone
+            if (log.batchId) {
+                const siblingLogs = await AuditLog.find({ batchId: log.batchId, _id: { $ne: log._id }, isUndone: false });
+                for (const sib of siblingLogs) {
+                    const sPrev = sib.previousState;
+                    if (sPrev) {
+                        const sRevert = {
+                            systemStatus: sPrev.systemStatus || 'active',
+                            systemStatusReason: sPrev.systemStatusReason || null,
+                            businessType: sPrev.businessType || null,
+                            tags: sPrev.tags || [],
+                            isManuallyClassified: sPrev.isManuallyClassified || false
+                        };
+                        const sClean = sib.dealerId.trim().toUpperCase();
+                        const sUpd = await DealerLocation.findOneAndUpdate(
+                            { $or: [{ dealerId: sClean }, { clientDealerId: sClean }] },
+                            { $set: sRevert },
+                            { returnDocument: 'after' }
+                        );
+                        if (sUpd) {
+                            await DealerProfile.findOneAndUpdate(
+                                { $or: [{ clientDealerId: sClean }, { dealerLocation: sUpd._id }] },
+                                { $set: sRevert }
+                            );
+                        }
+                    }
+                    sib.isUndone = true;
+                    sib.undoneAt = new Date();
+                    sib.undoneBy = { name: req.user?.name || req.user?.email || 'Sales Rep', email: req.user?.email || null };
+                    await sib.save();
+                }
+            }
+
+            updatedLoc = { bulk: true, revertedCount: revertedList.length || dealersList.length, dealerName: log.dealerName };
         } else {
             const revertData = {
                 systemStatus: prev.systemStatus || 'active',
@@ -990,11 +1100,18 @@ router.post('/batch-action', requireAuth, async (req, res) => {
             if (filterQuery.businessType) {
                 matchQuery.businessType = filterQuery.businessType;
             }
-            if (filterQuery.tags && filterQuery.tags.length > 0) {
-                const tList = Array.isArray(filterQuery.tags)
-                    ? filterQuery.tags
-                    : String(filterQuery.tags).split(',').map(t => t.trim()).filter(Boolean);
-                if (tList.length > 0) matchQuery.tags = { $in: tList };
+            const tList = filterQuery.tags && filterQuery.tags.length > 0
+                ? (Array.isArray(filterQuery.tags) ? filterQuery.tags : String(filterQuery.tags).split(',').map(t => t.trim()).filter(Boolean))
+                : null;
+            const exList = filterQuery.excludeTags && filterQuery.excludeTags.length > 0
+                ? (Array.isArray(filterQuery.excludeTags) ? filterQuery.excludeTags : String(filterQuery.excludeTags).split(',').map(t => t.trim()).filter(Boolean))
+                : null;
+            if (tList && tList.length > 0 && exList && exList.length > 0) {
+                matchQuery.tags = { $in: tList, $nin: exList };
+            } else if (tList && tList.length > 0) {
+                matchQuery.tags = { $in: tList };
+            } else if (exList && exList.length > 0) {
+                matchQuery.tags = { $nin: exList };
             }
             if (filterQuery.search) {
                 matchQuery.dealerName = { $regex: String(filterQuery.search).trim(), $options: 'i' };
@@ -1086,22 +1203,49 @@ router.post('/batch-action', requireAuth, async (req, res) => {
             );
 
             auditRecords.push({
+                dealerLocationId: loc._id,
                 dealerId: loc.clientDealerId || loc.dealerId,
                 dealerName: loc.dealerName,
-                batchId,
-                action: action === 'add_tags' ? 'batch_tags_add'
-                    : action === 'remove_tags' ? 'batch_tags_remove'
-                    : action === 'set_business_type' ? 'batch_business_type_change'
-                    : 'batch_status_change',
-                user: userSummary,
                 previousState: prev,
-                newState: next,
-                reason: payload?.systemStatusReason || null
+                newState: next
             });
         }
 
-        if (auditRecords.length > 0) {
-            await AuditLog.insertMany(auditRecords);
+        let batchAuditLog = null;
+        if (targetLocations.length > 0) {
+            const batchAuditAction = action === 'add_tags' ? 'batch_tags_add'
+                : action === 'remove_tags' ? 'batch_tags_remove'
+                : action === 'set_business_type' ? 'batch_business_type_change'
+                : 'batch_status_change';
+
+            const payloadSummary = action === 'add_tags' ? `Added tags: ${(payload?.tags || []).join(', ')}`
+                : action === 'remove_tags' ? `Removed tags: ${(payload?.tags || []).join(', ')}`
+                : action === 'set_business_type' ? `Set type to ${payload?.businessType || 'none'}`
+                : `Set status to ${payload?.systemStatus || 'active'}`;
+
+            batchAuditLog = await AuditLog.create({
+                dealerId: 'BULK',
+                dealerName: `${targetLocations.length} Dealerships`,
+                batchId,
+                action: batchAuditAction,
+                user: userSummary,
+                previousState: {
+                    affectedCount: targetLocations.length,
+                    dealers: auditRecords.map(r => ({
+                        dealerLocationId: r.dealerLocationId,
+                        dealerId: r.dealerId,
+                        dealerName: r.dealerName,
+                        previous: r.previousState
+                    }))
+                },
+                newState: {
+                    action,
+                    payload,
+                    affectedCount: targetLocations.length,
+                    sampleDealers: targetLocations.slice(0, 5).map(l => l.dealerName || l.dealerId)
+                },
+                reason: payload?.systemStatusReason || payloadSummary
+            });
         }
 
         res.json({
@@ -1134,28 +1278,63 @@ router.post('/batch-action/:batchId/undo', requireAuth, async (req, res) => {
         };
 
         for (const log of logs) {
-            const prev = log.previousState;
-            const revertData = {
-                systemStatus: prev.systemStatus || 'active',
-                systemStatusReason: prev.systemStatusReason || null,
-                businessType: prev.businessType || null,
-                tags: prev.tags || [],
-                isManuallyClassified: prev.isManuallyClassified || false
-            };
+            if (log.previousState?.dealers && Array.isArray(log.previousState.dealers)) {
+                for (const item of log.previousState.dealers) {
+                    const prev = item.previous;
+                    if (!prev) continue;
+                    const revertData = {
+                        systemStatus: prev.systemStatus || 'active',
+                        systemStatusReason: prev.systemStatusReason || null,
+                        businessType: prev.businessType || null,
+                        tags: prev.tags || [],
+                        isManuallyClassified: prev.isManuallyClassified || false
+                    };
+                    const cleanId = item.dealerId ? item.dealerId.trim().toUpperCase() : null;
+                    const matchConditions = [];
+                    if (item.dealerLocationId) matchConditions.push({ _id: item.dealerLocationId });
+                    if (cleanId) {
+                        matchConditions.push({ dealerId: cleanId });
+                        matchConditions.push({ clientDealerId: cleanId });
+                    }
+                    const updatedLoc = await DealerLocation.findOneAndUpdate(
+                        { $or: matchConditions },
+                        { $set: revertData },
+                        { returnDocument: 'after' }
+                    );
+                    if (updatedLoc) {
+                        await DealerProfile.findOneAndUpdate(
+                            { $or: [{ clientDealerId: cleanId }, { dealerLocation: updatedLoc._id }] },
+                            { $set: revertData }
+                        );
+                        revertedDealers.push(updatedLoc);
+                    }
+                }
+            } else {
+                const prev = log.previousState;
+                if (prev) {
+                    const revertData = {
+                        systemStatus: prev.systemStatus || 'active',
+                        systemStatusReason: prev.systemStatusReason || null,
+                        businessType: prev.businessType || null,
+                        tags: prev.tags || [],
+                        isManuallyClassified: prev.isManuallyClassified || false
+                    };
 
-            const cleanId = log.dealerId.trim().toUpperCase();
-            const updatedLoc = await DealerLocation.findOneAndUpdate(
-                { $or: [{ dealerId: cleanId }, { clientDealerId: cleanId }] },
-                { $set: revertData },
-                { returnDocument: 'after' }
-            );
+                    const cleanId = log.dealerId.trim().toUpperCase();
+                    const updatedLoc = await DealerLocation.findOneAndUpdate(
+                        { $or: [{ dealerId: cleanId }, { clientDealerId: cleanId }] },
+                        { $set: revertData },
+                        { returnDocument: 'after' }
+                    );
 
-            if (updatedLoc) {
-                await DealerProfile.findOneAndUpdate(
-                    { $or: [{ clientDealerId: cleanId }, { dealerLocation: updatedLoc._id }] },
-                    { $set: revertData }
-                );
-                revertedDealers.push(updatedLoc);
+                    if (updatedLoc) {
+                        await DealerProfile.findOneAndUpdate(
+                            { $or: [{ clientDealerId: cleanId }, { dealerLocation: updatedLoc._id }] },
+                            { $set: revertData }
+                        );
+                        revertedDealers.push(updatedLoc);
+                    }
+                }
             }
 
             log.isUndone = true;

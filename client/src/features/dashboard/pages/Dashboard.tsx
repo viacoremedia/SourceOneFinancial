@@ -70,8 +70,10 @@ function DashboardContent() {
     setDrdFilter,
     selectedBusinessType,
     selectedTags,
+    excludedTags,
     setBusinessType,
     setTags,
+    setExcludedTags,
     searchQuery,
     filterVersion,
     setTab,
@@ -225,7 +227,8 @@ function DashboardContent() {
     selectedRep,
     drdFilter,
     selectedBusinessType,
-    selectedTags
+    selectedTags,
+    excludedTags
   );
 
   // Groups filtered by state only — used for stats computation (stable numbers)
@@ -301,6 +304,7 @@ function DashboardContent() {
           drd: drdFilter || undefined,
           businessType: selectedBusinessType || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
+          excludeTags: excludedTags.length > 0 ? excludedTags : undefined,
           signal,
         });
 
@@ -343,7 +347,7 @@ function DashboardContent() {
         }
       }
     },
-    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter, selectedBusinessType, selectedTags]
+    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter, selectedBusinessType, selectedTags, excludedTags]
   );
 
   const explicitStates = useMemo(() => {
@@ -585,9 +589,11 @@ function DashboardContent() {
             drdFilter={drdFilter}
             selectedBusinessType={selectedBusinessType}
             selectedTags={selectedTags}
+            excludedTags={excludedTags}
             availableTags={availableTags}
             onBusinessTypeChange={setBusinessType}
             onTagsChange={setTags}
+            onExcludedTagsChange={setExcludedTags}
             onOpenTagManager={() => setTagManagerOpen(true)}
             onOpenSystemAudit={() => setSystemAuditOpen(true)}
             onOpenGroupManager={(tab) =>
@@ -621,6 +627,7 @@ function DashboardContent() {
         drd={drdFilter}
         businessType={selectedBusinessType}
         tags={selectedTags}
+        excludeTags={excludedTags}
         scope={activeTab === 'groups' ? 'groups' : activeTab === 'dealers' ? 'dealers' : 'all'}
       />
 
@@ -661,6 +668,7 @@ function DashboardContent() {
           status: statusFilter || undefined,
           businessType: selectedBusinessType || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
+          excludeTags: excludedTags.length > 0 ? excludedTags : undefined,
           search: searchQuery || undefined
         }}
       />
@@ -687,6 +695,7 @@ function DashboardContent() {
         allTableDealers={activeTab === 'all' ? allDealers : smallDealers}
         businessType={selectedBusinessType}
         tags={selectedTags}
+        excludeTags={excludedTags}
         onSelectDealerId={setDrawerDealerId}
         onSelectGroupSlug={setDrawerGroupSlug}
       />

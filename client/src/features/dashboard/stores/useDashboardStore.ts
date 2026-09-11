@@ -18,6 +18,7 @@ export interface DashboardFilterState {
   drdFilter: string | null;
   selectedBusinessType: string;
   selectedTags: string[];
+  excludedTags: string[];
   searchQuery: string;
   latestReportDate?: string;
   filterVersion: number; // Monotonically increasing counter to trigger hard cache invalidation
@@ -36,6 +37,10 @@ export interface DashboardFilterState {
   setStatusAndTransition: (status: string | null, transition: string | null) => void;
   setBusinessType: (type: string) => void;
   setTags: (tags: string[]) => void;
+  setExcludedTags: (tags: string[]) => void;
+  toggleTagInclude: (tag: string) => void;
+  toggleTagExclude: (tag: string) => void;
+  clearTagFilter: (tag: string) => void;
   setSearchQuery: (query: string) => void;
   setLatestReportDate: (date: string) => void;
   resetAllFilters: () => void;
@@ -120,6 +125,7 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
   drdFilter: null,
   selectedBusinessType: '',
   selectedTags: [],
+  excludedTags: [],
   searchQuery: '',
   latestReportDate: undefined,
   filterVersion: 1,
@@ -173,14 +179,79 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
 
   setTags: (tags: string[]) =>
     set((state) => {
+      const newExcluded = state.excludedTags.filter((t) => !tags.includes(t));
       if (
         state.selectedTags.length === tags.length &&
-        state.selectedTags.every((t, i) => t === tags[i])
+        state.selectedTags.every((t, i) => t === tags[i]) &&
+        newExcluded.length === state.excludedTags.length
       ) {
         return state;
       }
       return {
         selectedTags: tags,
+        excludedTags: newExcluded,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
+
+  setExcludedTags: (tags: string[]) =>
+    set((state) => {
+      const newSelected = state.selectedTags.filter((t) => !tags.includes(t));
+      if (
+        state.excludedTags.length === tags.length &&
+        state.excludedTags.every((t, i) => t === tags[i]) &&
+        newSelected.length === state.selectedTags.length
+      ) {
+        return state;
+      }
+      return {
+        excludedTags: tags,
+        selectedTags: newSelected,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
+
+  toggleTagInclude: (tag: string) =>
+    set((state) => {
+      const isIncluded = state.selectedTags.includes(tag);
+      const newSelected = isIncluded
+        ? state.selectedTags.filter((t) => t !== tag)
+        : [...state.selectedTags, tag];
+      const newExcluded = state.excludedTags.filter((t) => t !== tag);
+      return {
+        selectedTags: newSelected,
+        excludedTags: newExcluded,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
+
+  toggleTagExclude: (tag: string) =>
+    set((state) => {
+      const isExcluded = state.excludedTags.includes(tag);
+      const newExcluded = isExcluded
+        ? state.excludedTags.filter((t) => t !== tag)
+        : [...state.excludedTags, tag];
+      const newSelected = state.selectedTags.filter((t) => t !== tag);
+      return {
+        selectedTags: newSelected,
+        excludedTags: newExcluded,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
+
+  clearTagFilter: (tag: string) =>
+    set((state) => {
+      const newSelected = state.selectedTags.filter((t) => t !== tag);
+      const newExcluded = state.excludedTags.filter((t) => t !== tag);
+      if (
+        newSelected.length === state.selectedTags.length &&
+        newExcluded.length === state.excludedTags.length
+      ) {
+        return state;
+      }
+      return {
+        selectedTags: newSelected,
+        excludedTags: newExcluded,
         filterVersion: state.filterVersion + 1,
       };
     }),
@@ -302,6 +373,7 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
         transitionFilter: null,
         selectedBusinessType: '',
         selectedTags: [],
+        excludedTags: [],
         searchQuery: '',
         filterVersion: state.filterVersion + 1,
       };

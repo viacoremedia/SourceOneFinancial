@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Tag, ChevronDown, Search, X, Plus, Settings, History, Bell } from 'lucide-react';
+import { Tag, ChevronDown, Search, X, Plus, Settings, History, Bell, Ban, Check } from 'lucide-react';
 import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './FilterBar.module.css';
 import { createGlobalTag, type StateRepMap, type StateBudget, type DealerStatusBreakdown, type UniversalTag } from '../../../../core/services/api';
@@ -25,9 +25,11 @@ interface FilterBarProps {
   drdFilter?: string | null;
   selectedBusinessType?: string;
   selectedTags?: string[];
+  excludedTags?: string[];
   availableTags?: UniversalTag[];
   onBusinessTypeChange?: (type: string) => void;
   onTagsChange?: (tags: string[]) => void;
+  onExcludedTagsChange?: (tags: string[]) => void;
   onOpenTagManager?: () => void;
   onRefreshTags?: () => void;
   activityMode?: 'application' | 'approval' | 'booking';
@@ -96,9 +98,11 @@ export function FilterBar({
   drdFilter = null,
   selectedBusinessType = '',
   selectedTags = [],
+  excludedTags = [],
   availableTags = [],
   onBusinessTypeChange,
   onTagsChange,
+  onExcludedTagsChange,
   onOpenTagManager,
   onRefreshTags,
   activityMode = 'application',
@@ -151,10 +155,11 @@ export function FilterBar({
     if (drdFilter) count++;
     if (selectedBusinessType) count++;
     if (selectedTags && selectedTags.length > 0) count++;
+    if (excludedTags && excludedTags.length > 0) count++;
     if (activityMode && activityMode !== 'application') count++;
     if (transitionFilter) count++;
     return count;
-  }, [selectedRep, selectedState, statusFilter, drdFilter, selectedBusinessType, selectedTags, activityMode, transitionFilter]);
+  }, [selectedRep, selectedState, statusFilter, drdFilter, selectedBusinessType, selectedTags, excludedTags, activityMode, transitionFilter]);
 
   const reps = useMemo(() => {
     const HIDDEN_REPS = [
@@ -301,6 +306,7 @@ export function FilterBar({
     onStatusFilterChange(null);
     onBusinessTypeChange?.('');
     onTagsChange?.([]);
+    onExcludedTagsChange?.([]);
   };
 
   const handleStatClick = (statKey: string | null) => {
@@ -314,7 +320,7 @@ export function FilterBar({
   };
 
   const hasActiveFilters = Boolean(
-    selectedRep || selectedState || selectedBusinessType || (selectedTags && selectedTags.length > 0) || statusFilter || drdFilter
+    selectedRep || selectedState || selectedBusinessType || (selectedTags && selectedTags.length > 0) || (excludedTags && excludedTags.length > 0) || statusFilter || drdFilter
   );
 
   return (
@@ -427,17 +433,27 @@ export function FilterBar({
             </select>
           </div>
 
-          {/* Custom Tags Multi-Select Dropdown */}
+          {/* Custom Tags Multi-Select & Exclude Dropdown */}
           <div className={styles.filterGroup} ref={tagDropdownRef}>
             <label className={styles.filterLabel}>Tags</label>
             <button
               type="button"
-              className={`${styles.tagFilterBtn} ${selectedTags.length > 0 ? styles.tagFilterBtnActive : ''}`}
+              className={`${styles.tagFilterBtn} ${
+                selectedTags.length > 0 || excludedTags.length > 0 ? styles.tagFilterBtnActive : ''
+              }`}
               onClick={() => setTagDropdownOpen((prev) => !prev)}
               id="filter-custom-tags"
             >
               <Tag size={12} />
-              <span>{selectedTags.length === 0 ? 'All Tags' : `Tags (${selectedTags.length})`}</span>
+              <span>
+                {selectedTags.length === 0 && excludedTags.length === 0
+                  ? 'All Tags'
+                  : selectedTags.length > 0 && excludedTags.length > 0
+                  ? `Tags (+${selectedTags.length}, -${excludedTags.length})`
+                  : selectedTags.length > 0
+                  ? `Tags (+${selectedTags.length})`
+                  : `Tags (-${excludedTags.length})`}
+              </span>
               <ChevronDown size={12} className={tagDropdownOpen ? styles.rotate180 : ''} />
             </button>
 
@@ -458,6 +474,59 @@ export function FilterBar({
                       <X size={10} />
                     </button>
                   )}
+                </div>
+
+                {/* Quick actions row */}
+                <div className={styles.tagQuickActionsBar}>
+                  <div className={styles.tagFilterStats}>
+                    {selectedTags.length > 0 && (
+                      <span className={styles.tagStatIncluded}>+{selectedTags.length} in</span>
+                    )}
+                    {excludedTags.length > 0 && (
+                      <span className={styles.tagStatExcluded}>-{excludedTags.length} ex</span>
+                    )}
+                  </div>
+                  <div className={styles.tagQuickActionBtns}>
+                    <button
+                      type="button"
+                      className={styles.tagQuickBtn}
+                      onClick={() => {
+                        const namesToInclude = filteredTags.map((t) => t.tag);
+                        const merged = Array.from(new Set([...selectedTags, ...namesToInclude]));
+                        onTagsChange?.(merged);
+                        onExcludedTagsChange?.(excludedTags.filter((t) => !namesToInclude.includes(t)));
+                      }}
+                      title="Include all matching tags"
+                    >
+                      Include All
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.tagQuickBtn}
+                      onClick={() => {
+                        const namesToExclude = filteredTags.map((t) => t.tag);
+                        const merged = Array.from(new Set([...excludedTags, ...namesToExclude]));
+                        onExcludedTagsChange?.(merged);
+                        onTagsChange?.(selectedTags.filter((t) => !namesToExclude.includes(t)));
+                      }}
+                      title="Exclude all matching tags"
+                    >
+                      Exclude All
+                    </button>
+                    {(selectedTags.length > 0 || excludedTags.length > 0) && (
+                      <button
+                        type="button"
+                        className={styles.tagQuickBtnClear}
+                        onClick={() => {
+                          onTagsChange?.([]);
+                          onExcludedTagsChange?.([]);
+                        }}
+                        title="Clear all tag filters"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className={styles.tagDropdownList}>
@@ -487,24 +556,58 @@ export function FilterBar({
                     </div>
                   ) : (
                     filteredTags.map((item) => {
-                      const isChecked = selectedTags.includes(item.tag);
+                      const isIncluded = selectedTags.includes(item.tag);
+                      const isExcluded = excludedTags.includes(item.tag);
+
                       return (
-                        <label key={item.tag} className={styles.tagDropdownItem}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              if (isChecked) {
+                        <div
+                          key={item.tag}
+                          className={`${styles.tagDropdownItem} ${
+                            isIncluded ? styles.tagDropdownItemIncluded : isExcluded ? styles.tagDropdownItemExcluded : ''
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className={styles.tagIncludeAction}
+                            onClick={() => {
+                              if (isIncluded) {
                                 onTagsChange?.(selectedTags.filter((t) => t !== item.tag));
                               } else {
                                 onTagsChange?.([...selectedTags, item.tag]);
+                                if (isExcluded) {
+                                  onExcludedTagsChange?.(excludedTags.filter((t) => t !== item.tag));
+                                }
                               }
                             }}
-                            className={styles.tagCheckbox}
-                          />
-                          <span className={styles.tagName}>{item.tag}</span>
-                          <span className={styles.tagCountBadge}>{item.count}</span>
-                        </label>
+                            title={isIncluded ? `Remove ${item.tag} from included` : `Include ${item.tag}`}
+                          >
+                            <span className={`${styles.tagCheckboxCustom} ${isIncluded ? styles.tagCheckboxChecked : ''}`}>
+                              {isIncluded && <Check size={10} strokeWidth={3} />}
+                            </span>
+                            <span className={styles.tagName}>{item.tag}</span>
+                            <span className={styles.tagCountBadge}>{item.count}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`${styles.tagExcludeBtn} ${isExcluded ? styles.tagExcludeBtnActive : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isExcluded) {
+                                onExcludedTagsChange?.(excludedTags.filter((t) => t !== item.tag));
+                              } else {
+                                onExcludedTagsChange?.([...excludedTags, item.tag]);
+                                if (isIncluded) {
+                                  onTagsChange?.(selectedTags.filter((t) => t !== item.tag));
+                                }
+                              }
+                            }}
+                            title={isExcluded ? `Cancel exclude for ${item.tag}` : `Exclude ${item.tag} from results`}
+                          >
+                            <Ban size={10} />
+                            <span>{isExcluded ? 'Excluded' : 'Exclude'}</span>
+                          </button>
+                        </div>
                       );
                     })
                   )}
@@ -543,13 +646,16 @@ export function FilterBar({
                       </button>
                     )}
                   </div>
-                  {selectedTags.length > 0 && (
+                  {(selectedTags.length > 0 || excludedTags.length > 0) && (
                     <button
                       type="button"
-                      onClick={() => onTagsChange?.([])}
+                      onClick={() => {
+                        onTagsChange?.([]);
+                        onExcludedTagsChange?.([]);
+                      }}
                       className={styles.tagClearAllBtn}
                     >
-                      Clear ({selectedTags.length})
+                      Clear All ({selectedTags.length + excludedTags.length})
                     </button>
                   )}
                 </div>
@@ -558,16 +664,30 @@ export function FilterBar({
           </div>
 
           {/* Selected tag chips display for quick removal */}
-          {selectedTags.length > 0 && (
+          {(selectedTags.length > 0 || excludedTags.length > 0) && (
             <div className={styles.tagChipList}>
               {selectedTags.map((t) => (
-                <span key={t} className={styles.tagChip}>
+                <span key={`inc-${t}`} className={styles.tagChip}>
                   <span>{t}</span>
                   <button
                     type="button"
                     className={styles.tagChipRemove}
                     onClick={() => onTagsChange?.(selectedTags.filter((tag) => tag !== t))}
                     title={`Remove ${t}`}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+              {excludedTags.map((t) => (
+                <span key={`exc-${t}`} className={styles.tagChipExcluded}>
+                  <Ban size={10} />
+                  <span>Exclude: {t}</span>
+                  <button
+                    type="button"
+                    className={styles.tagChipExcludedRemove}
+                    onClick={() => onExcludedTagsChange?.(excludedTags.filter((tag) => tag !== t))}
+                    title={`Remove exclude ${t}`}
                   >
                     <X size={10} />
                   </button>
@@ -914,26 +1034,61 @@ export function FilterBar({
               {/* Custom Tags (Mobile) */}
               {onTagsChange && availableTags.length > 0 && (
                 <div className={styles.mobileFilterSection}>
-                  <span className={styles.mobileSectionTitle}>
-                    Custom Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
-                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span className={styles.mobileSectionTitle} style={{ margin: 0 }}>
+                      Tags {selectedTags.length + excludedTags.length > 0 && `(+${selectedTags.length}, -${excludedTags.length})`}
+                    </span>
+                    {(selectedTags.length > 0 || excludedTags.length > 0) && (
+                      <button
+                        type="button"
+                        style={{ background: 'none', border: 'none', color: '#f87171', fontSize: '11px', cursor: 'pointer' }}
+                        onClick={() => {
+                          onTagsChange([]);
+                          onExcludedTagsChange?.([]);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <div className={styles.mobilePresetGrid}>
                     {availableTags.map((item) => {
                       const isChecked = selectedTags.includes(item.tag);
+                      const isExcluded = excludedTags.includes(item.tag);
                       return (
-                        <button
-                          key={item.tag}
-                          className={`${styles.mobileChip} ${isChecked ? styles.mobileChipActive : ''}`}
-                          onClick={() => {
-                            if (isChecked) {
-                              onTagsChange(selectedTags.filter((t) => t !== item.tag));
-                            } else {
-                              onTagsChange([...selectedTags, item.tag]);
-                            }
-                          }}
-                        >
-                          {item.tag} ({item.count})
-                        </button>
+                        <div key={item.tag} className={styles.mobileTagRow}>
+                          <button
+                            type="button"
+                            className={`${styles.mobileChip} ${isChecked ? styles.mobileChipActive : ''}`}
+                            style={{ flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                            onClick={() => {
+                              if (isChecked) {
+                                onTagsChange(selectedTags.filter((t) => t !== item.tag));
+                              } else {
+                                onTagsChange([...selectedTags, item.tag]);
+                                if (isExcluded) onExcludedTagsChange?.(excludedTags.filter((t) => t !== item.tag));
+                              }
+                            }}
+                          >
+                            <span>{item.tag}</span>
+                            <span style={{ fontSize: '10px', opacity: 0.7 }}>{item.count}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.mobileExcludeBtn} ${isExcluded ? styles.mobileExcludeBtnActive : ''}`}
+                            onClick={() => {
+                              if (isExcluded) {
+                                onExcludedTagsChange?.(excludedTags.filter((t) => t !== item.tag));
+                              } else {
+                                onExcludedTagsChange?.([...excludedTags, item.tag]);
+                                if (isChecked) onTagsChange(selectedTags.filter((t) => t !== item.tag));
+                              }
+                            }}
+                            title={`Exclude ${item.tag}`}
+                          >
+                            <Ban size={12} />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -951,6 +1106,7 @@ export function FilterBar({
                   onStatusFilterChange(null);
                   onBusinessTypeChange?.('');
                   onTagsChange?.([]);
+                  onExcludedTagsChange?.([]);
                   if (onTransitionFilterChange) onTransitionFilterChange(null);
                 }}
               >

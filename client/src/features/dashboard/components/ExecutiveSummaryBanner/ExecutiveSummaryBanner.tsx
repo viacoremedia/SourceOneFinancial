@@ -14,6 +14,7 @@ interface ExecutiveSummaryBannerProps {
   drd?: string | null;
   businessType?: string | null;
   tags?: string[];
+  excludeTags?: string[];
   scope?: string | null;
 }
 
@@ -45,9 +46,9 @@ function renderTrendTag(trendObj?: MetricTrend, type: 'count' | 'dollar' | 'perc
     if (type === 'dollar') {
       formattedBaseline = formatCurrency(baseline);
     } else if (type === 'percent') {
-      formattedBaseline = `${(baseline * 100).toFixed(1)}%`;
+      formattedBaseline = formatPercent(baseline);
     } else {
-      formattedBaseline = baseline >= 1000 ? `${(baseline / 1000).toFixed(1)}k` : baseline.toLocaleString();
+      formattedBaseline = baseline.toLocaleString();
     }
   }
 
@@ -56,7 +57,7 @@ function renderTrendTag(trendObj?: MetricTrend, type: 'count' | 'dollar' | 'perc
 
   return (
     <span className={`${styles.trendTag} ${trendClass}`}>
-      {arrow} {sign}{pct}% ({formattedBaseline})
+      {arrow} {sign}{pct.toFixed(1)}% ({formattedBaseline})
     </span>
   );
 }
@@ -72,6 +73,7 @@ export function ExecutiveSummaryBanner({
   drd,
   businessType,
   tags,
+  excludeTags,
   scope
 }: ExecutiveSummaryBannerProps) {
   const [data, setData] = useState<ExecutiveSummaryResponse | null>(null);
@@ -80,7 +82,20 @@ export function ExecutiveSummaryBanner({
   useEffect(() => {
     let active = true;
     setIsLoading(true);
-    getExecutiveSummary(startDate, endDate, trend, state, rep, groupSlug, status, drd, businessType, tags, scope)
+    getExecutiveSummary(
+      startDate,
+      endDate,
+      trend,
+      state,
+      rep,
+      groupSlug,
+      status,
+      drd,
+      businessType,
+      tags && tags.length > 0 ? tags : undefined,
+      scope,
+      excludeTags && excludeTags.length > 0 ? excludeTags : undefined
+    )
       .then((res) => {
         if (active) {
           setData(res);
@@ -95,7 +110,7 @@ export function ExecutiveSummaryBanner({
     return () => {
       active = false;
     };
-  }, [startDate, endDate, trend, state, rep, groupSlug, status, drd, businessType, tags, scope]);
+  }, [startDate, endDate, trend, state, rep, groupSlug, status, drd, businessType, tags, excludeTags, scope]);
 
   if (isLoading && !data) {
     return (

@@ -251,13 +251,16 @@ router.get('/executive-summary', async (req, res) => {
         const tagsFilter = req.query.tags
             ? (Array.isArray(req.query.tags) ? req.query.tags : String(req.query.tags).split(',').map(t => t.trim()).filter(Boolean))
             : null;
+        const excludeTagsFilter = req.query.excludeTags
+            ? (Array.isArray(req.query.excludeTags) ? req.query.excludeTags : String(req.query.excludeTags).split(',').map(t => t.trim()).filter(Boolean))
+            : null;
 
         const REP_ALIAS_MAP = getRepAliasMap();
 
         let filterDealerIds = null;
 
         const isScopeRestricted = scopeFilter && scopeFilter !== 'all';
-        if (isScopeRestricted || statusFilter || stateFilter || repFilter || groupSlugFilter || businessTypeFilter || (tagsFilter && tagsFilter.length > 0) || (drdFilter && drdFilter !== 'all')) {
+        if (isScopeRestricted || statusFilter || stateFilter || repFilter || groupSlugFilter || businessTypeFilter || (tagsFilter && tagsFilter.length > 0) || (excludeTagsFilter && excludeTagsFilter.length > 0) || (drdFilter && drdFilter !== 'all')) {
             const locMatch = {};
             if (scopeFilter === 'groups') {
                 locMatch.dealerGroup = { $ne: null };
@@ -281,8 +284,12 @@ router.get('/executive-summary', async (req, res) => {
             if (businessTypeFilter) {
                 locMatch.businessType = businessTypeFilter;
             }
-            if (tagsFilter && tagsFilter.length > 0) {
+            if (tagsFilter && tagsFilter.length > 0 && excludeTagsFilter && excludeTagsFilter.length > 0) {
+                locMatch.tags = { $in: tagsFilter, $nin: excludeTagsFilter };
+            } else if (tagsFilter && tagsFilter.length > 0) {
                 locMatch.tags = { $in: tagsFilter };
+            } else if (excludeTagsFilter && excludeTagsFilter.length > 0) {
+                locMatch.tags = { $nin: excludeTagsFilter };
             }
 
             let matchingLocs = await DealerLocation.find(locMatch).select('_id clientDealerId dealerId').lean();
@@ -475,6 +482,9 @@ router.get('/historical/mom', async (req, res) => {
         const tagsFilter = req.query.tags
             ? (Array.isArray(req.query.tags) ? req.query.tags : String(req.query.tags).split(',').map(t => t.trim()).filter(Boolean))
             : null;
+        const excludeTagsFilter = req.query.excludeTags
+            ? (Array.isArray(req.query.excludeTags) ? req.query.excludeTags : String(req.query.excludeTags).split(',').map(t => t.trim()).filter(Boolean))
+            : null;
         const industryFilter = req.query.industry || null;
         const now = await getLatestDataDate();
         const currentYear = now.getUTCFullYear();
@@ -488,7 +498,7 @@ router.get('/historical/mom', async (req, res) => {
         let filterDealerLocationIds = null;
         let filterDealerIds = null;
 
-        if (stateFilter || repFilter || groupSlugFilter || dealerFilter || businessTypeFilter || (tagsFilter && tagsFilter.length > 0) || industryFilter) {
+        if (stateFilter || repFilter || groupSlugFilter || dealerFilter || businessTypeFilter || (tagsFilter && tagsFilter.length > 0) || (excludeTagsFilter && excludeTagsFilter.length > 0) || industryFilter) {
             const locMatch = {};
             if (dealerFilter) {
                 const isObjId = mongoose.Types.ObjectId.isValid(dealerFilter);
@@ -521,8 +531,12 @@ router.get('/historical/mom', async (req, res) => {
             if (businessTypeFilter) {
                 locMatch.businessType = businessTypeFilter;
             }
-            if (tagsFilter && tagsFilter.length > 0) {
+            if (tagsFilter && tagsFilter.length > 0 && excludeTagsFilter && excludeTagsFilter.length > 0) {
+                locMatch.tags = { $in: tagsFilter, $nin: excludeTagsFilter };
+            } else if (tagsFilter && tagsFilter.length > 0) {
                 locMatch.tags = { $in: tagsFilter };
+            } else if (excludeTagsFilter && excludeTagsFilter.length > 0) {
+                locMatch.tags = { $nin: excludeTagsFilter };
             }
             if (industryFilter) {
                 locMatch.industry = industryFilter;
@@ -1101,6 +1115,7 @@ router.get('/groups', async (req, res) => {
         const repParam = req.query.rep || req.query.salesRep || null;
         const businessTypeParam = req.query.businessType || null;
         const tagsParam = req.query.tags ? req.query.tags.split(',').map(t => t.trim()).filter(Boolean) : null;
+        const excludeTagsParam = req.query.excludeTags ? req.query.excludeTags.split(',').map(t => t.trim()).filter(Boolean) : null;
         const targetStates = statesParam
             ? String(statesParam).split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
             : null;
@@ -1111,7 +1126,7 @@ router.get('/groups', async (req, res) => {
 
         // If filtering by states, rep, businessType, or tags, get matching location IDs
         let filteredLocationIds = null;
-        if ((targetStates && targetStates.length > 0) || repParam || businessTypeParam || (tagsParam && tagsParam.length > 0)) {
+        if ((targetStates && targetStates.length > 0) || repParam || businessTypeParam || (tagsParam && tagsParam.length > 0) || (excludeTagsParam && excludeTagsParam.length > 0)) {
             const locMatch = { dealerGroup: { $ne: null } };
             if (targetStates && targetStates.length > 0) {
                 locMatch.statePrefix = { $in: targetStates };
@@ -1124,8 +1139,12 @@ router.get('/groups', async (req, res) => {
             if (businessTypeParam) {
                 locMatch.businessType = businessTypeParam;
             }
-            if (tagsParam && tagsParam.length > 0) {
+            if (tagsParam && tagsParam.length > 0 && excludeTagsParam && excludeTagsParam.length > 0) {
+                locMatch.tags = { $in: tagsParam, $nin: excludeTagsParam };
+            } else if (tagsParam && tagsParam.length > 0) {
                 locMatch.tags = { $in: tagsParam };
+            } else if (excludeTagsParam && excludeTagsParam.length > 0) {
+                locMatch.tags = { $nin: excludeTagsParam };
             }
 
             const matchingLocations = await DealerLocation.find(locMatch).select('_id').lean();
@@ -1613,6 +1632,7 @@ router.get('/dealers/small', async (req, res) => {
         const transitionParam = req.query.transition || null; // e.g. "active→30d_inactive"
         const businessTypeParam = req.query.businessType || null;
         const tagsParam = req.query.tags ? req.query.tags.split(',').map(t => t.trim()).filter(Boolean) : null;
+        const excludeTagsParam = req.query.excludeTags ? req.query.excludeTags.split(',').map(t => t.trim()).filter(Boolean) : null;
 
         const REP_ALIAS_MAP = getRepAliasMap();
 
@@ -1638,8 +1658,12 @@ router.get('/dealers/small', async (req, res) => {
         if (businessTypeParam) {
             baseMatch.businessType = businessTypeParam;
         }
-        if (tagsParam && tagsParam.length > 0) {
+        if (tagsParam && tagsParam.length > 0 && excludeTagsParam && excludeTagsParam.length > 0) {
+            baseMatch.tags = { $in: tagsParam, $nin: excludeTagsParam };
+        } else if (tagsParam && tagsParam.length > 0) {
             baseMatch.tags = { $in: tagsParam };
+        } else if (excludeTagsParam && excludeTagsParam.length > 0) {
+            baseMatch.tags = { $nin: excludeTagsParam };
         }
 
         let parentSatelliteMap = new Map();

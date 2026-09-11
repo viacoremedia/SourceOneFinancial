@@ -64,7 +64,8 @@ export async function getGroups(
   drd?: string | null,
   signal?: AbortSignal,
   businessType?: string,
-  tags?: string[]
+  tags?: string[],
+  excludeTags?: string[]
 ): Promise<DealerGroup[]> {
   const params: Record<string, string> = {};
   if (states && states.length > 0) params.states = states.join(',');
@@ -77,6 +78,7 @@ export async function getGroups(
   if (drd) params.drd = drd;
   if (businessType) params.businessType = businessType;
   if (tags && tags.length > 0) params.tags = tags.join(',');
+  if (excludeTags && excludeTags.length > 0) params.excludeTags = excludeTags.join(',');
   const { data } = await api.get('/analytics/groups', { params, signal });
   return data.groups;
 }
@@ -137,6 +139,7 @@ export interface SmallDealerParams {
   drd?: string | null;
   businessType?: string;
   tags?: string[];
+  excludeTags?: string[];
   signal?: AbortSignal;
 }
 
@@ -186,6 +189,7 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.drd) queryParams.drd = params.drd;
   if (params.businessType) queryParams.businessType = params.businessType;
   if (params.tags && params.tags.length > 0) queryParams.tags = params.tags.join(',');
+  if (params.excludeTags && params.excludeTags.length > 0) queryParams.excludeTags = params.excludeTags.join(',');
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams, signal: params.signal });
   return {
     dealers: data.dealers,
@@ -344,7 +348,8 @@ export async function getExecutiveSummary(
   drd?: string | null,
   businessType?: string | null,
   tags?: string[] | null,
-  scope?: string | null
+  scope?: string | null,
+  excludeTags?: string[] | null
 ): Promise<ExecutiveSummaryResponse> {
   const params: Record<string, string> = {};
   if (startDate) params.startDate = startDate;
@@ -357,6 +362,7 @@ export async function getExecutiveSummary(
   if (drd) params.drd = drd;
   if (businessType) params.businessType = businessType;
   if (tags && tags.length > 0) params.tags = tags.join(',');
+  if (excludeTags && excludeTags.length > 0) params.excludeTags = excludeTags.join(',');
   if (scope) params.scope = scope;
   const { data } = await api.get('/analytics/executive-summary', { params });
   return data;
@@ -369,7 +375,8 @@ export async function getHistoricalMoM(
   groupSlug?: string,
   dealerId?: string,
   businessType?: string,
-  tags?: string[]
+  tags?: string[],
+  excludeTags?: string[]
 ): Promise<HistoricalMoMResponse> {
   const params: Record<string, string> = { trend };
   if (state) params.state = state;
@@ -378,6 +385,7 @@ export async function getHistoricalMoM(
   if (dealerId) params.dealerId = dealerId;
   if (businessType) params.businessType = businessType;
   if (tags && tags.length > 0) params.tags = tags.join(',');
+  if (excludeTags && excludeTags.length > 0) params.excludeTags = excludeTags.join(',');
   const { data } = await api.get('/analytics/historical/mom', { params });
   return data;
 }
