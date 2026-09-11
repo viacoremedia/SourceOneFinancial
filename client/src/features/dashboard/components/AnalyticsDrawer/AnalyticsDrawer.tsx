@@ -1045,9 +1045,9 @@ export function AnalyticsDrawer({
               }
               dealerName={
                 (selectedDealerObj?.dealerId === selectedDealerId || selectedDealerObj?.clientDealerId === selectedDealerId || selectedDealerObj?._id === selectedDealerId)
-                  ? selectedDealerObj.dealerName
+                  ? (selectedDealerObj.dealerName || '')
                   : (drdData?.profile?.clientDealerId === selectedDealerId || (drdData?.profile as any)?.dealerId === selectedDealerId)
-                    ? drdData?.profile?.dealerName
+                    ? (drdData?.profile?.dealerName || '')
                     : headerTitle || 'Dealership'
               }
               contacts={
