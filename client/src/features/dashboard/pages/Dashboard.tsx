@@ -77,12 +77,12 @@ function DashboardContent() {
     setTab,
     setRep,
     setState,
-    setStatusFilter,
     setActivityMode,
     setDatePreset,
     setCustomDates,
     setTrend,
     setTransitionFilter,
+    setStatusAndTransition,
     setSearchQuery,
     setLatestReportDate,
   } = useDashboardStore();
@@ -331,6 +331,11 @@ function DashboardContent() {
           return;
         }
         console.error('Failed to load dealers:', err);
+        // On initial page load failure (e.g. timeout), do not show stale data from a previous status/filter
+        if (currentRequestId === requestIdRef.current && !append) {
+          const setDealers = scope === 'all' ? setAllDealers : setSmallDealers;
+          setDealers([]);
+        }
       } finally {
         if (currentRequestId === requestIdRef.current) {
           setSmallDealersLoading(false);
@@ -341,26 +346,34 @@ function DashboardContent() {
     [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter, selectedBusinessType, selectedTags]
   );
 
-  // Invalidate loadedTabs cache on any filter version change
-  const loadedTabs = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    loadedTabs.current.clear();
-  }, [filterVersion]);
-
   const explicitStates = useMemo(() => {
     if (selectedState) return [selectedState];
     return undefined;
   }, [selectedState]);
 
-  // Load first page when a flat-dealer tab activates and hasn't been loaded yet for this filterVersion
+  // ── Unified, debounced fetch effect for flat tabs ('dealers' and 'all') ──
+  // Debounces rapid filter clicks (150ms) to ensure only the final state is queried
   useEffect(() => {
     const scope = scopeForTab(activeTab);
     if (!scope) return;
-    if (loadedTabs.current.has(activeTab)) return;
-    loadedTabs.current.add(activeTab);
-    pageRef.current = 1;
-    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
-  }, [activeTab, fetchDealers, statusFilter, explicitStates]);
+
+    const timer = setTimeout(() => {
+      pageRef.current = 1;
+      fetchDealers(
+        1,
+        sortStateRef.current.sorts,
+        sortStateRef.current.dirs,
+        false,
+        statusFilter,
+        scope,
+        explicitStates
+      );
+    }, 150);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [filterVersion, activeTab, explicitStates, fetchDealers, statusFilter]);
 
   const handleUndoSuccess = useCallback(() => {
     refreshTags();
@@ -392,14 +405,6 @@ function DashboardContent() {
     })();
   }, [activeTab, explicitStates, activityMode, selectedRep]);
 
-  // Re-fetch flat tabs whenever store filter version changes
-  useEffect(() => {
-    const scope = scopeForTab(activeTab);
-    if (!scope) return;
-    pageRef.current = 1;
-    fetchDealers(1, sortStateRef.current.sorts, sortStateRef.current.dirs, false, statusFilter, scope, explicitStates);
-  }, [filterVersion]);
-
   // Rep change handler with state cleanup
   const handleRepChange = useCallback((rep: string) => {
     setRep(rep);
@@ -415,39 +420,32 @@ function DashboardContent() {
     setTransitionFilter(null);
   }, [setState, setTransitionFilter]);
 
-  // Status filter change
+  // Status filter change: atomic update for status and transition
   const handleStatusFilterChange = useCallback((newStatus: string | null) => {
-    setStatusFilter(newStatus);
-    setTransitionFilter(null);
-  }, [setStatusFilter, setTransitionFilter]);
+    setStatusAndTransition(newStatus, null);
+  }, [setStatusAndTransition]);
 
   // Activity mode change
   const handleActivityModeChange = useCallback((mode: 'application' | 'approval' | 'booking') => {
     setActivityMode(mode);
-    setStatusFilter(null);
-    setTransitionFilter(null);
-  }, [setActivityMode, setStatusFilter, setTransitionFilter]);
+    setStatusAndTransition(null, null);
+  }, [setActivityMode, setStatusAndTransition]);
 
-  // Transition filter change
+  // Transition filter change: atomic update
   const handleTransitionFilterChange = useCallback((transition: string | null) => {
-    setTransitionFilter(transition);
     if (transition) {
-      setStatusFilter(null);
+      setStatusAndTransition(null, transition);
+    } else {
+      setTransitionFilter(null);
     }
-  }, [setTransitionFilter, setStatusFilter]);
+  }, [setStatusAndTransition, setTransitionFilter]);
 
   // Tab change handler
   const handleTabChange = useCallback((tab: TabId) => {
     setTab(tab);
-    const scope = scopeForTab(tab);
-    if (scope) {
-      pageRef.current = 1;
-      setDealerSortStack([{ key: 'apps', dir: 'desc' }]);
-      sortStateRef.current = { sorts: ['apps'], dirs: ['desc'] };
-      loadedTabs.current.add(tab);
-      fetchDealers(1, ['apps'], ['desc'], false, statusFilter, scope, explicitStates);
-    }
-  }, [setTab, fetchDealers, statusFilter, explicitStates]);
+    setDealerSortStack([{ key: 'apps', dir: 'desc' }]);
+    sortStateRef.current = { sorts: ['apps'], dirs: ['desc'] };
+  }, [setTab]);
 
   // Load more (infinite scroll)
   const handleLoadMore = useCallback(() => {

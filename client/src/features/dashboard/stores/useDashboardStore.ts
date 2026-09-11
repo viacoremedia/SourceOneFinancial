@@ -33,6 +33,7 @@ export interface DashboardFilterState {
   setCustomDates: (start?: string, end?: string) => void;
   setTrend: (trend: TrendPeriod) => void;
   setTransitionFilter: (transition: string | null) => void;
+  setStatusAndTransition: (status: string | null, transition: string | null) => void;
   setBusinessType: (type: string) => void;
   setTags: (tags: string[]) => void;
   setSearchQuery: (query: string) => void;
@@ -126,46 +127,72 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
   setTab: (tab: TabId) => set({ activeTab: tab }),
 
   setRep: (rep: string) =>
-    set((state) => ({
-      selectedRep: rep,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.selectedRep === rep) return state;
+      return {
+        selectedRep: rep,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setState: (stateName: string) =>
-    set((state) => ({
-      selectedState: stateName,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.selectedState === stateName) return state;
+      return {
+        selectedState: stateName,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setStatusFilter: (status: string | null) =>
-    set((state) => ({
-      statusFilter: status,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.statusFilter === status) return state;
+      return {
+        statusFilter: status,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setDrdFilter: (drd: string | null) =>
-    set((state) => ({
-      drdFilter: drd,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.drdFilter === drd) return state;
+      return {
+        drdFilter: drd,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setBusinessType: (type: string) =>
-    set((state) => ({
-      selectedBusinessType: type,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.selectedBusinessType === type) return state;
+      return {
+        selectedBusinessType: type,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setTags: (tags: string[]) =>
-    set((state) => ({
-      selectedTags: tags,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (
+        state.selectedTags.length === tags.length &&
+        state.selectedTags.every((t, i) => t === tags[i])
+      ) {
+        return state;
+      }
+      return {
+        selectedTags: tags,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setActivityMode: (mode: 'application' | 'approval' | 'booking') =>
-    set((state) => ({
-      activityMode: mode,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.activityMode === mode) return state;
+      return {
+        activityMode: mode,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setDatePreset: (preset: DatePreset) =>
     set((state) => {
@@ -210,22 +237,41 @@ export const useDashboardStore = create<DashboardFilterState>((set) => ({
     }),
 
   setTrend: (trend: TrendPeriod) =>
-    set((state) => ({
-      trend,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.trend === trend) return state;
+      return {
+        trend,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setTransitionFilter: (transition: string | null) =>
-    set((state) => ({
-      transitionFilter: transition,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.transitionFilter === transition) return state;
+      return {
+        transitionFilter: transition,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
+
+  setStatusAndTransition: (status: string | null, transition: string | null) =>
+    set((state) => {
+      if (state.statusFilter === status && state.transitionFilter === transition) return state;
+      return {
+        statusFilter: status,
+        transitionFilter: transition,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setSearchQuery: (query: string) =>
-    set((state) => ({
-      searchQuery: query,
-      filterVersion: state.filterVersion + 1,
-    })),
+    set((state) => {
+      if (state.searchQuery === query) return state;
+      return {
+        searchQuery: query,
+        filterVersion: state.filterVersion + 1,
+      };
+    }),
 
   setLatestReportDate: (latestDate: string) =>
     set((state) => {

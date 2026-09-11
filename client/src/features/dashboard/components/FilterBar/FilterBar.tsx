@@ -309,8 +309,8 @@ export function FilterBar({
     } else {
       onStatusFilterChange(statusFilter === statKey ? null : statKey);
     }
-    // Clear transition filter when a status filter is clicked
-    if (onTransitionFilterChange) onTransitionFilterChange(null);
+    // Clear transition filter only if currently active
+    if (transitionFilter && onTransitionFilterChange) onTransitionFilterChange(null);
   };
 
   const hasActiveFilters = Boolean(

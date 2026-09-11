@@ -1720,6 +1720,7 @@ router.get('/dealers/small', async (req, res) => {
         let transitionDealerIds = null;
 
         if (latestDate && previousDate) {
+            if (req.destroyed || res.writableEnded) return;
             // Build scoped location IDs for transition computation
             const transBaseMatch = { ...baseMatch };
             delete transBaseMatch.dealerName; // Don't scope transitions by search query
@@ -1831,17 +1832,9 @@ router.get('/dealers/small', async (req, res) => {
         let totalCount = 0;
 
         if (isInMemorySort) {
-            // Fast path for stat and DRD sorting:
-            // 1. Fetch aggregated stats for all dealers if needed
-            let statsMap = new Map();
-            if (isSortingByStat) {
-                statsMap = await getDealerStatsMap({
-                    startDate,
-                    endDate
-                });
-            }
+            if (req.destroyed || res.writableEnded) return;
 
-            // 2. Fetch matching locations with latest snapshots
+            // 1. Fetch matching locations with latest snapshots first
             const locationPipeline = [
                 { $match: baseMatch },
                 ...(latestDate ? [{
@@ -1890,6 +1883,21 @@ router.get('/dealers/small', async (req, res) => {
             ];
 
             const matchingLocations = await DealerLocation.aggregate(locationPipeline);
+            if (req.destroyed || res.writableEnded) return;
+
+            // 2. Fetch aggregated stats scoped ONLY to matching locations (fast path)
+            let statsMap = new Map();
+            if (isSortingByStat && matchingLocations.length > 0) {
+                const scopedDealerKeys = matchingLocations
+                    .map(loc => (loc.clientDealerId || loc.dealerId || '').trim().toUpperCase())
+                    .filter(Boolean);
+
+                statsMap = await getDealerStatsMap({
+                    dealerIds: scopedDealerKeys.length > 0 ? scopedDealerKeys : ['__NO_MATCH__'],
+                    startDate,
+                    endDate
+                });
+            }
 
             // Helper to find stats for a location using exact key lookup
             function getStatsForLoc(loc) {
@@ -2121,6 +2129,7 @@ router.get('/dealers/small', async (req, res) => {
         // Status breakdown for dealers in this scope (not just this page)
         let statusBreakdown = null;
         if (latestDate) {
+            if (req.destroyed || res.writableEnded) return;
             // Always scope breakdown by baseMatch (respects state filter + scope)
             // Exclude transition _id filter from breakdown to show full counts
             const breakdownBaseMatch = { ...baseMatch };
