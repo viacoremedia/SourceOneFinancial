@@ -1,7 +1,7 @@
 # Changelog — Source One
 
 All notable changes to this project are documented here.
-Format: [Added / Changed / Fixed / Removed] + Tests Run section.
+Format: [Added / Changed / Fixed / Removed] + Tests Run section..
 
 ----
 
