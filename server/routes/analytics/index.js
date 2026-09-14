@@ -2790,7 +2790,8 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
     try {
         const { dealerId } = req.params;
         const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(250, Math.max(1, parseInt(req.query.limit) || 20));
+        const maxLimit = (dealerId === 'all' || dealerId === 'network') ? 1000 : 250;
+        const limit = Math.min(maxLimit, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
 
         // Resolve location document or group to find canonical clientDealerId(s)
@@ -2801,17 +2802,74 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
         if (dealerId === 'all' || dealerId === 'network') {
             headerLocation = null;
             matchQuery = {};
-            if (req.query.state) {
-                matchQuery.dealerState = req.query.state.toUpperCase();
+
+            const tagsFilter = req.query.tags
+                ? (Array.isArray(req.query.tags) ? req.query.tags : String(req.query.tags).split(',').map(t => t.trim()).filter(Boolean))
+                : null;
+            const excludeTagsFilter = req.query.excludeTags
+                ? (Array.isArray(req.query.excludeTags) ? req.query.excludeTags : String(req.query.excludeTags).split(',').map(t => t.trim()).filter(Boolean))
+                : null;
+
+            if ((tagsFilter && tagsFilter.length > 0) || (excludeTagsFilter && excludeTagsFilter.length > 0)) {
+                const locMatch = {};
+                if (req.query.state) {
+                    locMatch.statePrefix = req.query.state.toUpperCase();
+                }
+                if (req.query.rep) {
+                    const handles = getRepHandles(req.query.rep);
+                    locMatch.dealerRepresentative = { $in: handles.map(h => new RegExp('^' + h + '$', 'i')) };
+                }
+                if (req.query.group) {
+                    const grp = await DealerGroup.findOne({
+                        $or: [
+                            ...(mongoose.Types.ObjectId.isValid(req.query.group) ? [{ _id: req.query.group }] : []),
+                            { slug: req.query.group },
+                            { name: new RegExp('^' + req.query.group + '$', 'i') }
+                        ]
+                    }).lean();
+                    if (grp) {
+                        locMatch.dealerGroup = grp._id;
+                    }
+                }
+                if (tagsFilter && tagsFilter.length > 0 && excludeTagsFilter && excludeTagsFilter.length > 0) {
+                    locMatch.tags = { $in: tagsFilter, $nin: excludeTagsFilter };
+                } else if (tagsFilter && tagsFilter.length > 0) {
+                    locMatch.tags = { $in: tagsFilter };
+                } else if (excludeTagsFilter && excludeTagsFilter.length > 0) {
+                    locMatch.tags = { $nin: excludeTagsFilter };
+                }
+
+                const matchingLocs = await DealerLocation.find(locMatch).select('clientDealerId dealerId').lean();
+                const matchedIds = matchingLocs.flatMap(l => [
+                    (l.clientDealerId || '').trim(),
+                    (l.dealerId != null ? String(l.dealerId) : '').trim()
+                ]).filter(Boolean);
+
+                if (matchedIds.length === 0) {
+                    matchQuery.clientDealerId = '__NO_MATCH__';
+                } else {
+                    const idRegexes = matchedIds.map(id => new RegExp('^' + id + '$', 'i'));
+                    matchQuery.$or = [
+                        { clientDealerId: { $in: matchedIds } },
+                        { clientDealerId: { $in: idRegexes } },
+                        { dealerId: { $in: matchedIds } },
+                        { dealerId: { $in: idRegexes } }
+                    ];
+                }
+            } else {
+                if (req.query.state) {
+                    matchQuery.dealerState = req.query.state.toUpperCase();
+                }
+                if (req.query.rep) {
+                    const handles = getRepHandles(req.query.rep);
+                    const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
+                    matchQuery.dealerRepresentative = { $in: handleRegexes };
+                }
+                if (req.query.group) {
+                    matchQuery.dealerGroup = new RegExp(req.query.group, 'i');
+                }
             }
-            if (req.query.rep) {
-                const handles = getRepHandles(req.query.rep);
-                const handleRegexes = handles.map(h => new RegExp('^' + h + '$', 'i'));
-                matchQuery.dealerRepresentative = { $in: handleRegexes };
-            }
-            if (req.query.group) {
-                matchQuery.dealerGroup = new RegExp(req.query.group, 'i');
-            }
+
             if (req.query.underwriter) {
                 matchQuery.underwriter = new RegExp('^' + req.query.underwriter + '$', 'i');
             }
@@ -2937,6 +2995,37 @@ router.get('/dealers/:dealerId/applications', async (req, res) => {
         // Apply Underwriter filter
         if (req.query.underwriter) {
             matchQuery.underwriter = new RegExp('^' + req.query.underwriter.trim() + '$', 'i');
+        }
+
+        // Apply Free-Text Search Filter (dealer ID, dealer name, app ID, rep, lender, underwriter, status, collateral)
+        if (req.query.search) {
+            const searchParam = String(req.query.search).trim();
+            if (searchParam) {
+                const searchRegex = new RegExp(searchParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+                const searchConditions = [
+                    { clientDealerId: searchRegex },
+                    { dealerId: searchRegex },
+                    { dealerName: searchRegex },
+                    { applicationId: searchRegex },
+                    { dealerRepresentative: searchRegex },
+                    { lender: searchRegex },
+                    { underwriter: searchRegex },
+                    { status: searchRegex },
+                    { collateralType: searchRegex },
+                    { collateralYear: searchRegex }
+                ];
+                if (matchQuery.$or) {
+                    matchQuery.$and = [
+                        { $or: matchQuery.$or },
+                        { $or: searchConditions }
+                    ];
+                    delete matchQuery.$or;
+                } else if (matchQuery.$and) {
+                    matchQuery.$and.push({ $or: searchConditions });
+                } else {
+                    matchQuery.$or = searchConditions;
+                }
+            }
         }
 
         // Apply Date Range filter (startDate & endDate)

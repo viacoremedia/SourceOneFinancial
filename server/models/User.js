@@ -66,6 +66,17 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    preferences: {
+        type: mongoose.Schema.Types.Mixed,
+        default: () => ({
+            pipelineCardConfig: {
+                pending: ['fico', 'daysInStage', 'underwriter'],
+                approved: ['fico', 'amountFinanced', 'apr', 'term'],
+                funded: ['amountFinanced', 'dealerReserve', 'timeToBook'],
+                declined: ['fico', 'dti', 'ltv', 'underwriter']
+            }
+        }),
+    },
 }, { timestamps: true });
 
 userSchema.index({ inviteToken: 1 });

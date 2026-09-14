@@ -205,6 +205,62 @@ router.get('/me', requireAuth, (req, res) => {
     res.json({ success: true, user: req.user });
 });
 
+// ── GET /auth/me/preferences ──
+router.get('/me/preferences', requireAuth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('preferences').lean();
+        res.json({
+            success: true,
+            preferences: user?.preferences || {
+                pipelineCardConfig: {
+                    pending: ['fico', 'daysInStage', 'underwriter'],
+                    approved: ['fico', 'amountFinanced', 'apr', 'term'],
+                    funded: ['amountFinanced', 'dealerReserve', 'timeToBook'],
+                    declined: ['fico', 'dti', 'ltv', 'underwriter']
+                }
+            }
+        });
+    } catch (err) {
+        console.error('Get preferences error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// ── PATCH /auth/me/preferences ──
+router.patch('/me/preferences', requireAuth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const updates = req.body || {};
+        const currentPrefs = user.preferences || {};
+
+        if (updates.pipelineCardConfig) {
+            currentPrefs.pipelineCardConfig = {
+                ...(currentPrefs.pipelineCardConfig || {}),
+                ...updates.pipelineCardConfig
+            };
+        }
+
+        for (const [key, value] of Object.entries(updates)) {
+            if (key !== 'pipelineCardConfig') {
+                currentPrefs[key] = value;
+            }
+        }
+
+        user.preferences = currentPrefs;
+        user.markModified('preferences');
+        await user.save();
+
+        res.json({ success: true, preferences: user.preferences });
+    } catch (err) {
+        console.error('Update preferences error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 // ── GET /auth/rep-list (admin+) ──
 router.get('/rep-list', requireAuth, (req, res) => {
     try {

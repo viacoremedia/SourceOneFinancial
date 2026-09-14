@@ -345,11 +345,35 @@ export async function getDealerApplicationsHistory(
   group?: string,
   underwriter?: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  tags?: string[],
+  excludeTags?: string[],
+  search?: string
 ): Promise<DealerApplicationHistoryResponse> {
-  const { data } = await api.get(`/analytics/dealers/${dealerId}/applications`, {
-    params: { page, limit, state, rep, group, underwriter, startDate, endDate }
+  const params: Record<string, any> = { page, limit };
+  if (state) params.state = state;
+  if (rep) params.rep = rep;
+  if (group) params.group = group;
+  if (underwriter) params.underwriter = underwriter;
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  if (tags && tags.length > 0) params.tags = tags.join(',');
+  if (excludeTags && excludeTags.length > 0) params.excludeTags = excludeTags.join(',');
+  if (search && search.trim()) params.search = search.trim();
+
+  const { data } = await api.get(`/analytics/dealers/${encodeURIComponent(dealerId)}/applications`, {
+    params
   });
+  return data;
+}
+
+export async function getUserPreferences(): Promise<{ success: boolean; preferences: any }> {
+  const { data } = await api.get('/auth/me/preferences');
+  return data;
+}
+
+export async function updateUserPreferences(preferences: any): Promise<{ success: boolean; preferences: any }> {
+  const { data } = await api.patch('/auth/me/preferences', preferences);
   return data;
 }
 

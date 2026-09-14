@@ -159,6 +159,14 @@ export interface ApplicationHistoryItem {
   daysAgo: number | null;
 }
 
+export interface PipelineCardFieldConfig {
+  pending?: string[];
+  approved?: string[];
+  funded?: string[];
+  declined?: string[];
+  [stageId: string]: string[] | undefined;
+}
+
 export interface DealerApplicationHistorySummary {
   allTime: { apps: number; approvals: number; booked: number; bookedDollars: number; leadBooked?: number; leadBookedDollars?: number; closeBooked?: number; closeBookedDollars?: number };
   ytd: { apps: number; approvals: number; booked: number; bookedDollars: number; leadBooked?: number; leadBookedDollars?: number; closeBooked?: number; closeBookedDollars?: number };

@@ -6,6 +6,7 @@ import {
   getRepCommunicationHistory,
   getUnderwriterScorecardApi,
   getDealerRelationshipDrawer,
+  getSmallDealers,
   overrideDealerRelationshipSegment,
   resetDealerRelationshipOverride,
   syncDealerBadger,
@@ -50,6 +51,7 @@ import {
   Zap
 } from 'lucide-react';
 import { DealerPipelineView } from '../DealerPipelineView';
+import { CentralPipeline } from '../CentralPipeline/CentralPipeline';
 import { ApplicationDetailDrawer } from '../ApplicationDetailDrawer/ApplicationDetailDrawer';
 import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
 import { CommunicationDetailModal, type CommunicationDetailItem } from '../../../../components/CommunicationDetailModal/CommunicationDetailModal';
@@ -69,7 +71,7 @@ interface AnalyticsDrawerProps {
   initialStartDate?: string | null;
   initialEndDate?: string | null;
   initialDatePreset?: string | null;
-  initialTab?: 'pipeline' | 'drd' | 'mom' | 'applications' | 'communications';
+  initialTab?: 'pipeline' | 'drd' | 'mom' | 'applications' | 'communications' | 'central_pipeline';
   tableRowData?: any | null;
   comparisonLabel?: string;
   datePresetLabel?: string;
@@ -150,8 +152,8 @@ export function AnalyticsDrawer({
   onSelectDealerId,
   onSelectGroupSlug,
 }: AnalyticsDrawerProps) {
-  // Active Tab: 'pipeline' | 'drd' | 'mom' | 'applications' | 'communications'
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'drd' | 'mom' | 'applications' | 'communications'>(initialTab);
+  // Active Tab: 'pipeline' | 'drd' | 'mom' | 'applications' | 'communications' | 'central_pipeline'
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'drd' | 'mom' | 'applications' | 'communications' | 'central_pipeline'>(initialTab);
 
   // Selected Dealer Filter (ID or Mongo _id)
   const [selectedDealerId, setSelectedDealerId] = useState<string | null>(initialDealerId);
@@ -170,6 +172,7 @@ export function AnalyticsDrawer({
 
   // DRD Profile State
   const [drdData, setDrdData] = useState<RelationshipDemandDrawerResponse | null>(null);
+  const [fetchedTableDealer, setFetchedTableDealer] = useState<any | null>(null);
   const [drdLoading, setDrdLoading] = useState<boolean>(false);
   const [drdError, setDrdError] = useState<string | null>(null);
   const [hoveredMonth, setHoveredMonth] = useState<any | null>(null);
@@ -240,7 +243,11 @@ export function AnalyticsDrawer({
   // Sync initial props whenever drawer opens or props change
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(initialTab);
+      if (initialDealerId && initialDealerId !== 'all' && initialTab === 'central_pipeline') {
+        setActiveTab('drd');
+      } else {
+        setActiveTab(initialTab);
+      }
       setSelectedDealerId(initialDealerId);
       setSelectedDealerObj(null);
       setDrdData(null);
@@ -467,6 +474,60 @@ export function AnalyticsDrawer({
       active = false;
     };
   }, [isOpen, selectedDealerId]);
+
+  // Fetch full dealer table row stats if not provided via props or in allTableDealers
+  useEffect(() => {
+    if (!isOpen || !selectedDealerId || selectedDealerId === 'all') {
+      setFetchedTableDealer(null);
+      return;
+    }
+
+    // Check if tableRowData or allTableDealers already contains this dealer
+    const alreadyAvailable =
+      (tableRowData && (
+        tableRowData._id === selectedDealerId ||
+        tableRowData.dealerId === selectedDealerId ||
+        tableRowData.clientDealerId === selectedDealerId ||
+        tableRowData.location?._id === selectedDealerId ||
+        tableRowData.location?.dealerId === selectedDealerId ||
+        tableRowData.location?.clientDealerId === selectedDealerId
+      )) ||
+      (allTableDealers && allTableDealers.some((d: any) =>
+        d._id === selectedDealerId ||
+        d.dealerId === selectedDealerId ||
+        d.clientDealerId === selectedDealerId ||
+        d.location?._id === selectedDealerId ||
+        d.location?.dealerId === selectedDealerId ||
+        d.location?.clientDealerId === selectedDealerId
+      ));
+
+    if (alreadyAvailable) {
+      setFetchedTableDealer(null);
+      return;
+    }
+
+    let active = true;
+    getSmallDealers({ search: selectedDealerId, scope: 'all' })
+      .then((res) => {
+        if (active && res?.dealers && res.dealers.length > 0) {
+          const matched = res.dealers.find(
+            (d: any) =>
+              d._id === selectedDealerId ||
+              d.dealerId === selectedDealerId ||
+              d.clientDealerId === selectedDealerId ||
+              (d.dealerName && d.dealerName.toLowerCase() === selectedDealerId.toLowerCase())
+          ) || res.dealers[0];
+          setFetchedTableDealer(matched);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch table dealer row for sticky header:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, selectedDealerId, tableRowData, allTableDealers]);
 
   // Rep list
   const repList = useMemo(() => {
@@ -721,6 +782,17 @@ export function AnalyticsDrawer({
       );
       if (found) return found;
     }
+    if (fetchedTableDealer && (
+      fetchedTableDealer._id === selectedDealerId ||
+      fetchedTableDealer.dealerId === selectedDealerId ||
+      fetchedTableDealer.clientDealerId === selectedDealerId ||
+      fetchedTableDealer.location?._id === selectedDealerId ||
+      fetchedTableDealer.location?.dealerId === selectedDealerId ||
+      fetchedTableDealer.location?.clientDealerId === selectedDealerId ||
+      (fetchedTableDealer.dealerName && fetchedTableDealer.dealerName.toLowerCase() === selectedDealerId.toLowerCase())
+    )) {
+      return fetchedTableDealer;
+    }
     if (tableRowData && selectedDealerId) {
       const matches = tableRowData._id === selectedDealerId ||
                       tableRowData.dealerId === selectedDealerId ||
@@ -728,7 +800,7 @@ export function AnalyticsDrawer({
       if (matches) return tableRowData;
     }
     return null;
-  }, [selectedDealerId, tableRowData, allTableDealers]);
+  }, [selectedDealerId, tableRowData, allTableDealers, fetchedTableDealer]);
 
   const tableStats = currentTableDealer?.stats || currentTableDealer?.rollingAvg || (currentTableDealer as any)?.stat;
   const tableTrends = tableStats?.trends || currentTableDealer?.trends;
@@ -780,6 +852,51 @@ export function AnalyticsDrawer({
       ? displayedMonths.reduce((acc, m) => acc + (m.stats?.leadBooked ?? 0), 0) / displayedMonths.reduce((acc, m) => acc + (m.stats?.approvals || 0), 0)
       : 0,
     latestCohort: displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1].cohorts : null,
+  };
+
+  const latestMoMMonth = displayedMonths.length > 0 ? displayedMonths[displayedMonths.length - 1] : null;
+  const isAllTimeScope = datePresetLabel === 'all' || (timeframeMode === 'all' && activeTab === 'mom');
+  const isYtdScope = datePresetLabel === 'ytd' || (timeframeMode === 'ytd' && activeTab === 'mom');
+
+  const resolvedStats = {
+    apps: tableStats?.apps ?? (isAllTimeScope
+      ? (appHistoryData?.summary?.allTime?.apps ?? profile?.pipelineStats?.totalApplications ?? totals.apps)
+      : isYtdScope
+      ? (appHistoryData?.summary?.ytd?.apps ?? totals.apps)
+      : (latestMoMMonth?.stats?.apps ?? appHistoryData?.summary?.mtd?.apps ?? profile?.pipelineStats?.totalApplications)),
+    approvals: tableStats?.approvals ?? (isAllTimeScope
+      ? (appHistoryData?.summary?.allTime?.approvals ?? profile?.pipelineStats?.totalApproved ?? totals.approvals)
+      : isYtdScope
+      ? (appHistoryData?.summary?.ytd?.approvals ?? totals.approvals)
+      : (latestMoMMonth?.stats?.approvals ?? appHistoryData?.summary?.mtd?.approvals ?? profile?.pipelineStats?.totalApproved)),
+    leadBooked: tableStats?.leadBooked ?? currentTableDealer?.leadBooked ?? (isAllTimeScope
+      ? totals.leadBooked
+      : isYtdScope
+      ? (appHistoryData?.summary?.ytd?.leadBooked ?? totals.leadBooked)
+      : (latestMoMMonth?.stats?.leadBooked ?? appHistoryData?.summary?.mtd?.leadBooked)),
+    leadBookedDollars: tableStats?.leadBookedDollars ?? currentTableDealer?.leadBookedDollars ?? (isAllTimeScope
+      ? totals.leadBookedDollars
+      : isYtdScope
+      ? (appHistoryData?.summary?.ytd?.leadBookedDollars ?? totals.leadBookedDollars)
+      : (latestMoMMonth?.stats?.leadBookedDollars ?? appHistoryData?.summary?.mtd?.leadBookedDollars)),
+    booked: tableStats?.booked ?? (isAllTimeScope
+      ? (appHistoryData?.summary?.allTime?.booked ?? profile?.pipelineStats?.totalBookings ?? totals.booked)
+      : isYtdScope
+      ? (appHistoryData?.summary?.ytd?.booked ?? totals.booked)
+      : (latestMoMMonth?.stats?.closeBooked ?? latestMoMMonth?.stats?.booked ?? appHistoryData?.summary?.mtd?.booked ?? profile?.pipelineStats?.totalBookings)),
+    bookedDollars: tableStats?.bookedDollars ?? (isAllTimeScope
+      ? (appHistoryData?.summary?.allTime?.bookedDollars ?? profile?.lifetimeStats?.totalBookedVolume ?? totals.bookedDollars)
+      : isYtdScope
+      ? (appHistoryData?.summary?.ytd?.bookedDollars ?? totals.bookedDollars)
+      : (latestMoMMonth?.stats?.closeBookedDollars ?? latestMoMMonth?.stats?.bookedDollars ?? appHistoryData?.summary?.mtd?.bookedDollars ?? profile?.lifetimeStats?.totalBookedVolume)),
+    lookToBook: tableStats?.lookToBook != null
+      ? tableStats.lookToBook
+      : (latestMoMMonth?.stats?.lookToBook ?? totals.lookToBook ?? (profile?.pipelineStats?.lookToBookPct ? profile.pipelineStats.lookToBookPct / 100 : null)),
+    approvalToBook: tableStats?.approvalToBook != null
+      ? tableStats.approvalToBook
+      : (latestMoMMonth?.stats?.approvalToBook ?? totals.approvalToBook ?? (profile?.pipelineStats?.approvalToBookPct ? profile.pipelineStats.approvalToBookPct / 100 : null)),
+    avgFico: tableStats?.avgFico ?? currentTableDealer?.avgFico ?? (latestMoMMonth?.stats as any)?.avgFico,
+    trends: tableTrends || latestMoMMonth?.trends
   };
 
   return (
@@ -935,6 +1052,15 @@ export function AnalyticsDrawer({
                 <span>DRD Profile</span>
               </button>
             )}
+            {!isDealerSelected && (
+              <button
+                className={`${styles.tabBtn} ${activeTab === 'central_pipeline' ? styles.tabBtnActive : ''}`}
+                onClick={() => setActiveTab('central_pipeline')}
+              >
+                <LayoutGrid size={14} />
+                <span>Central Pipeline</span>
+              </button>
+            )}
             <button
               className={`${styles.tabBtn} ${activeTab === 'mom' ? styles.tabBtnActive : ''}`}
               onClick={() => setActiveTab('mom')}
@@ -1015,20 +1141,20 @@ export function AnalyticsDrawer({
               </div>
             </div>
 
-            {/* Metrics Grid matching Table Columns */}
-            <div className={styles.stickyMetricsGrid}>
-              {renderStickyMetric('Apps', tableStats?.apps ?? profile?.pipelineStats?.totalApplications, tableTrends?.apps, 'count')}
-              {renderStickyMetric('Approvals', tableStats?.approvals ?? profile?.pipelineStats?.totalApproved, tableTrends?.approvals, 'count')}
-              {renderStickyMetric('App BKD', tableStats?.leadBooked ?? currentTableDealer?.leadBooked, tableTrends?.leadBooked, 'count')}
-              {renderStickyMetric('App $', tableStats?.leadBookedDollars ?? currentTableDealer?.leadBookedDollars, tableTrends?.leadBookedDollars, 'dollar')}
-              {renderStickyMetric('Funded BKD', tableStats?.booked ?? profile?.pipelineStats?.totalBookings, tableTrends?.booked, 'count')}
-              {renderStickyMetric('Funded $', tableStats?.bookedDollars ?? profile?.lifetimeStats?.totalBookedVolume, tableTrends?.bookedDollars, 'dollar')}
-              {renderStickyMetric('Look-to-Book', tableStats?.lookToBook != null ? tableStats.lookToBook : (profile?.pipelineStats?.lookToBookPct ? profile.pipelineStats.lookToBookPct / 100 : null), tableTrends?.lookToBook, 'percent')}
-              {renderStickyMetric('Appr-to-Book', tableStats?.approvalToBook != null ? tableStats.approvalToBook : (profile?.pipelineStats?.approvalToBookPct ? profile.pipelineStats.approvalToBookPct / 100 : null), tableTrends?.approvalToBook, 'percent')}
-              {renderStickyMetric('Avg FICO', tableStats?.avgFico ?? currentTableDealer?.avgFico, undefined, 'count')}
+              {/* Metrics Grid matching Table Columns with guaranteed accurate values */}
+              <div className={styles.stickyMetricsGrid}>
+                {renderStickyMetric('Apps', resolvedStats.apps, resolvedStats.trends?.apps, 'count')}
+                {renderStickyMetric('Approvals', resolvedStats.approvals, resolvedStats.trends?.approvals, 'count')}
+                {renderStickyMetric('App BKD', resolvedStats.leadBooked, resolvedStats.trends?.leadBooked, 'count')}
+                {renderStickyMetric('App $', resolvedStats.leadBookedDollars, resolvedStats.trends?.leadBookedDollars, 'dollar')}
+                {renderStickyMetric('Funded BKD', resolvedStats.booked, resolvedStats.trends?.booked, 'count')}
+                {renderStickyMetric('Funded $', resolvedStats.bookedDollars, resolvedStats.trends?.bookedDollars, 'dollar')}
+                {renderStickyMetric('Look-to-Book', resolvedStats.lookToBook, resolvedStats.trends?.lookToBook, 'percent')}
+                {renderStickyMetric('Appr-to-Book', resolvedStats.approvalToBook, resolvedStats.trends?.approvalToBook, 'percent')}
+                {renderStickyMetric('Avg FICO', resolvedStats.avgFico, undefined, 'count')}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* TAB: OPPORTUNITY PIPELINE (DEFAULT MAIN LANDING VIEW) */}
         {activeTab === 'pipeline' && isDealerSelected && (
@@ -1681,6 +1807,56 @@ export function AnalyticsDrawer({
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB 4: COMPANY-WIDE CENTRAL PIPELINE (Network Scope Only) */}
+        {activeTab === 'central_pipeline' && !isDealerSelected && (
+          <CentralPipeline
+            selectedRep={selectedRep}
+            onSelectRep={setSelectedRep}
+            selectedState={selectedState}
+            onSelectState={setSelectedState}
+            selectedGroup={selectedGroup}
+            onSelectGroup={setSelectedGroup}
+            repList={repList}
+            stateList={filteredStates}
+            groupList={availableGroups}
+            isInsideRep={isInsideRep}
+            assignedRep={assignedRep || ''}
+            tags={tags || []}
+            excludeTags={excludeTags || []}
+            onSelectApplication={(app) => {
+              setSelectedAppDetail(app);
+            }}
+            onNavigateToDealerProfile={(dealerId) => {
+              if (!dealerId) return;
+              const matchedDealer = allTableDealers?.find(
+                (d) =>
+                  d.clientDealerId === dealerId ||
+                  d.dealerId === dealerId ||
+                  d._id === dealerId ||
+                  (d.dealerName && d.dealerName.toLowerCase() === dealerId.toLowerCase())
+              );
+              if (matchedDealer) {
+                handleSelectDealer({
+                  _id: matchedDealer._id || dealerId,
+                  dealerName: matchedDealer.dealerName || '',
+                  dealerId: matchedDealer.dealerId || dealerId,
+                  clientDealerId: matchedDealer.clientDealerId || dealerId,
+                  statePrefix: matchedDealer.statePrefix || ''
+                });
+              } else {
+                handleSelectDealer({
+                  _id: dealerId,
+                  dealerName: dealerId,
+                  dealerId: dealerId,
+                  clientDealerId: dealerId,
+                  statePrefix: ''
+                });
+              }
+              setActiveTab('pipeline');
+            }}
+          />
         )}
 
         {/* TAB 1: HISTORICAL MOM */}

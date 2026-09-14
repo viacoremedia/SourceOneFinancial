@@ -145,7 +145,7 @@ function DashboardContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerDealerId, setDrawerDealerId] = useState<string | null>(null);
   const [drawerGroupSlug, setDrawerGroupSlug] = useState<string | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'pipeline' | 'drd' | 'mom' | 'applications' | 'communications'>('pipeline');
+  const [drawerTab, setDrawerTab] = useState<'pipeline' | 'drd' | 'mom' | 'applications' | 'communications' | 'central_pipeline'>('pipeline');
   const [visitImpactOpen, setVisitImpactOpen] = useState(false);
 
   const handleOpenDealerDrawer = useCallback((dealerId: string) => {
@@ -166,6 +166,13 @@ function DashboardContent() {
     setDrawerDealerId(null);
     setDrawerGroupSlug(null);
     setDrawerTab('mom');
+    setDrawerOpen(true);
+  }, []);
+
+  const handleOpenCentralPipeline = useCallback(() => {
+    setDrawerDealerId(null);
+    setDrawerGroupSlug(null);
+    setDrawerTab('central_pipeline');
     setDrawerOpen(true);
   }, []);
 
@@ -560,6 +567,7 @@ function DashboardContent() {
     <AppShell
       rollingWindow={rollingWindow}
       onRollingWindowChange={setRollingWindow}
+      onOpenCentralPipeline={handleOpenCentralPipeline}
       onOpenMoMAnalytics={handleOpenTopMoMDrawer}
       onOpenVisitImpact={() => setVisitImpactOpen(true)}
       latestReportDate={overview?.latestReportDate}
@@ -677,7 +685,7 @@ function DashboardContent() {
 
       {/* Unified Tabbed Historical MoM & Application History Drawer */}
       <AnalyticsDrawer
-        key={`${drawerDealerId || drawerGroupSlug || 'closed'}`}
+        key={`${drawerDealerId || drawerGroupSlug || drawerTab || 'closed'}`}
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         availableStates={repMappings?.allStates || Object.keys(stateRepMap)}
@@ -695,7 +703,7 @@ function DashboardContent() {
         comparisonLabel={comparisonLabel}
         datePresetLabel={datePreset}
         dateRangeStr={startDate && endDate ? `${startDate} to ${endDate}` : undefined}
-        allTableDealers={activeTab === 'all' ? allDealers : smallDealers}
+        allTableDealers={allDealers.length > 0 && smallDealers.length > 0 ? [...allDealers, ...smallDealers] : allDealers.length > 0 ? allDealers : smallDealers}
         businessType={selectedBusinessType}
         tags={selectedTags}
         excludeTags={excludedTags}

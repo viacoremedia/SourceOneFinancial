@@ -1,0 +1,1247 @@
+/* ── CentralPipeline.module.css — Company-Wide Opportunity Kanban Board ── */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 20px 18px;
+  min-height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── 1. Top Controls & KPI Row ── */
+.controlsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #161e2e;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.kpiRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.kpiChip {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.kpiVal {
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.actionsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sortSelect {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sortSelect:hover {
+  border-color: #38bdf8;
+}
+
+.filterSelect {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  max-width: 130px;
+}
+
+.filterSelect:hover:not(:disabled) {
+  border-color: #38bdf8;
+}
+
+.filterSelect:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.filterToggleBtn {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.filterToggleBtn:hover {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+.filterToggleActive {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 4px 10px;
+  width: 240px;
+  transition: border-color 0.15s ease;
+}
+
+.searchBox:focus-within {
+  border-color: #38bdf8;
+}
+
+.searchInput {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 11px;
+  color: #f1f5f9;
+  width: 100%;
+}
+
+.searchInput::placeholder {
+  color: #64748b;
+}
+
+/* ── 2. Overnight Status Movement Banner ── */
+.movementBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.12) 0%, rgba(30, 41, 59, 0.4) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.bannerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  flex-shrink: 0;
+}
+
+.bannerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bannerTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.bannerSub {
+  font-size: 11.5px;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* ── 3. Kanban Board ── */
+.pipelineBoard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  gap: 14px;
+  overflow-x: auto;
+  align-items: stretch;
+  flex: 1;
+  min-height: 520px;
+}
+
+.pipelineCol {
+  background: #161e2e;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  max-height: calc(88dvh - 270px);
+  transition: all 0.2s ease;
+}
+
+.colHeader {
+  padding: 9px 12px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: #131b2e;
+  border-top-left-radius: 9px;
+  border-top-right-radius: 9px;
+  z-index: 10;
+}
+
+.colTitleArea {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.colCountBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+.colActionsArea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colVolume {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.colActionBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.colActionBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+/* ── Collapsed Column State ── */
+.colCollapsed {
+  min-width: 44px;
+  max-width: 44px;
+  cursor: pointer;
+}
+
+.colCollapsedHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 6px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.colCollapsedTitle {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  margin: 16px 0;
+  white-space: nowrap;
+}
+
+.colCardsList {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.emptyColumn {
+  padding: 36px 12px;
+  text-align: center;
+  font-size: 11.5px;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* ── 4. Enhanced Multi-Dealer Opportunity Card ── */
+.oppCard {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.oppCard:hover {
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Dealer Rooftop & Quick Action Row */
+.dealerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dealerNameGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dealerHeaderTop {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.dealerName {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1.3;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.dealerIdBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.statusBadgeRow {
+  display: flex;
+  align-items: center;
+  margin: 4px 0 2px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.statusConditional {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+}
+
+.statusApproved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.statusDeclined {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.statusFunded {
+  background: rgba(13, 148, 136, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+}
+
+.statusPending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.statusDefault {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.repBadge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.dealerActionGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.cardQuickBtn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: #cbd5e1;
+  font-size: 9.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.cardQuickBtn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.badgerQuickBtn {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.badgerQuickBtn:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #fbbf24;
+  color: #ffffff;
+}
+
+/* Card Header (App ID + Amount) */
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.appId {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  color: #38bdf8;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copyBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 1px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+
+.copyBtn:hover {
+  color: #38bdf8;
+}
+
+.amount {
+  font-size: 13px;
+  font-weight: 800;
+  color: #34d399;
+}
+
+/* Movement Badge */
+.movementBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.collateral {
+  font-size: 10.5px;
+  color: #cbd5e1;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Application Date Row */
+.appDateRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #94a3b8;
+  gap: 6px;
+}
+
+.appDateGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  min-width: 0;
+}
+
+.dateIcon {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.dateLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.dateVal {
+  font-size: 10px;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+}
+
+.daysAgoPill {
+  font-size: 9px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Meta Row (Lender & FICO) */
+.cardMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #94a3b8;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lenderTag {
+  display: inline-block;
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #cbd5e1;
+  font-size: 9.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Enhanced FICO Visualization with Gradients ── */
+.ficoBadge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2.5px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ficoHigh {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.15) 100%);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.15);
+}
+
+.ficoMid {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(217, 119, 6, 0.15) 100%);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.15);
+}
+
+.ficoLow {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.15) 100%);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.15);
+}
+
+.ficoNone {
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.2) 0%, rgba(71, 85, 105, 0.12) 100%);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+/* ── Dynamic Configured Fields Grid ── */
+.dynamicFieldsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
+}
+
+.dynamicFieldItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9.5px;
+  color: #94a3b8;
+}
+
+.dynamicFieldLabel {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.dynamicFieldValue {
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+/* Footer Row */
+.uwBadge {
+  font-size: 9px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+  flex-shrink: 0;
+}
+
+.stageDaysNormal {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.stageDaysWarning {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.stageDaysDanger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.loadMoreBtn {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  transition: all 0.15s ease;
+  margin-top: 4px;
+}
+
+.loadMoreBtn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── 5. Field Configuration Modal ── */
+.configModalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.configModal {
+  background: #161e2e;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  width: 540px;
+  max-width: 95vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.configModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #1e293b;
+  background: #111827;
+}
+
+.configModalTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.configCloseBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+
+.configCloseBtn:hover {
+  color: #f1f5f9;
+}
+
+.configDescription {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 10px 18px 0 18px;
+  margin: 0;
+}
+
+.configCategoriesList {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.configCatGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.configCatTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.configFieldsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.configFieldPill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.configFieldPill:hover {
+  border-color: #38bdf8;
+}
+
+.configFieldPillActive {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.configCheckbox {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1px solid #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #38bdf8;
+  background: #1e293b;
+  flex-shrink: 0;
+}
+
+.configFieldPillActive .configCheckbox {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.configFieldLabel {
+  font-size: 11.5px;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.configModalFooter {
+  padding: 12px 18px;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111827;
+}
+
+.configResetBtn {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.configResetBtn:hover {
+  color: #f1f5f9;
+  border-color: #64748b;
+}
+
+.configCancelBtn {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.configCancelBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.configSaveBtn {
+  background: #38bdf8;
+  border: none;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.configSaveBtn:hover:not(:disabled) {
+  background: #7dd3fc;
+}
+
+.configSaveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Light Mode Overrides ── */
+:global([data-theme="light"]) .controlsHeader {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .kpiChip {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+:global([data-theme="light"]) .kpiVal {
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .searchBox {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .searchInput {
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .filterSelect {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .filterSelect option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .sortSelect {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .sortSelect option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .filterToggleBtn {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+:global([data-theme="light"]) .movementBanner {
+  background: linear-gradient(90deg, #f0f9ff 0%, #f8fafc 100%);
+  border-color: #bae6fd;
+}
+
+:global([data-theme="light"]) .bannerTitle {
+  color: #0369a1;
+  font-weight: 700;
+}
+
+:global([data-theme="light"]) .bannerSub {
+  color: #0284c7;
+}
+
+:global([data-theme="light"]) .bannerIcon {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+:global([data-theme="light"]) .pipelineCol {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .colHeader {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .colTitleArea {
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .colVolume {
+  color: #0284c7;
+}
+
+:global([data-theme="light"]) .colActionBtn {
+  color: #64748b;
+}
+
+:global([data-theme="light"]) .colActionBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .oppCard {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .oppCard:hover {
+  border-color: #0284c7;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+:global([data-theme="light"]) .dealerRow {
+  border-bottom-color: #f1f5f9;
+}
+
+:global([data-theme="light"]) .dealerIdBadge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+:global([data-theme="light"]) .dealerName {
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .cardHeader .appId {
+  color: #475569;
+}
+
+:global([data-theme="light"]) .cardHeader .appId span {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+:global([data-theme="light"]) .amount {
+  color: #059669;
+  font-weight: 800;
+}
+
+:global([data-theme="light"]) .statusConditional {
+  background: #ecfeff;
+  color: #0891b2;
+  border-color: #a5f3fc;
+}
+
+:global([data-theme="light"]) .statusApproved {
+  background: #f0fdf4;
+  color: #059669;
+  border-color: #bbf7d0;
+}
+
+:global([data-theme="light"]) .statusDeclined {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+:global([data-theme="light"]) .statusFunded {
+  background: #f0fdfa;
+  color: #0d9488;
+  border-color: #99f6e4;
+}
+
+:global([data-theme="light"]) .statusPending {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
+:global([data-theme="light"]) .statusDefault {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .collateral {
+  color: #334155;
+}
+
+:global([data-theme="light"]) .dateVal {
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .dynamicFieldsGrid {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .dynamicFieldItem {
+  color: #334155;
+}
+
+:global([data-theme="light"]) .dynamicFieldLabel {
+  color: #475569;
+  font-weight: 600;
+}
+
+:global([data-theme="light"]) .dynamicFieldValue {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+:global([data-theme="light"]) .lenderTag {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+:global([data-theme="light"]) .uwBadge {
+  color: #475569;
+  font-weight: 600;
+}
+
+:global([data-theme="light"]) .stageDaysNormal {
+  color: #475569;
+}
+
+:global([data-theme="light"]) .cardQuickBtn {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+:global([data-theme="light"]) .cardQuickBtn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0284c7;
+}
+
+:global([data-theme="light"]) .badgerQuickBtn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+:global([data-theme="light"]) .badgerQuickBtn:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+:global([data-theme="light"]) .configModal {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .configModalHeader,
+:global([data-theme="light"]) .configModalFooter {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .configModalTitle {
+  color: #0f172a;
+}
+
+:global([data-theme="light"]) .configFieldPill {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .configFieldLabel {
+  color: #1e293b;
+}
