@@ -16,8 +16,12 @@ import {
   Hourglass,
   CheckCircle2,
   Briefcase,
-  XCircle
+  XCircle,
+  Users,
+  CalendarClock
 } from 'lucide-react';
+import { DealerContactsModal } from '../DealerContactsModal/DealerContactsModal';
+import { ScheduleFollowUpModal } from '../ScheduleFollowUpModal/ScheduleFollowUpModal';
 import { getDealerApplicationsHistory } from '../../../../core/services/api';
 import type { ApplicationHistoryItem } from '../../types';
 import styles from './DealerPipelineView.module.css';
@@ -180,6 +184,8 @@ export const DealerPipelineView: React.FC<DealerPipelineViewProps> = ({
   const [syncStatusMsg, setSyncStatusMsg] = useState<{ text: string; isError: boolean } | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showAllTime, setShowAllTime] = useState<boolean>(false);
+  const [showContactsModal, setShowContactsModal] = useState<boolean>(false);
+  const [showFollowUpModal, setShowFollowUpModal] = useState<boolean>(false);
 
   // Fetch recent applications for this dealership with race condition guard
   useEffect(() => {
@@ -472,6 +478,40 @@ export const DealerPipelineView: React.FC<DealerPipelineViewProps> = ({
             </button>
           )}
 
+          <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+            <button
+              type="button"
+              className={styles.sidebarSyncBtn}
+              onClick={() => setShowContactsModal(true)}
+              title="Manage all rooftop contacts"
+              style={{
+                flex: 1,
+                background: 'rgba(52, 211, 153, 0.1)',
+                color: '#34d399',
+                borderColor: 'rgba(52, 211, 153, 0.25)'
+              }}
+            >
+              <Users size={11} />
+              <span>Contacts</span>
+            </button>
+
+            <button
+              type="button"
+              className={styles.sidebarSyncBtn}
+              onClick={() => setShowFollowUpModal(true)}
+              title="Schedule follow-up reminder"
+              style={{
+                flex: 1,
+                background: 'rgba(251, 191, 36, 0.1)',
+                color: '#fbbf24',
+                borderColor: 'rgba(251, 191, 36, 0.25)'
+              }}
+            >
+              <CalendarClock size={11} />
+              <span>Follow-up</span>
+            </button>
+          </div>
+
           {syncStatusMsg && (
             <div
               className={styles.sidebarSyncMsg}
@@ -724,6 +764,23 @@ export const DealerPipelineView: React.FC<DealerPipelineViewProps> = ({
           </div>
         )}
       </main>
+
+      {showContactsModal && (
+        <DealerContactsModal
+          dealerId={clientDealerId || dealerId}
+          dealerName={dealerName}
+          onClose={() => setShowContactsModal(false)}
+        />
+      )}
+
+      {showFollowUpModal && (
+        <ScheduleFollowUpModal
+          dealerId={clientDealerId || dealerId}
+          dealerName={dealerName}
+          clientDealerId={clientDealerId}
+          onClose={() => setShowFollowUpModal(false)}
+        />
+      )}
     </div>
   );
 };

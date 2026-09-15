@@ -20,7 +20,7 @@ import { useRepScorecard } from '../hooks/useRepScorecard';
 import { useDashboardStore } from '../stores/useDashboardStore';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { AnalyticsProvider } from '../../../core/contexts/AnalyticsContext';
-import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings, getDealerTags, getDealerGroupRequests } from '../../../core/services/api';
+import { getGroupLocations, getSmallDealers, getStateRepMap, getBudgetByState, getRepMappings, getDealerTags, getDealerGroupRequests, getFollowUps } from '../../../core/services/api';
 import type { StateRepMap, StateBudget, DealerStatusBreakdown, RepMappings, UniversalTag } from '../../../core/services/api';
 import type { DealerLocation, RollingWindow, HeatClass, SortColumn } from '../types';
 
@@ -140,6 +140,31 @@ function DashboardContent() {
   const [stateRepMap, setStateRepMap] = useState<StateRepMap>({});
   const [budgets, setBudgets] = useState<StateBudget[]>([]);
   const [repMappings, setRepMappings] = useState<RepMappings | null>(null);
+
+  const [activeFollowUpsOnly, setActiveFollowUpsOnly] = useState<boolean>(false);
+  const [activeFollowUpsCount, setActiveFollowUpsCount] = useState<number>(0);
+
+  const refreshActiveFollowUps = useCallback(async () => {
+    try {
+      const res = await getFollowUps('active');
+      if (res?.success && Array.isArray(res.followUps)) {
+        setActiveFollowUpsCount(res.followUps.length);
+      }
+    } catch (err) {
+      console.warn('Failed to load active follow-ups count:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshActiveFollowUps();
+    const handleUpdate = () => {
+      refreshActiveFollowUps();
+    };
+    window.addEventListener('followups-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('followups-updated', handleUpdate);
+    };
+  }, [refreshActiveFollowUps]);
 
   const [rollingWindow, setRollingWindow] = useState<RollingWindow>(7);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -313,6 +338,7 @@ function DashboardContent() {
           businessType: selectedBusinessType || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
           excludeTags: excludedTags.length > 0 ? excludedTags : undefined,
+          activeFollowUpsOnly: activeFollowUpsOnly || undefined,
           signal,
         });
 
@@ -355,7 +381,7 @@ function DashboardContent() {
         }
       }
     },
-    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter, selectedBusinessType, selectedTags, excludedTags]
+    [selectedRep, activityMode, searchQuery, transitionFilter, startDate, endDate, trend, drdFilter, selectedBusinessType, selectedTags, excludedTags, activeFollowUpsOnly]
   );
 
   const explicitStates = useMemo(() => {
@@ -385,7 +411,7 @@ function DashboardContent() {
     return () => {
       clearTimeout(timer);
     };
-  }, [filterVersion, activeTab, explicitStates, fetchDealers, statusFilter]);
+  }, [filterVersion, activeTab, explicitStates, fetchDealers, statusFilter, activeFollowUpsOnly]);
 
   const handleUndoSuccess = useCallback(() => {
     refreshTags();
@@ -622,6 +648,21 @@ function DashboardContent() {
             transitionFilter={transitionFilter}
             onTransitionFilterChange={handleTransitionFilterChange}
             repStatesMap={repStatesMap}
+            activeFollowUpsOnly={activeFollowUpsOnly}
+            onToggleActiveFollowUps={() => {
+              setActiveFollowUpsOnly((prev) => {
+                const next = !prev;
+                if (next) {
+                  setDealerSortStack([{ key: 'followUp', dir: 'asc' }]);
+                  sortStateRef.current = { sorts: ['followUp'], dirs: ['asc'] };
+                } else {
+                  setDealerSortStack([{ key: 'apps', dir: 'desc' }]);
+                  sortStateRef.current = { sorts: ['apps'], dirs: ['desc'] };
+                }
+                return next;
+              });
+            }}
+            activeFollowUpsCount={activeFollowUpsCount}
           />
         )}
       </div>
@@ -651,6 +692,7 @@ function DashboardContent() {
         hasMore={hasMore}
         statusFilter={statusFilter}
         activityMode={activityMode}
+        activeFollowUpsOnly={activeFollowUpsOnly}
         stateRepMap={stateRepMap}
         datePreset={datePreset}
         customStartDate={customStartDate}

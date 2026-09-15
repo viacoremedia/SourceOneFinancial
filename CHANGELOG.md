@@ -5,6 +5,46 @@ Format: [Added / Changed / Fixed / Removed] + Tests Run section..
 
 ----
 
+## [2026-09-15] — v1.6.0: Follow-Up Urgency Engine, Contact Directory, Scoped Analytics, Proposal Desk, Opportunity Pipeline & Corporate Light Mode
+
+### Added
+- **Interactive Follow-Up Urgency Engine & Active Filter** (`client/src/features/dashboard/components/DealerTable/`, `client/src/features/dashboard/components/FilterBar/`):
+  - **ScheduleFollowUpModal & FollowUpDrawer**: Interactive follow-up task manager with universal rooftop search across the entire network, allowing reps and managers to schedule follow-up commitments for any store without navigating away.
+  - **Audit Log & One-Click Undo**: Every follow-up scheduled, modified, or completed is recorded in `AuditLog` with full one-click rollback support (`undoDealerQuickAction`).
+  - **Active Follow-Ups Only Filter**: Dedicated toggle pill with live count (`{activeFollowUpsCount}`) in `FilterBar` that filters both individual dealerships and dealer groups to only accounts with open follow-ups.
+  - **Automatic Chronological Urgency Sorting**: Default sort orders rooftops from least to greatest time away from now (overdue first, then today, then upcoming).
+  - **Dynamic Injected Follow-Up Column**: Dynamically injects an interactive Follow-Up column into the table with color-coded urgency badges (🔴 Overdue, 🟡 Due Today, 🟢 Due in X days), scheduled date/time, and note snippet with click-to-view modal.
+  - **Group Mode Support**: Aggregates follow-ups at the enterprise group level with badge counters and child location breakdown.
+- **Rooftop Contact Directory & Audit Recovery** (`client/src/features/dashboard/components/DealerContactsModal/`):
+  - Full CRUD contact management (add, edit, delete, restore) for every dealership rooftop.
+  - One-click copy for email and phone numbers, primary contact designation, and audit log integration with one-click undo (`undoDealerContactAction`).
+  - Decoupled state synchronization with `useRef` and memoized callbacks in `BadgerQuickModal`, eliminating twitching and infinite re-render loops.
+- **Dealer Groups CRUD & Rep Proposal Desk** (`client/src/features/dashboard/components/DealerGroupManagerModal/`):
+  - Single-tenancy guardrails preventing satellite locations from belonging to multiple parents simultaneously.
+  - Sales Rep Proposal Desk: Reps can propose grouping accounts with justification notes; managers can review, cherry-pick stores, and approve or reject submissions in the Approval Desk.
+  - Centralized Funding Hierarchy: Designate parent entities as Central Funders while maintaining distinct rooftop tracking.
+- **Opportunity Pipeline & Day-over-Day Funnel** (`client/src/features/dashboard/components/DealerPipelineView/`):
+  - Interactive Kanban pipeline for dealer applications (New, Underwriting, Approvals, Funded Deals, Declines).
+  - Day-over-day status movement banner tracking overnight funnel progression.
+- **Corporate Light Mode Default**:
+  - Full system-wide high-contrast Light Mode default with instant header theme switcher.
+
+### Changed & Fixed
+- **Timeframe-Scoped Analytics Drawer** (`client/src/features/dashboard/components/AnalyticsDrawer/AnalyticsDrawer.tsx`):
+  - Scoped dealer analytics drawer to strictly query and display metrics matching the active rolling window (`rollingWindow` / custom date range) across application counts, approval rates, and booking volumes, preventing stale all-time data bleeding into active period reviews.
+- **Badger Activity Modal & Contact Sync** (`client/src/features/dashboard/components/BadgerQuickModal/BadgerQuickModal.tsx`):
+  - Fixed contact sync and modal responsiveness, ensuring seamless interaction without reloading.
+- **Dealer Closed Status Cleanup**:
+  - Cleaned up redundant status flags to align with single source of truth for dealer operating status.
+
+### Tests Run
+- Verified full client build compilation (`tsc --noEmit`).
+- Validated follow-up scheduling, completion, undo, and filter behavior across dealer table and group rows.
+- Verified contact modal CRUD operations and audit recovery.
+- Tested analytics drawer date-range metric calculations.
+
+----
+
 ## [2026-08-22] — PDF Rep Scorecard Generation Engine & Master Configurator
 
 ### Added

@@ -53,7 +53,13 @@ const auditLogSchema = new mongoose.Schema({
             'group_remove_dealers',
             'group_proposal_create',
             'group_proposal_approve',
-            'group_proposal_reject'
+            'group_proposal_reject',
+            'followup_create',
+            'followup_complete',
+            'followup_delete',
+            'contact_create',
+            'contact_update',
+            'contact_delete'
         ],
         index: true
     },

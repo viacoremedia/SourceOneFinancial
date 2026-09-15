@@ -15,10 +15,12 @@ import styles from './DealerTable.module.css';
 import { TABLE_COLUMNS } from './columns';
 import { StatusBadge } from './StatusBadge';
 import { BadgerQuickModal } from '../BadgerQuickModal/BadgerQuickModal';
+import { DealerContactsModal } from '../DealerContactsModal/DealerContactsModal';
+import { ScheduleFollowUpModal } from '../ScheduleFollowUpModal/ScheduleFollowUpModal';
 import { QuickActionPopover, type QuickActionDealer } from '../QuickActionPopover/QuickActionPopover';
-import { undoDealerQuickAction, undoBatchDealerAction, type UniversalTag } from '../../../../core/services/api';
+import { undoDealerQuickAction, undoBatchDealerAction, type UniversalTag, getFollowUps, type FollowUpItem } from '../../../../core/services/api';
 import { FloatingBatchBar } from './FloatingBatchBar';
-import { RotateCcw, X, CheckSquare, Lock, Building2, MapPin, Flag, Calendar, BarChart2 } from 'lucide-react';
+import { RotateCcw, X, CheckSquare, Lock, Building2, MapPin, Flag, Calendar, BarChart2, Users, CalendarClock } from 'lucide-react';
 import { getDaysSinceHeatmap, getCommDaysHeatmap } from '../../../../core/utils/heatmap';
 import type { StateRepMap } from '../../../../core/services/api';
 import type {
@@ -203,6 +205,7 @@ interface DealerTableProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   activityMode?: 'application' | 'approval' | 'booking';
+  activeFollowUpsOnly?: boolean;
   stateRepMap?: StateRepMap;
   datePreset?: DatePreset;
   customStartDate?: string;
@@ -774,27 +777,47 @@ function compareGroups(a: DealerGroup, b: DealerGroup, sortStack: SortColumn[], 
 }
 
 /** Multi-column sort comparator for locations */
-function compareLocations(a: DealerLocation, b: DealerLocation, sortStack: SortColumn[]): number {
+function compareLocations(
+  a: DealerLocation,
+  b: DealerLocation,
+  sortStack: SortColumn[],
+  getFollowUp?: (loc: any) => FollowUpItem | undefined
+): number {
   for (const { key, dir } of sortStack) {
     let cmp = 0;
-    const aVal = getLocationSortValue(a, key);
-    const bVal = getLocationSortValue(b, key);
-    if (typeof aVal === 'string' || typeof bVal === 'string') {
-      cmp = String(aVal || '').localeCompare(String(bVal || ''));
+    if (key === 'followUp' && getFollowUp) {
+      const fuA = getFollowUp(a);
+      const fuB = getFollowUp(b);
+      if (!fuA && !fuB) continue;
+      if (!fuA) return 1;
+      if (!fuB) return -1;
+      const timeA = new Date(fuA.dueDate).getTime();
+      const timeB = new Date(fuB.dueDate).getTime();
+      cmp = timeA - timeB;
     } else {
-      const numA = Number.isFinite(aVal) ? (aVal as number) : 0;
-      const numB = Number.isFinite(bVal) ? (bVal as number) : 0;
-      cmp = numA - numB;
+      const aVal = getLocationSortValue(a, key);
+      const bVal = getLocationSortValue(b, key);
+      if (typeof aVal === 'string' || typeof bVal === 'string') {
+        cmp = String(aVal || '').localeCompare(String(bVal || ''));
+      } else {
+        const numA = Number.isFinite(aVal) ? (aVal as number) : 0;
+        const numB = Number.isFinite(bVal) ? (bVal as number) : 0;
+        cmp = numA - numB;
+      }
     }
     if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
   }
   return (a.dealerName || '').localeCompare(b.dealerName || '');
 }
 
-function multiSortLocations(locations: DealerLocation[], sortStack: SortColumn[]): DealerLocation[] {
+function multiSortLocations(
+  locations: DealerLocation[],
+  sortStack: SortColumn[],
+  getFollowUp?: (loc: any) => FollowUpItem | undefined
+): DealerLocation[] {
   if (sortStack.length === 0) return locations;
   const sorted = [...locations];
-  sorted.sort((a, b) => compareLocations(a, b, sortStack));
+  sorted.sort((a, b) => compareLocations(a, b, sortStack, getFollowUp));
   return sorted;
 }
 
@@ -826,6 +849,7 @@ export function DealerTable({
   onTrendChange,
   comparisonLabel,
   activityMode = 'application',
+  activeFollowUpsOnly = false,
   stateRepMap = {},
   availableTags = [],
   onTagsUpdated,
@@ -838,6 +862,8 @@ export function DealerTable({
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(new Set());
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
   const [badgerModalDealer, setBadgerModalDealer] = useState<{ dealerId: string; dealerName: string } | null>(null);
+  const [contactsModalDealer, setContactsModalDealer] = useState<{ dealerId: string; dealerName: string } | null>(null);
+  const [followUpModalDealer, setFollowUpModalDealer] = useState<{ dealerId: string; dealerName: string } | null>(null);
   const [quickActionDealer, setQuickActionDealer] = useState<QuickActionDealer | null>(null);
   const [undoToast, setUndoToast] = useState<{ message: string; logId?: string; dealerId?: string; batchId?: string } | null>(null);
   const [isUndoing, setIsUndoing] = useState<boolean>(false);
@@ -846,6 +872,68 @@ export function DealerTable({
   const [selectedDealerIds, setSelectedDealerIds] = useState<Set<string>>(new Set());
   const [selectAllAcrossPages, setSelectAllAcrossPages] = useState<boolean>(false);
   const lastSelectedIdxRef = useRef<number | null>(null);
+
+  // ── Active Follow-Ups State & Map ──
+  const [userFollowUps, setUserFollowUps] = useState<FollowUpItem[]>([]);
+
+  const refreshFollowUps = useCallback(async () => {
+    try {
+      const res = await getFollowUps('active');
+      if (res?.success && Array.isArray(res.followUps)) {
+        setUserFollowUps(res.followUps);
+      }
+    } catch (err) {
+      console.warn('Failed to load active follow-ups for DealerTable:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshFollowUps();
+    const handleUpdate = () => {
+      refreshFollowUps();
+    };
+    window.addEventListener('followups-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('followups-updated', handleUpdate);
+    };
+  }, [refreshFollowUps]);
+
+  const followUpByDealer = useMemo(() => {
+    const map = new Map<string, FollowUpItem>();
+    for (const fu of userFollowUps) {
+      if (fu.dealerId) {
+        map.set(fu.dealerId.trim().toUpperCase(), fu);
+      }
+    }
+    return map;
+  }, [userFollowUps]);
+
+  const getDealerFollowUp = useCallback((loc: { clientDealerId?: string | null; dealerId?: string | null; _id?: string | null } | null | undefined): FollowUpItem | undefined => {
+    if (!loc) return undefined;
+    if (loc.clientDealerId && followUpByDealer.has(loc.clientDealerId.trim().toUpperCase())) {
+      return followUpByDealer.get(loc.clientDealerId.trim().toUpperCase());
+    }
+    if (loc.dealerId && followUpByDealer.has(loc.dealerId.trim().toUpperCase())) {
+      return followUpByDealer.get(loc.dealerId.trim().toUpperCase());
+    }
+    if (loc._id && followUpByDealer.has(loc._id.trim().toUpperCase())) {
+      return followUpByDealer.get(loc._id.trim().toUpperCase());
+    }
+    if (Array.isArray((loc as any).fundingChildrenDetails)) {
+      for (const child of (loc as any).fundingChildrenDetails) {
+        if (child.clientDealerId && followUpByDealer.has(child.clientDealerId.trim().toUpperCase())) {
+          return followUpByDealer.get(child.clientDealerId.trim().toUpperCase());
+        }
+        if (child.dealerId && followUpByDealer.has(child.dealerId.trim().toUpperCase())) {
+          return followUpByDealer.get(child.dealerId.trim().toUpperCase());
+        }
+        if (child._id && followUpByDealer.has(String(child._id).trim().toUpperCase())) {
+          return followUpByDealer.get(String(child._id).trim().toUpperCase());
+        }
+      }
+    }
+    return undefined;
+  }, [followUpByDealer]);
 
   const toggleParentExpanded = useCallback((dealerKey: string) => {
     setExpandedParentIds((prev) => {
@@ -1095,10 +1183,17 @@ export function DealerTable({
 
   // Sort groups (multi-column)
   const sortedGroups = useMemo(() => {
-    const sorted = [...filteredGroups];
+    let list = filteredGroups;
+    if (activeFollowUpsOnly) {
+      list = list.filter((g) => {
+        const locs = groupLocations[g.slug] || [];
+        return locs.some((loc) => Boolean(getDealerFollowUp(loc)));
+      });
+    }
+    const sorted = [...list];
     sorted.sort((a, b) => compareGroups(a, b, groupSortStack, statusFilter));
     return sorted;
-  }, [filteredGroups, groupSortStack, statusFilter]);
+  }, [filteredGroups, groupSortStack, statusFilter, activeFollowUpsOnly, groupLocations, getDealerFollowUp]);
 
   // Instant client-side filtering and sorting on loaded items while server search/sort resolves
   const sortedDealers = useMemo(() => {
@@ -1106,6 +1201,17 @@ export function DealerTable({
       const key = d.clientDealerId || d.dealerId || d._id;
       return dealerOverrides[key] ? { ...d, ...dealerOverrides[key] } : d;
     });
+
+    if (activeFollowUpsOnly) {
+      result = result.filter((d) => {
+        if (getDealerFollowUp(d)) return true;
+        if (Array.isArray(d.fundingChildrenDetails) && d.fundingChildrenDetails.some((c: any) => Boolean(getDealerFollowUp(c)))) {
+          return true;
+        }
+        return false;
+      });
+    }
+
     const q = (committedQuery || searchInput).trim();
     if (q) {
       const lower = q.toLowerCase();
@@ -1134,13 +1240,43 @@ export function DealerTable({
         return false;
       });
     }
+
     if (activeDealerSort && activeDealerSort.length > 0) {
+      const primary = activeDealerSort[0];
+      if (primary.key === 'followUp') {
+        const sorted = [...result];
+        sorted.sort((a, b) => {
+          const fuA = getDealerFollowUp(a);
+          const fuB = getDealerFollowUp(b);
+          if (!fuA && !fuB) return 0;
+          if (!fuA) return 1;
+          if (!fuB) return -1;
+          const diff = new Date(fuA.dueDate).getTime() - new Date(fuB.dueDate).getTime();
+          return primary.dir === 'asc' ? diff : -diff;
+        });
+        return sorted;
+      }
       const sorted = [...result];
-      sorted.sort((a, b) => compareLocations(a, b, activeDealerSort));
+      sorted.sort((a, b) => compareLocations(a, b, activeDealerSort, getDealerFollowUp));
       return sorted;
     }
+
+    if (activeFollowUpsOnly) {
+      // Default sort for active follow-ups: chronological urgency (dueDate ascending: overdue first, then today, then upcoming)
+      const sorted = [...result];
+      sorted.sort((a, b) => {
+        const fuA = getDealerFollowUp(a);
+        const fuB = getDealerFollowUp(b);
+        if (!fuA && !fuB) return 0;
+        if (!fuA) return 1;
+        if (!fuB) return -1;
+        return new Date(fuA.dueDate).getTime() - new Date(fuB.dueDate).getTime();
+      });
+      return sorted;
+    }
+
     return result;
-  }, [smallDealers, committedQuery, searchInput, activeDealerSort, dealerOverrides]);
+  }, [smallDealers, committedQuery, searchInput, activeDealerSort, dealerOverrides, activeFollowUpsOnly, getDealerFollowUp]);
 
   // Keys of all selectable dealers in the current table view
   const allSelectableKeys = useMemo(() => {
@@ -1223,10 +1359,31 @@ export function DealerTable({
 
   // Filter columns based on mode (hide groupOnly columns in dealer mode, hide dealerOnly in groups mode)
   const visibleColumns = useMemo(() => {
-    return mode === 'groups'
+    const cols = mode === 'groups'
       ? TABLE_COLUMNS.filter((c) => !c.dealerOnly && c.hasData !== false)
       : TABLE_COLUMNS.filter((c) => !c.groupOnly && c.hasData !== false);
-  }, [mode]);
+
+    if (activeFollowUpsOnly) {
+      const nameIdx = cols.findIndex((c) => c.key === 'name');
+      const followUpCol: TableColumn = {
+        key: 'followUp',
+        label: 'Follow-Up',
+        shortLabel: 'Follow-Up',
+        description: 'Scheduled follow-up date, time, and note',
+        align: 'left',
+        width: '210px',
+        minWidth: '180px',
+        sortable: true,
+        hasData: true,
+      };
+      if (nameIdx !== -1) {
+        cols.splice(nameIdx + 1, 0, followUpCol);
+      } else {
+        cols.unshift(followUpCol);
+      }
+    }
+    return cols;
+  }, [mode, activeFollowUpsOnly]);
 
   // ── Render Helpers ──
 
@@ -1280,11 +1437,94 @@ export function DealerTable({
     return 'long_inactive';
   };
 
-  const renderChildCells = (snap: DealerLocation['latestSnapshot'], stats?: DealerStats, drd?: DealerLocation['drd']) => {
+  const renderFollowUpCell = (fu?: FollowUpItem) => {
+    if (!fu) return <span className={styles.emptyValue}>—</span>;
+    const dueDate = new Date(fu.dueDate);
+    const now = new Date();
+    const diffMs = dueDate.getTime() - now.getTime();
+    const isOverdue = diffMs < -60000;
+    const isToday = !isOverdue && dueDate.toDateString() === now.toDateString();
+
+    let badgeText = 'UPCOMING';
+    let badgeClass = styles.followUpBadgeUpcoming;
+    if (isOverdue) {
+      badgeText = 'OVERDUE';
+      badgeClass = styles.followUpBadgeOverdue;
+    } else if (isToday) {
+      badgeText = 'TODAY';
+      badgeClass = styles.followUpBadgeToday;
+    }
+
+    const dateFormatted = dueDate.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric'
+    });
+    const timeFormatted = dueDate.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+
+    let relativeStr = '';
+    const absDiffHours = Math.round(Math.abs(diffMs) / (1000 * 60 * 60));
+    const absDiffDays = Math.round(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+    if (isOverdue) {
+      if (absDiffHours < 24) {
+        relativeStr = `${absDiffHours}h ago`;
+      } else {
+        relativeStr = `${absDiffDays}d ago`;
+      }
+    } else if (isToday) {
+      relativeStr = `in ${absDiffHours}h`;
+    } else {
+      relativeStr = `in ${absDiffDays}d`;
+    }
+
+    return (
+      <div
+        className={styles.followUpCell}
+        onClick={(e) => {
+          e.stopPropagation();
+          setFollowUpModalDealer({
+            dealerId: fu.dealerId,
+            dealerName: fu.dealerName
+          });
+        }}
+        title={`Follow-up scheduled for ${dateFormatted} at ${timeFormatted}. Click to view or edit.`}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className={`${styles.followUpBadge} ${badgeClass}`}>{badgeText}</span>
+          <span className={styles.followUpTime}>
+            {dateFormatted}, {timeFormatted}
+          </span>
+          <span className={styles.followUpRelative}>({relativeStr})</span>
+        </div>
+        {fu.note && (
+          <div className={styles.followUpNote} title={fu.note}>
+            <CalendarClock size={11} style={{ flexShrink: 0, opacity: 0.7 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {fu.note}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderChildCells = (
+    snap: DealerLocation['latestSnapshot'],
+    stats?: DealerStats,
+    drd?: DealerLocation['drd'],
+    followUp?: FollowUpItem
+  ) => {
     const trends = stats?.trends;
     const isAllTime = datePreset === 'all_time';
     return (
       <>
+        {visibleColumns.some((c) => c.key === 'followUp') && (
+          <td style={{ textAlign: 'left', verticalAlign: 'middle' }}>
+            {renderFollowUpCell(followUp)}
+          </td>
+        )}
         <td>{renderHeatmapCell(snap?.daysSinceLastApplication)}</td>
         <td>{renderHeatmapCell(snap?.daysSinceLastApproval)}</td>
         <td>{renderHeatmapCell(snap?.daysSinceLastBooking)}</td>
@@ -1853,7 +2093,7 @@ export function DealerTable({
                     const isExpanded = expandedSlugs.has(group.slug);
                     const rawLocs = groupLocations[group.slug] || [];
                     const sortedLocs = isExpanded
-                      ? multiSortLocations(rawLocs, childSortStack)
+                      ? multiSortLocations(rawLocs, childSortStack, getDealerFollowUp)
                       : rawLocs;
                     return (
                       <GroupRows
@@ -1871,12 +2111,16 @@ export function DealerTable({
                         onSelectDealer={onSelectDealer}
                         stateRepMap={stateRepMap}
                         onOpenBadger={setBadgerModalDealer}
+                        onOpenContacts={setContactsModalDealer}
+                        onOpenFollowUp={setFollowUpModalDealer}
                         onOpenQuickAction={setQuickActionDealer}
                         dealerOverrides={dealerOverrides}
                         isSelectMode={isSelectMode}
                         selectedDealerIds={selectedDealerIds}
                         onToggleSelectDealer={handleToggleSelectDealer}
                         onToggleSelectGroup={handleToggleSelectGroup}
+                        getDealerFollowUp={getDealerFollowUp}
+                        activeFollowUpsOnly={activeFollowUpsOnly}
                       />
                     );
                   })
@@ -1980,57 +2224,94 @@ export function DealerTable({
                                 )}
 
                                 {renderMetaBadges(dealer)}
-
-                                <div className={styles.actionBtnGroup}>
-                                  <button
-                                    type="button"
-                                    className={styles.microActionBtn}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setBadgerModalDealer({
-                                        dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
-                                        dealerName: dealer.dealerName
-                                      });
-                                    }}
-                                    title="View Badger Maps activity, notepad, and log check-ins"
-                                  >
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                      <MapPin size={11} />
-                                      <span>Badger</span>
-                                    </span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className={`${styles.microActionBtn} ${dealer.systemStatus && dealer.systemStatus !== 'active' ? styles.microActionBtnWarn : ''}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setQuickActionDealer({
-                                        _id: dealer._id,
-                                        dealerId: dealer.dealerId,
-                                        clientDealerId: dealer.clientDealerId || undefined,
-                                        dealerName: dealer.dealerName,
-                                        systemStatus: dealerOverrides[dealerKey]?.systemStatus ?? dealer.systemStatus,
-                                        systemStatusReason: dealerOverrides[dealerKey]?.systemStatusReason ?? dealer.systemStatusReason,
-                                        businessType: dealerOverrides[dealerKey]?.businessType ?? dealer.businessType,
-                                        tags: dealerOverrides[dealerKey]?.tags ?? dealer.tags,
-                                        isFundingParent: isParent,
-                                        fundingParent: dealerOverrides[dealerKey]?.fundingParent ?? dealer.fundingParent,
-                                        fundingChildren: dealerOverrides[dealerKey]?.fundingChildren ?? dealer.fundingChildren,
-                                        fundingChildrenDetails: childStores
-                                      });
-                                    }}
-                                    title="Quick Action: Red flag dealership, change business type, add tags, or manage funding hierarchy"
-                                  >
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                      <Flag size={11} />
-                                      <span>{dealer.systemStatus && dealer.systemStatus !== 'active' ? 'Flagged' : 'Actions'}</span>
-                                    </span>
-                                  </button>
-                                </div>
                               </div>
 
-                              {/* Row 3 (Optional): Satellite Search Matched Indicator */}
+                              {/* Row 3: Dedicated Action Buttons Row */}
+                              <div className={styles.dealerActionRow}>
+                                <button
+                                  type="button"
+                                  className={styles.microActionBtn}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBadgerModalDealer({
+                                      dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
+                                      dealerName: dealer.dealerName
+                                    });
+                                  }}
+                                  title="View Badger Maps activity, notepad, and log check-ins"
+                                >
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <MapPin size={11} />
+                                    <span>Badger</span>
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`${styles.microActionBtn} ${styles.microActionBtnContacts}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContactsModalDealer({
+                                      dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
+                                      dealerName: dealer.dealerName
+                                    });
+                                  }}
+                                  title="View & manage contacts for this rooftop"
+                                >
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <Users size={11} />
+                                    <span>Contacts</span>
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`${styles.microActionBtn} ${styles.microActionBtnFollowUp}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFollowUpModalDealer({
+                                      dealerId: dealer.clientDealerId || dealer.dealerId || dealer._id,
+                                      dealerName: dealer.dealerName
+                                    });
+                                  }}
+                                  title="Schedule follow-up reminder for this rooftop"
+                                >
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <CalendarClock size={11} />
+                                    <span>Follow-up</span>
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`${styles.microActionBtn} ${dealer.systemStatus && dealer.systemStatus !== 'active' ? styles.microActionBtnWarn : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuickActionDealer({
+                                      _id: dealer._id,
+                                      dealerId: dealer.dealerId,
+                                      clientDealerId: dealer.clientDealerId || undefined,
+                                      dealerName: dealer.dealerName,
+                                      systemStatus: dealerOverrides[dealerKey]?.systemStatus ?? dealer.systemStatus,
+                                      systemStatusReason: dealerOverrides[dealerKey]?.systemStatusReason ?? dealer.systemStatusReason,
+                                      businessType: dealerOverrides[dealerKey]?.businessType ?? dealer.businessType,
+                                      tags: dealerOverrides[dealerKey]?.tags ?? dealer.tags,
+                                      isFundingParent: isParent,
+                                      fundingParent: dealerOverrides[dealerKey]?.fundingParent ?? dealer.fundingParent,
+                                      fundingChildren: dealerOverrides[dealerKey]?.fundingChildren ?? dealer.fundingChildren,
+                                      fundingChildrenDetails: childStores
+                                    });
+                                  }}
+                                  title="Quick Action: Red flag dealership, change business type, add tags, or manage funding hierarchy"
+                                >
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <Flag size={11} />
+                                    <span>{dealer.systemStatus && dealer.systemStatus !== 'active' ? 'Flagged' : 'Actions'}</span>
+                                  </span>
+                                </button>
+                              </div>
+
+                              {/* Row 4 (Optional): Satellite Search Matched Indicator */}
                               {dealer.matchedViaChild && (
                                 <div
                                   className={styles.matchedViaChildNotice}
@@ -2041,7 +2322,7 @@ export function DealerTable({
                               )}
                             </div>
                           </td>
-                          {renderChildCells(dealer.latestSnapshot, dealer.stats, dealer.drd)}
+                          {renderChildCells(dealer.latestSnapshot, dealer.stats, dealer.drd, getDealerFollowUp(dealer))}
                         </tr>
 
                         {/* Nested Satellite Store Rows when Central Funder is expanded */}
@@ -2090,7 +2371,7 @@ export function DealerTable({
                                     {renderStatusRedFlag(child)}
                                   </div>
 
-                                  {/* Row 2: Secondary metadata & actions */}
+                                  {/* Row 2: Secondary metadata */}
                                   <div className={styles.dealerMetaLine} style={{ paddingLeft: '14px' }}>
                                     <span className={styles.dealerCodePill}>{childKey}</span>
                                     {child.dealerCity && (
@@ -2106,53 +2387,91 @@ export function DealerTable({
                                       </>
                                     )}
                                     {renderMetaBadges(child)}
+                                  </div>
 
-                                    <div className={styles.actionBtnGroup}>
-                                      <button
-                                        type="button"
-                                        className={styles.microActionBtn}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setBadgerModalDealer({
-                                            dealerId: child.clientDealerId || child.dealerId || child._id,
-                                            dealerName: child.dealerName
-                                          });
-                                        }}
-                                        title="View Badger Maps activity, notepad, and log check-ins"
-                                      >
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                          <MapPin size={11} />
-                                          <span>Badger</span>
-                                        </span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className={styles.microActionBtn}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setQuickActionDealer({
-                                            _id: child._id,
-                                            dealerId: child.dealerId,
-                                            clientDealerId: child.clientDealerId || undefined,
-                                            dealerName: child.dealerName,
-                                            systemStatus: child.systemStatus,
-                                            systemStatusReason: child.systemStatusReason,
-                                            businessType: child.businessType,
-                                            tags: child.tags,
-                                            isFundingParent: child.isFundingParent,
-                                            fundingParent: dealer,
-                                            fundingChildren: child.fundingChildren
-                                          });
-                                        }}
-                                        title="Manage satellite store classification or funding link"
-                                      >
-                                        Manage
-                                      </button>
-                                    </div>
+                                  {/* Row 3: Dedicated Action Buttons Row */}
+                                  <div className={styles.dealerActionRow} style={{ paddingLeft: '14px' }}>
+                                    <button
+                                      type="button"
+                                      className={styles.microActionBtn}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBadgerModalDealer({
+                                          dealerId: child.clientDealerId || child.dealerId || child._id,
+                                          dealerName: child.dealerName
+                                        });
+                                      }}
+                                      title="View Badger Maps activity, notepad, and log check-ins"
+                                    >
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <MapPin size={11} />
+                                        <span>Badger</span>
+                                      </span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      className={`${styles.microActionBtn} ${styles.microActionBtnContacts}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setContactsModalDealer({
+                                          dealerId: child.clientDealerId || child.dealerId || child._id,
+                                          dealerName: child.dealerName
+                                        });
+                                      }}
+                                      title="View & manage contacts for this rooftop"
+                                    >
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <Users size={11} />
+                                        <span>Contacts</span>
+                                      </span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      className={`${styles.microActionBtn} ${styles.microActionBtnFollowUp}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFollowUpModalDealer({
+                                          dealerId: child.clientDealerId || child.dealerId || child._id,
+                                          dealerName: child.dealerName
+                                        });
+                                      }}
+                                      title="Schedule follow-up reminder for this rooftop"
+                                    >
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <CalendarClock size={11} />
+                                        <span>Follow-up</span>
+                                      </span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      className={styles.microActionBtn}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setQuickActionDealer({
+                                          _id: child._id,
+                                          dealerId: child.dealerId,
+                                          clientDealerId: child.clientDealerId || undefined,
+                                          dealerName: child.dealerName,
+                                          systemStatus: child.systemStatus,
+                                          systemStatusReason: child.systemStatusReason,
+                                          businessType: child.businessType,
+                                          tags: child.tags,
+                                          isFundingParent: child.isFundingParent,
+                                          fundingParent: dealer,
+                                          fundingChildren: child.fundingChildren
+                                        });
+                                      }}
+                                      title="Manage satellite store classification or funding link"
+                                    >
+                                      Manage
+                                    </button>
                                   </div>
                                 </div>
                               </td>
-                              {renderChildCells(child.latestSnapshot, child.stats, child.drd)}
+                              {renderChildCells(child.latestSnapshot, child.stats, child.drd, getDealerFollowUp(child))}
                             </tr>
                           );
                         })}
@@ -2211,6 +2530,20 @@ export function DealerTable({
           dealerId={badgerModalDealer.dealerId}
           dealerName={badgerModalDealer.dealerName}
           onClose={() => setBadgerModalDealer(null)}
+        />
+      )}
+      {contactsModalDealer && (
+        <DealerContactsModal
+          dealerId={contactsModalDealer.dealerId}
+          dealerName={contactsModalDealer.dealerName}
+          onClose={() => setContactsModalDealer(null)}
+        />
+      )}
+      {followUpModalDealer && (
+        <ScheduleFollowUpModal
+          dealerId={followUpModalDealer.dealerId}
+          dealerName={followUpModalDealer.dealerName}
+          onClose={() => setFollowUpModalDealer(null)}
         />
       )}
       {quickActionDealer && (
@@ -2363,19 +2696,23 @@ interface GroupRowsProps {
   statusFilter?: string | null;
   isPrefetching?: boolean;
   onToggle: () => void;
-  renderChildCells: (snap: DealerLocation['latestSnapshot'], stats?: DealerStats, drd?: DealerLocation['drd']) => React.JSX.Element;
+  renderChildCells: (snap: DealerLocation['latestSnapshot'], stats?: DealerStats, drd?: DealerLocation['drd'], followUp?: FollowUpItem) => React.JSX.Element;
   deriveStatusFn?: (snap: DealerLocation['latestSnapshot']) => ActivityStatus;
   visibleColumns: TableColumn[];
   onSelectGroup?: (groupSlug: string) => void;
   onSelectDealer?: (dealerId: string) => void;
   stateRepMap?: StateRepMap;
   onOpenBadger?: (info: { dealerId: string; dealerName: string }) => void;
+  onOpenContacts?: (info: { dealerId: string; dealerName: string }) => void;
+  onOpenFollowUp?: (info: { dealerId: string; dealerName: string }) => void;
   onOpenQuickAction?: (dealer: QuickActionDealer) => void;
   dealerOverrides?: Record<string, Partial<DealerLocation>>;
   isSelectMode?: boolean;
   selectedDealerIds?: Set<string>;
   onToggleSelectDealer?: (id: string, idx?: number, shiftKey?: boolean) => void;
   onToggleSelectGroup?: (ids: string[]) => void;
+  getDealerFollowUp?: (loc: { clientDealerId?: string | null; dealerId?: string | null; _id?: string | null } | null | undefined) => FollowUpItem | undefined;
+  activeFollowUpsOnly?: boolean;
 }
 
 
@@ -2423,12 +2760,16 @@ function GroupRows({
   onSelectDealer,
   stateRepMap,
   onOpenBadger,
+  onOpenContacts,
+  onOpenFollowUp,
   onOpenQuickAction,
   dealerOverrides,
   isSelectMode,
   selectedDealerIds,
   onToggleSelectDealer,
-  onToggleSelectGroup
+  onToggleSelectGroup,
+  getDealerFollowUp,
+  activeFollowUpsOnly
 }: GroupRowsProps) {
   const s = group.summary;
 
@@ -2509,12 +2850,26 @@ function GroupRows({
 
   // Compute filtered active count for status badge
   const displayedLocations = useMemo(() => {
-    if (!statusFilter) return effectiveLocations;
-    return effectiveLocations.filter((loc) => {
-      const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
-      return locStatus === statusFilter;
-    });
-  }, [effectiveLocations, statusFilter, deriveStatusFn]);
+    let locs = effectiveLocations;
+    if (statusFilter) {
+      locs = locs.filter((loc) => {
+        const locStatus = deriveStatusFn ? deriveStatusFn(loc.latestSnapshot) : loc.latestSnapshot?.activityStatus;
+        return locStatus === statusFilter;
+      });
+    }
+    if (activeFollowUpsOnly) {
+      locs = locs.filter((loc) => Boolean(getDealerFollowUp?.(loc)));
+      locs.sort((a, b) => {
+        const fuA = getDealerFollowUp?.(a);
+        const fuB = getDealerFollowUp?.(b);
+        if (!fuA && !fuB) return 0;
+        if (!fuA) return 1;
+        if (!fuB) return -1;
+        return new Date(fuA.dueDate).getTime() - new Date(fuB.dueDate).getTime();
+      });
+    }
+    return locs;
+  }, [effectiveLocations, statusFilter, deriveStatusFn, activeFollowUpsOnly, getDealerFollowUp]);
 
   let filteredActive: number | undefined;
   let filteredTotal: number | undefined;
@@ -2574,6 +2929,30 @@ function GroupRows({
             )}
           </div>
         </td>
+        {visibleColumns.some((c) => c.key === 'followUp') && (
+          <td style={{ textAlign: 'left', verticalAlign: 'middle' }}>
+            {(() => {
+              const groupFollowUps = locations
+                .map((loc) => getDealerFollowUp?.(loc))
+                .filter((fu): fu is FollowUpItem => Boolean(fu));
+              if (groupFollowUps.length === 0) return <span className={styles.emptyValue}>—</span>;
+              groupFollowUps.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+              const nearest = groupFollowUps[0];
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className={`${styles.followUpBadge} ${styles.followUpBadgeUpcoming}`}>
+                      {groupFollowUps.length} ACTIVE
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Next: {new Date(nearest.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+              );
+            })()}
+          </td>
+        )}
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApp} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceApproval} forceSingle={isSingle} />}</td>
         <td>{showSkeleton ? <SkeletonCell /> : <BestWorstCell data={daysSinceBooking} forceSingle={isSingle} />}</td>
@@ -2698,54 +3077,91 @@ function GroupRows({
                     </>
                   )}
                   {renderMetaBadges(loc)}
+                </div>
 
-                  <div className={styles.actionBtnGroup}>
-                    <button
-                      type="button"
-                      className={styles.microActionBtn}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenBadger?.({
-                          dealerId: loc.clientDealerId || loc.dealerId || loc._id,
-                          dealerName: loc.dealerName
-                        });
-                      }}
-                      title="View Badger Maps activity, notepad, and log check-ins"
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                        <MapPin size={11} />
-                        <span>Badger</span>
-                      </span>
-                    </button>
+                {/* Row 3: Dedicated Action Buttons Row */}
+                <div className={styles.dealerActionRow}>
+                  <button
+                    type="button"
+                    className={styles.microActionBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenBadger?.({
+                        dealerId: loc.clientDealerId || loc.dealerId || loc._id,
+                        dealerName: loc.dealerName
+                      });
+                    }}
+                    title="View Badger Maps activity, notepad, and log check-ins"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <MapPin size={11} />
+                      <span>Badger</span>
+                    </span>
+                  </button>
 
-                    <button
-                      type="button"
-                      className={`${styles.microActionBtn} ${loc.systemStatus && loc.systemStatus !== 'active' ? styles.microActionBtnWarn : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenQuickAction?.({
-                          _id: loc._id,
-                          dealerId: loc.dealerId,
-                          clientDealerId: loc.clientDealerId || undefined,
-                          dealerName: loc.dealerName,
-                          systemStatus: loc.systemStatus,
-                          systemStatusReason: loc.systemStatusReason,
-                          businessType: loc.businessType,
-                          tags: loc.tags
-                        });
-                      }}
-                      title="Quick Action: Red flag dealership, change business type, or add tags"
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                        <Flag size={11} />
-                        <span>{loc.systemStatus && loc.systemStatus !== 'active' ? 'Flagged' : 'Actions'}</span>
-                      </span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className={`${styles.microActionBtn} ${styles.microActionBtnContacts}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenContacts?.({
+                        dealerId: loc.clientDealerId || loc.dealerId || loc._id,
+                        dealerName: loc.dealerName
+                      });
+                    }}
+                    title="View & manage contacts for this rooftop"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <Users size={11} />
+                      <span>Contacts</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`${styles.microActionBtn} ${styles.microActionBtnFollowUp}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenFollowUp?.({
+                        dealerId: loc.clientDealerId || loc.dealerId || loc._id,
+                        dealerName: loc.dealerName
+                      });
+                    }}
+                    title="Schedule follow-up reminder for this rooftop"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <CalendarClock size={11} />
+                      <span>Follow-up</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`${styles.microActionBtn} ${loc.systemStatus && loc.systemStatus !== 'active' ? styles.microActionBtnWarn : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenQuickAction?.({
+                        _id: loc._id,
+                        dealerId: loc.dealerId,
+                        clientDealerId: loc.clientDealerId || undefined,
+                        dealerName: loc.dealerName,
+                        systemStatus: loc.systemStatus,
+                        systemStatusReason: loc.systemStatusReason,
+                        businessType: loc.businessType,
+                        tags: loc.tags
+                      });
+                    }}
+                    title="Quick Action: Red flag dealership, change business type, or add tags"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <Flag size={11} />
+                      <span>{loc.systemStatus && loc.systemStatus !== 'active' ? 'Flagged' : 'Actions'}</span>
+                    </span>
+                  </button>
                 </div>
               </div>
             </td>
-            {renderChildCells(loc.latestSnapshot, loc.stats, loc.drd)}
+            {renderChildCells(loc.latestSnapshot, loc.stats, loc.drd, getDealerFollowUp?.(loc))}
           </tr>
         );
       })}

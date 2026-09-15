@@ -21,13 +21,22 @@ const badgerUpdateLogSchema = new mongoose.Schema({
     },
     badgerId: {
         type: Number,
-        required: true,
+        default: null,
         index: true
     },
     action: {
         type: String,
         required: true,
-        enum: ['notepad_update', 'checkin_create'],
+        enum: [
+            'notepad_update',
+            'checkin_create',
+            'contact_create',
+            'contact_update',
+            'contact_delete',
+            'followup_create',
+            'followup_complete',
+            'followup_delete'
+        ],
         index: true
     },
     user: {
@@ -45,7 +54,17 @@ const badgerUpdateLogSchema = new mongoose.Schema({
         appointmentId: { type: Number, default: null },
         disposition: { type: String, default: null },
         feedback: { type: String, default: null },
-        checkinNotes: { type: String, default: null }
+        checkinNotes: { type: String, default: null },
+
+        // For contact actions
+        contactId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        contact: { type: Object, default: null },
+        previousContact: { type: Object, default: null },
+
+        // For follow-up actions
+        followUpId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        followUp: { type: Object, default: null },
+        previousFollowUp: { type: Object, default: null }
     },
     isUndone: {
         type: Boolean,

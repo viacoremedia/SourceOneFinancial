@@ -11,7 +11,9 @@ import {
   Flag,
   Layers,
   CheckCircle2,
-  Loader2
+  Loader2,
+  CalendarClock,
+  Users
 } from 'lucide-react';
 import {
   getSystemAuditLogs,
@@ -136,12 +138,18 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
       case 'group_proposal_create': return 'Group Proposal Submitted';
       case 'group_proposal_approve': return 'Group Proposal Approved';
       case 'group_proposal_reject': return 'Group Proposal Rejected';
+      case 'followup_create': return 'Follow-Up Scheduled';
+      case 'followup_complete': return 'Follow-Up Completed';
+      case 'followup_delete': return 'Follow-Up Removed';
+      case 'contact_create': return 'Contact Added';
+      case 'contact_update': return 'Contact Updated';
+      case 'contact_delete': return 'Contact Removed';
       default: return action.replace(/_/g, ' ');
     }
   };
 
   const getActionBadgeClass = (action: string) => {
-    if (action.includes('status') || action.includes('dissolve')) {
+    if (action.includes('status') || action.includes('dissolve') || action.includes('delete')) {
       return styles.actionStatusRed;
     }
     if (action.includes('tag')) {
@@ -150,7 +158,7 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
     if (action.includes('hierarchy') || action.includes('group')) {
       return styles.actionHierarchyPurple;
     }
-    if (action.includes('batch')) {
+    if (action.includes('batch') || action.includes('followup')) {
       return styles.actionBatchAmber;
     }
     return styles.actionStatusGreen;
@@ -159,6 +167,56 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
   const formatDiff = (log: SystemAuditLogItem) => {
     const prev = log.previousState;
     const next = log.newState;
+
+    if (log.action.startsWith('followup_')) {
+      if (log.action === 'followup_create') {
+        const due = next?.dueDate ? new Date(next.dueDate).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Scheduled';
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPillNew}>Due: {due}</span>
+            {next?.note && <span style={{ fontSize: '11px', color: '#94a3b8' }}>"{next.note}"</span>}
+          </div>
+        );
+      }
+      if (log.action === 'followup_complete') {
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPillNew} style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80' }}>
+              ✓ Completed
+            </span>
+            {prev?.dueDate && (
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Was due {new Date(prev.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+        );
+      }
+      if (log.action === 'followup_delete') {
+        return (
+          <div className={styles.diffContainer}>
+            <span className={styles.diffPill}>Removed</span>
+            {prev?.dueDate && (
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                Was set for {new Date(prev.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+        );
+      }
+    }
+
+    if (log.action.startsWith('contact_')) {
+      const c = next || prev;
+      return (
+        <div className={styles.diffContainer}>
+          <span className={styles.diffPillNew}>{c?.name || 'Contact'} {c?.title ? `(${c.title})` : ''}</span>
+          {(c?.phone || c?.email) && (
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>{[c?.phone, c?.email].filter(Boolean).join(' · ')}</span>
+          )}
+        </div>
+      );
+    }
 
     if (log.action.startsWith('batch_')) {
       const count = prev?.affectedCount || prev?.dealers?.length || next?.affectedCount || 'Bulk';
@@ -409,6 +467,22 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
             >
               <Layers size={11} style={{ display: 'inline', marginRight: '4px' }} />
               Batch Actions
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterTab} ${category === 'followup' ? styles.filterTabActive : ''}`}
+              onClick={() => { setCategory('followup'); setPage(1); }}
+            >
+              <CalendarClock size={11} style={{ display: 'inline', marginRight: '4px' }} />
+              Follow-ups
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterTab} ${category === 'contact' ? styles.filterTabActive : ''}`}
+              onClick={() => { setCategory('contact'); setPage(1); }}
+            >
+              <Users size={11} style={{ display: 'inline', marginRight: '4px' }} />
+              Contacts
             </button>
           </div>
 

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   SlidersHorizontal,
   MapPin,
+  Building2,
   Copy,
   Check,
   Shield,
@@ -656,94 +657,105 @@ export const CentralPipeline: React.FC<CentralPipelineProps> = ({
     const fields = cardFieldConfig[stageId] || DEFAULT_STAGE_FIELDS[stageId] || [];
     // Filter out fields already permanently displayed in header/footer rows
     const extraFields = fields.filter(
-      (f) => !['dealerName', 'rep', 'fico', 'daysInStage'].includes(f)
+      (f) =>
+        ![
+          'dealerName',
+          'rep',
+          'fico',
+          'daysInStage',
+          'amountFinanced',
+          'underwriter',
+          'lender',
+          'appDate'
+        ].includes(f)
     );
 
     if (extraFields.length === 0) return null;
 
+    const items = extraFields
+      .map((fieldKey) => {
+        let label = fieldKey;
+        let value: string | null = null;
+
+        switch (fieldKey) {
+          case 'dti':
+            label = 'DTI';
+            value = app.dti != null ? `${app.dti}%` : null;
+            break;
+          case 'pti':
+            label = 'PTI';
+            value = app.pti != null ? `${app.pti}%` : null;
+            break;
+          case 'ltv':
+            label = 'LTV';
+            value = app.ltv != null ? `${app.ltv}%` : null;
+            break;
+          case 'term':
+            label = 'Term';
+            value = app.term ? `${app.term}m` : null;
+            break;
+          case 'apr':
+            label = 'APR';
+            value = app.apr != null ? `${app.apr}%` : null;
+            break;
+          case 'dealerReserve':
+            label = 'Reserve';
+            value =
+              app.dealerReserveAmount != null
+                ? formatCurrency(app.dealerReserveAmount)
+                : null;
+            break;
+          case 'totalDown':
+            label = 'Down';
+            value = app.totalDown != null ? formatCurrency(app.totalDown) : null;
+            break;
+          case 'cashDown':
+            label = 'Cash Dn';
+            value = app.cashDown != null ? formatCurrency(app.cashDown) : null;
+            break;
+          case 'timeToBook':
+            label = 'Book Time';
+            value =
+              app.timeToBook != null
+                ? `${(app.timeToBook / 1440).toFixed(1)}d`
+                : null;
+            break;
+          case 'timeToDecision':
+            label = 'Decision';
+            value =
+              app.timeToDecision != null
+                ? app.timeToDecision >= 1440
+                  ? `${(app.timeToDecision / 1440).toFixed(1)}d`
+                  : `${Math.round(app.timeToDecision / 60)}h`
+                : null;
+            break;
+          case 'location':
+            label = 'Loc';
+            value =
+              [app.dealerCity, app.dealerState].filter(Boolean).join(', ') || null;
+            break;
+          default:
+            value =
+              (app as any)[fieldKey] != null
+                ? String((app as any)[fieldKey])
+                : null;
+        }
+
+        if (!value) return null;
+        return { fieldKey, label, value };
+      })
+      .filter((item): item is { fieldKey: string; label: string; value: string } => item !== null);
+
+    if (items.length === 0) return null;
+
     return (
       <div className={styles.dynamicFieldsGrid}>
-        {extraFields.map((fieldKey) => {
-          let label = fieldKey;
-          let value: string | null = null;
-
-          switch (fieldKey) {
-            case 'dti':
-              label = 'DTI';
-              value = app.dti != null ? `${app.dti}%` : null;
-              break;
-            case 'pti':
-              label = 'PTI';
-              value = app.pti != null ? `${app.pti}%` : null;
-              break;
-            case 'ltv':
-              label = 'LTV';
-              value = app.ltv != null ? `${app.ltv}%` : null;
-              break;
-            case 'amountFinanced':
-              label = 'Amount';
-              value = formatCurrency(app.amountFinanced);
-              break;
-            case 'term':
-              label = 'Term';
-              value = app.term ? `${app.term}m` : null;
-              break;
-            case 'apr':
-              label = 'APR';
-              value = app.apr != null ? `${app.apr}%` : null;
-              break;
-            case 'dealerReserve':
-              label = 'Reserve';
-              value =
-                app.dealerReserveAmount != null
-                  ? formatCurrency(app.dealerReserveAmount)
-                  : null;
-              break;
-            case 'totalDown':
-              label = 'Down';
-              value = app.totalDown != null ? formatCurrency(app.totalDown) : null;
-              break;
-            case 'cashDown':
-              label = 'Cash Dn';
-              value = app.cashDown != null ? formatCurrency(app.cashDown) : null;
-              break;
-            case 'timeToBook':
-              label = 'Book Time';
-              value = app.timeToBook != null ? `${app.timeToBook}d` : null;
-              break;
-            case 'timeToDecision':
-              label = 'Decision';
-              value = app.timeToDecision != null ? `${app.timeToDecision}d` : null;
-              break;
-            case 'location':
-              label = 'Loc';
-              value = [app.dealerCity, app.dealerState].filter(Boolean).join(', ') || null;
-              break;
-            case 'lender':
-              label = 'Lender';
-              value = cleanLenderName(app.lender);
-              break;
-            case 'underwriter':
-              label = 'UW';
-              value = app.underwriter || null;
-              break;
-            case 'appDate':
-              label = 'Rec\'d';
-              value = formatAppDate(app.applicationDate);
-              break;
-            default:
-              value = (app as any)[fieldKey] != null ? String((app as any)[fieldKey]) : null;
-          }
-
-          if (!value) return null;
-
-          return (
-            <div key={fieldKey} className={styles.dynamicFieldItem}>
-              <span className={styles.dynamicFieldLabel}>{label}:</span>
-              <span className={styles.dynamicFieldValue}>{value}</span>
-            </div>
-          );
-        })}
+        {items.map((item) => (
+          <div key={item.fieldKey} className={styles.dynamicFieldItem}>
+            <span className={styles.dynamicFieldLabel}>{item.label}</span>
+            <span className={styles.dynamicFieldValue}>{item.value}</span>
+          </div>
+        ))}
       </div>
     );
   };
@@ -1048,41 +1060,6 @@ export const CentralPipeline: React.FC<CentralPipelineProps> = ({
                                   {app.dealerName || 'Unknown Dealer'}
                                 </span>
                               </div>
-
-                              <div className={styles.dealerActionGroup}>
-                                {/* Badger Quick Action Link */}
-                                <button
-                                  type="button"
-                                  className={`${styles.cardQuickBtn} ${styles.badgerQuickBtn}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setBadgerModalDealer({
-                                      dealerId:
-                                        app.clientDealerId || (app as any).dealerId || '',
-                                      dealerName: app.dealerName || 'Dealer'
-                                    });
-                                  }}
-                                  title="Open Badger Maps notes, contacts & log check-in"
-                                >
-                                  <MapPin size={10} color="#fbbf24" />
-                                  <span>Badger</span>
-                                </button>
-
-                                {/* Dealer 360 Profile Link */}
-                                <button
-                                  type="button"
-                                  className={styles.cardQuickBtn}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onNavigateToDealerProfile(
-                                      app.clientDealerId || (app as any).dealerId || ''
-                                    );
-                                  }}
-                                  title="Jump to Dealer 360 DRD Profile"
-                                >
-                                  <span>360</span>
-                                </button>
-                              </div>
                             </div>
 
                             {/* 2. Application ID & Amount Row */}
@@ -1184,6 +1161,41 @@ export const CentralPipeline: React.FC<CentralPipelineProps> = ({
                                   UW: {app.underwriter}
                                 </span>
                               )}
+                            </div>
+
+                            {/* 9. Dedicated 50/50 Bottom Action Row: Badger Activity & Dealer Profile */}
+                            <div className={styles.cardBottomActionRow}>
+                              <button
+                                type="button"
+                                className={`${styles.cardActionBtn} ${styles.badgerActionBtn}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBadgerModalDealer({
+                                    dealerId:
+                                      app.clientDealerId || (app as any).dealerId || '',
+                                    dealerName: app.dealerName || 'Dealer'
+                                  });
+                                }}
+                                title="Open Badger Maps notes, contacts & log check-in"
+                              >
+                                <MapPin size={12} style={{ flexShrink: 0 }} />
+                                <span>Badger Activity</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                className={`${styles.cardActionBtn} ${styles.dealerProfileActionBtn}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onNavigateToDealerProfile(
+                                    app.clientDealerId || (app as any).dealerId || ''
+                                  );
+                                }}
+                                title="Jump to Dealer 360 DRD Profile"
+                              >
+                                <Building2 size={12} style={{ flexShrink: 0 }} />
+                                <span>Dealer Profile</span>
+                              </button>
                             </div>
                           </div>
                         );

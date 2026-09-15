@@ -155,6 +155,8 @@ export interface SmallDealerParams {
   businessType?: string;
   tags?: string[];
   excludeTags?: string[];
+  datePreset?: string;
+  activeFollowUpsOnly?: boolean;
   signal?: AbortSignal;
 }
 
@@ -206,6 +208,8 @@ export async function getSmallDealers(params: SmallDealerParams = {}): Promise<P
   if (params.businessType) queryParams.businessType = params.businessType;
   if (params.tags && params.tags.length > 0) queryParams.tags = params.tags.join(',');
   if (params.excludeTags && params.excludeTags.length > 0) queryParams.excludeTags = params.excludeTags.join(',');
+  if (params.datePreset) queryParams.datePreset = params.datePreset;
+  if (params.activeFollowUpsOnly) queryParams.activeFollowUpsOnly = 'true';
   const { data } = await api.get('/analytics/dealers/small', { params: queryParams, signal: params.signal });
   return {
     dealers: data.dealers,
@@ -1107,11 +1111,18 @@ export function getScorecardZipUrl(reportId: string): string {
 // ══════════════════════════════════════════════════
 
 export interface DealerContact {
+  _id?: string;
   name: string;
-  title: string;
-  phone: string;
-  email: string;
+  title?: string;
+  phone?: string;
+  email?: string;
+  note?: string;
+  source?: 'badger' | 'manual';
+  badgerContactId?: number | null;
   isPrimary?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string | null;
 }
 
 export interface DeadDealerItem {
@@ -1193,8 +1204,8 @@ export interface BadgerAppointment {
 export interface BadgerUpdateLogItem {
   _id: string;
   dealerId: string;
-  badgerId: number;
-  action: 'notepad_update' | 'checkin_create';
+  badgerId?: number;
+  action: string;
   user: {
     name?: string;
     email?: string;
@@ -1207,6 +1218,17 @@ export interface BadgerUpdateLogItem {
     disposition?: string;
     feedback?: string;
     checkinNotes?: string;
+    followUpId?: string;
+    dueDate?: string;
+    note?: string;
+    dealerName?: string;
+    status?: string;
+    followUp?: any;
+    previousFollowUp?: any;
+    contactId?: string;
+    contact?: any;
+    previousContact?: any;
+    [key: string]: any;
   };
   isUndone: boolean;
   undoneAt?: string;
@@ -1623,6 +1645,126 @@ export async function reviewDealerGroupRequest(
 }> {
   const res = await api.post(`/dealers/groups/requests/${encodeURIComponent(requestId)}/review`, data);
   return res.data;
+}
+
+// ── Rooftop Contacts Types & APIs ──
+
+export interface ContactsResponse {
+  success: boolean;
+  dealerId: string;
+  dealerName: string;
+  contacts: DealerContact[];
+}
+
+export async function getDealerContacts(dealerId: string): Promise<ContactsResponse> {
+  const { data } = await api.get(`/dealers/${encodeURIComponent(dealerId)}/contacts`);
+  return data;
+}
+
+export async function addDealerContact(
+  dealerId: string,
+  contact: Partial<DealerContact>
+): Promise<{ success: boolean; contact: DealerContact; contacts: DealerContact[]; logId: string; message: string }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/contacts`, contact);
+  return data;
+}
+
+export async function updateDealerContact(
+  dealerId: string,
+  contactId: string,
+  contact: Partial<DealerContact>
+): Promise<{ success: boolean; contact: DealerContact; contacts: DealerContact[]; logId: string; message: string }> {
+  const { data } = await api.put(`/dealers/${encodeURIComponent(dealerId)}/contacts/${encodeURIComponent(contactId)}`, contact);
+  return data;
+}
+
+export async function deleteDealerContact(
+  dealerId: string,
+  contactId: string
+): Promise<{ success: boolean; contacts: DealerContact[]; logId: string; message: string }> {
+  const { data } = await api.delete(`/dealers/${encodeURIComponent(dealerId)}/contacts/${encodeURIComponent(contactId)}`);
+  return data;
+}
+
+export async function undoDealerContactAction(
+  dealerId: string,
+  logId?: string
+): Promise<{ success: boolean; contacts: DealerContact[]; message: string }> {
+  const { data } = await api.post(`/dealers/${encodeURIComponent(dealerId)}/contacts/undo`, { logId });
+  return data;
+}
+
+// ── Follow-Up System Types & APIs ──
+export interface FollowUpItem {
+  _id: string;
+  dealerId: string;
+  dealerName: string;
+  clientDealerId?: string | null;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  dueDate: string;
+  note?: string;
+  status: 'pending' | 'completed' | 'cancelled';
+  completedAt?: string | null;
+  completedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isOverdue?: boolean;
+  isToday?: boolean;
+}
+
+export interface FollowUpsResponse {
+  success: boolean;
+  followUps: FollowUpItem[];
+  counts: {
+    totalActive: number;
+    overdueCount: number;
+    todayCount: number;
+  };
+}
+
+export async function getFollowUps(
+  filter: 'active' | 'completed' | 'all' = 'active',
+  dealerId?: string
+): Promise<FollowUpsResponse> {
+  const params: Record<string, string> = { filter };
+  if (dealerId) params.dealerId = dealerId;
+  const { data } = await api.get('/followups', { params });
+  return data;
+}
+
+export async function createFollowUp(payload: {
+  dealerId: string;
+  dealerName?: string;
+  dueDate: string;
+  note?: string;
+  clientDealerId?: string | null;
+}): Promise<{ success: boolean; followUp: FollowUpItem; logId: string; message: string }> {
+  const { data } = await api.post('/followups', payload);
+  return data;
+}
+
+export async function updateFollowUp(
+  id: string,
+  payload: { status?: 'pending' | 'completed' | 'cancelled'; dueDate?: string; note?: string }
+): Promise<{ success: boolean; followUp: FollowUpItem; logId: string; message: string }> {
+  const { data } = await api.patch(`/followups/${encodeURIComponent(id)}`, payload);
+  return data;
+}
+
+export async function deleteFollowUp(
+  id: string
+): Promise<{ success: boolean; logId: string; message: string }> {
+  const { data } = await api.delete(`/followups/${encodeURIComponent(id)}`);
+  return data;
+}
+
+export async function undoFollowUpAction(
+  logId?: string
+): Promise<{ success: boolean; message: string }> {
+  const { data } = await api.post('/followups/undo', { logId });
+  return data;
 }
 
 export default api;

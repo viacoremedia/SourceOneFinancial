@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const DealerLocation = require('../../models/DealerLocation');
 const DealerProfile = require('../../models/DealerProfile');
 const DealerGroup = require('../../models/DealerGroup');
@@ -6,6 +7,8 @@ const DailyDealerSnapshot = require('../../models/DailyDealerSnapshot');
 const DealerGroupRequest = require('../../models/DealerGroupRequest');
 const AuditLog = require('../../models/AuditLog');
 const GlobalTag = require('../../models/GlobalTag');
+const FollowUp = require('../../models/FollowUp');
+const BadgerUpdateLog = require('../../models/BadgerUpdateLog');
 const dealerGroupService = require('../../services/dealerGroupService');
 const { requireAuth, requireRole } = require('../../middleware/authMiddleware');
 const groupsRouter = require('./groups');
@@ -324,6 +327,367 @@ router.get('/:dealerId/badger-audit-logs', requireAuth, async (req, res) => {
         res.json({ success: true, logs });
     } catch (err) {
         console.error(`Error fetching Badger audit logs for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── GET /dealers/:dealerId/contacts (Fetch all rooftop contacts) ──
+router.get('/:dealerId/contacts', requireAuth, async (req, res) => {
+    try {
+        const candidate = String(req.params.dealerId).trim().toUpperCase();
+        const loc = await DealerLocation.findOne({
+            $or: [
+                { dealerId: candidate },
+                { clientDealerId: candidate },
+                ...(mongoose.Types.ObjectId.isValid(candidate) ? [{ _id: candidate }] : [])
+            ]
+        }).select('dealerId dealerName contacts clientDealerId');
+
+        if (!loc) {
+            return res.status(404).json({ success: false, message: 'Dealer location not found' });
+        }
+
+        res.json({
+            success: true,
+            dealerId: loc.dealerId,
+            dealerName: loc.dealerName,
+            contacts: loc.contacts || []
+        });
+    } catch (err) {
+        console.error(`Error fetching contacts for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── POST /dealers/:dealerId/contacts (Add a new contact) ──
+router.post('/:dealerId/contacts', requireAuth, async (req, res) => {
+    try {
+        const candidate = String(req.params.dealerId).trim().toUpperCase();
+        const loc = await DealerLocation.findOne({
+            $or: [
+                { dealerId: candidate },
+                { clientDealerId: candidate },
+                ...(mongoose.Types.ObjectId.isValid(candidate) ? [{ _id: candidate }] : [])
+            ]
+        });
+
+        if (!loc) {
+            return res.status(404).json({ success: false, message: 'Dealer location not found' });
+        }
+
+        const { name, title, phone, email, note, isPrimary } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ success: false, message: 'Contact name is required' });
+        }
+
+        if (!loc.contacts) loc.contacts = [];
+
+        const newContact = {
+            name: name.trim(),
+            title: (title || '').trim(),
+            phone: (phone || '').trim(),
+            email: (email || '').trim().toLowerCase(),
+            note: (note || '').trim(),
+            source: 'manual',
+            isPrimary: !!isPrimary,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            createdBy: req.user?.name || req.user?.email || 'User'
+        };
+
+        loc.contacts.push(newContact);
+        await loc.save();
+
+        const savedContact = loc.contacts[loc.contacts.length - 1];
+
+        let log = null;
+        try {
+            log = await BadgerUpdateLog.create({
+                dealerId: loc.dealerId,
+                dealerLocation: loc._id,
+                badgerId: loc.badgerData?.badgerId || 0,
+                action: 'contact_create',
+                user: {
+                    id: req.user?._id || null,
+                    name: req.user?.name || req.user?.email || 'User',
+                    email: req.user?.email || null
+                },
+                payload: {
+                    contactId: savedContact._id,
+                    contact: savedContact.toObject ? savedContact.toObject() : savedContact
+                }
+            });
+        } catch (logErr) {
+            console.error('Failed to create BadgerUpdateLog for contact create:', logErr.message);
+        }
+
+        await AuditLog.create({
+            dealerId: loc.dealerId,
+            dealerName: loc.dealerName || loc.dealerId,
+            action: 'contact_create',
+            user: {
+                id: req.user?._id || null,
+                name: req.user?.name || req.user?.email || 'Sales Rep',
+                email: req.user?.email || null
+            },
+            previousState: null,
+            newState: {
+                contactId: savedContact._id,
+                name: savedContact.name,
+                title: savedContact.title,
+                phone: savedContact.phone,
+                email: savedContact.email,
+                isPrimary: savedContact.isPrimary
+            },
+            reason: `Added contact ${savedContact.name}${savedContact.title ? ` (${savedContact.title})` : ''}`
+        }).catch(err => console.error('Failed to create AuditLog for contact:', err.message));
+
+        res.status(201).json({
+            success: true,
+            contact: savedContact,
+            contacts: loc.contacts,
+            logId: log?._id || null,
+            message: `Contact ${savedContact.name} created successfully`
+        });
+    } catch (err) {
+        console.error(`Error adding contact for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── PUT /dealers/:dealerId/contacts/:contactId (Update existing contact) ──
+router.put('/:dealerId/contacts/:contactId', requireAuth, async (req, res) => {
+    try {
+        const candidate = String(req.params.dealerId).trim().toUpperCase();
+        const loc = await DealerLocation.findOne({
+            $or: [
+                { dealerId: candidate },
+                { clientDealerId: candidate },
+                ...(mongoose.Types.ObjectId.isValid(candidate) ? [{ _id: candidate }] : [])
+            ]
+        });
+
+        if (!loc) {
+            return res.status(404).json({ success: false, message: 'Dealer location not found' });
+        }
+
+        const contact = loc.contacts.id(req.params.contactId);
+        if (!contact) {
+            return res.status(404).json({ success: false, message: 'Contact not found' });
+        }
+
+        const previousContact = contact.toObject ? contact.toObject() : { ...contact };
+        const { name, title, phone, email, note, isPrimary } = req.body;
+
+        if (name !== undefined) contact.name = name.trim();
+        if (title !== undefined) contact.title = (title || '').trim();
+        if (phone !== undefined) contact.phone = (phone || '').trim();
+        if (email !== undefined) contact.email = (email || '').trim().toLowerCase();
+        if (note !== undefined) contact.note = (note || '').trim();
+        if (isPrimary !== undefined) contact.isPrimary = !!isPrimary;
+        contact.updatedAt = new Date();
+
+        await loc.save();
+
+        let log = null;
+        try {
+            log = await BadgerUpdateLog.create({
+                dealerId: loc.dealerId,
+                dealerLocation: loc._id,
+                badgerId: loc.badgerData?.badgerId || 0,
+                action: 'contact_update',
+                user: {
+                    id: req.user?._id || null,
+                    name: req.user?.name || req.user?.email || 'User',
+                    email: req.user?.email || null
+                },
+                payload: {
+                    contactId: contact._id,
+                    contact: contact.toObject ? contact.toObject() : contact,
+                    previousContact
+                }
+            });
+        } catch (logErr) {
+            console.error('Failed to create BadgerUpdateLog for contact update:', logErr.message);
+        }
+
+        await AuditLog.create({
+            dealerId: loc.dealerId,
+            dealerName: loc.dealerName || loc.dealerId,
+            action: 'contact_update',
+            user: {
+                id: req.user?._id || null,
+                name: req.user?.name || req.user?.email || 'Sales Rep',
+                email: req.user?.email || null
+            },
+            previousState: previousContact,
+            newState: contact.toObject ? contact.toObject() : contact,
+            reason: `Updated contact ${contact.name}`
+        }).catch(err => console.error('Failed to create AuditLog for contact update:', err.message));
+
+        res.json({
+            success: true,
+            contact,
+            contacts: loc.contacts,
+            logId: log?._id || null,
+            message: `Contact ${contact.name} updated successfully`
+        });
+    } catch (err) {
+        console.error(`Error updating contact for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── DELETE /dealers/:dealerId/contacts/:contactId (Delete contact with audit trail) ──
+router.delete('/:dealerId/contacts/:contactId', requireAuth, async (req, res) => {
+    try {
+        const candidate = String(req.params.dealerId).trim().toUpperCase();
+        const loc = await DealerLocation.findOne({
+            $or: [
+                { dealerId: candidate },
+                { clientDealerId: candidate },
+                ...(mongoose.Types.ObjectId.isValid(candidate) ? [{ _id: candidate }] : [])
+            ]
+        });
+
+        if (!loc) {
+            return res.status(404).json({ success: false, message: 'Dealer location not found' });
+        }
+
+        const contact = loc.contacts.id(req.params.contactId);
+        if (!contact) {
+            return res.status(404).json({ success: false, message: 'Contact not found' });
+        }
+
+        const previousContact = contact.toObject ? contact.toObject() : { ...contact };
+        loc.contacts.pull(req.params.contactId);
+        await loc.save();
+
+        let log = null;
+        try {
+            log = await BadgerUpdateLog.create({
+                dealerId: loc.dealerId,
+                dealerLocation: loc._id,
+                badgerId: loc.badgerData?.badgerId || 0,
+                action: 'contact_delete',
+                user: {
+                    id: req.user?._id || null,
+                    name: req.user?.name || req.user?.email || 'User',
+                    email: req.user?.email || null
+                },
+                payload: {
+                    contactId: req.params.contactId,
+                    previousContact
+                }
+            });
+        } catch (logErr) {
+            console.error('Failed to create BadgerUpdateLog for contact delete:', logErr.message);
+        }
+
+        await AuditLog.create({
+            dealerId: loc.dealerId,
+            dealerName: loc.dealerName || loc.dealerId,
+            action: 'contact_delete',
+            user: {
+                id: req.user?._id || null,
+                name: req.user?.name || req.user?.email || 'Sales Rep',
+                email: req.user?.email || null
+            },
+            previousState: previousContact,
+            newState: null,
+            reason: `Deleted contact ${previousContact.name}`
+        }).catch(err => console.error('Failed to create AuditLog for contact delete:', err.message));
+
+        res.json({
+            success: true,
+            contacts: loc.contacts,
+            logId: log?._id || null,
+            message: `Contact ${previousContact.name} removed successfully (Reversible)`
+        });
+    } catch (err) {
+        console.error(`Error deleting contact for ${req.params.dealerId}:`, err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ── POST /dealers/:dealerId/contacts/undo (Undo contact mutation) ──
+router.post('/:dealerId/contacts/undo', requireAuth, async (req, res) => {
+    try {
+        const candidate = String(req.params.dealerId).trim().toUpperCase();
+        const loc = await DealerLocation.findOne({
+            $or: [
+                { dealerId: candidate },
+                { clientDealerId: candidate },
+                ...(mongoose.Types.ObjectId.isValid(candidate) ? [{ _id: candidate }] : [])
+            ]
+        });
+
+        if (!loc) {
+            return res.status(404).json({ success: false, message: 'Dealer location not found' });
+        }
+
+        const { logId } = req.body;
+        const query = {
+            dealerId: loc.dealerId,
+            action: { $in: ['contact_create', 'contact_update', 'contact_delete'] },
+            isUndone: false
+        };
+        if (logId) query._id = logId;
+
+        const log = await BadgerUpdateLog.findOne(query).sort({ createdAt: -1 });
+        if (!log) {
+            return res.status(404).json({ success: false, message: 'No undoable contact action found' });
+        }
+
+        if (log.action === 'contact_create' && log.payload?.contactId) {
+            loc.contacts.pull(log.payload.contactId);
+        } else if (log.action === 'contact_update' && log.payload?.contactId && log.payload?.previousContact) {
+            const contact = loc.contacts.id(log.payload.contactId);
+            if (contact) {
+                Object.assign(contact, log.payload.previousContact);
+            }
+        } else if (log.action === 'contact_delete' && log.payload?.previousContact) {
+            loc.contacts.push(log.payload.previousContact);
+        }
+
+        await loc.save();
+
+        log.isUndone = true;
+        log.undoneAt = new Date();
+        log.undoneBy = {
+            name: req.user?.name || req.user?.email || 'User',
+            email: req.user?.email || null
+        };
+        await log.save();
+
+        if (log.payload?.contactId) {
+            await AuditLog.updateMany(
+                {
+                    dealerId: loc.dealerId,
+                    $or: [
+                        { 'newState.contactId': log.payload.contactId },
+                        { 'previousState._id': log.payload.contactId },
+                        { 'previousState.contactId': log.payload.contactId }
+                    ],
+                    isUndone: false
+                },
+                {
+                    $set: {
+                        isUndone: true,
+                        undoneAt: new Date(),
+                        undoneBy: { name: req.user?.name || req.user?.email || 'User', email: req.user?.email || null }
+                    }
+                }
+            ).catch(() => {});
+        }
+
+        res.json({
+            success: true,
+            contacts: loc.contacts,
+            message: 'Contact action successfully reverted'
+        });
+    } catch (err) {
+        console.error(`Error reverting contact action for ${req.params.dealerId}:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
@@ -703,6 +1067,10 @@ router.get('/audit-history', requireAuth, async (req, res) => {
                 query.action = { $regex: '^batch_' };
             } else if (action === 'group') {
                 query.action = { $regex: '^group_' };
+            } else if (action === 'followup') {
+                query.action = { $regex: '^followup_' };
+            } else if (action === 'contact') {
+                query.action = { $regex: '^contact_' };
             } else {
                 query.action = action;
             }
@@ -1065,6 +1433,64 @@ router.post('/audit-history/:logId/undo', requireAuth, async (req, res) => {
             }
 
             updatedLoc = { bulk: true, revertedCount: revertedList.length || dealersList.length, dealerName: log.dealerName };
+        } else if (log.action === 'followup_create') {
+            const followUpId = log.newState?.followUpId || log.newState?._id;
+            if (followUpId) {
+                await FollowUp.deleteOne({ _id: followUpId });
+            }
+            updatedLoc = { followup: 'deleted', undone: true };
+        } else if (log.action === 'followup_complete') {
+            const followUpId = log.previousState?._id || log.previousState?.followUpId || log.newState?.followUpId || log.newState?._id;
+            if (followUpId && log.previousState) {
+                await FollowUp.updateOne(
+                    { _id: followUpId },
+                    { $set: { status: log.previousState.status || 'pending', completedAt: null, completedBy: null } }
+                );
+            }
+            updatedLoc = { followup: 'restored_pending', undone: true };
+        } else if (log.action === 'followup_delete') {
+            if (log.previousState) {
+                await FollowUp.create(log.previousState);
+            }
+            updatedLoc = { followup: 'restored', undone: true };
+        } else if (log.action === 'contact_create') {
+            const contactId = log.newState?.contactId || log.newState?._id;
+            const dealerId = log.dealerId.trim().toUpperCase();
+            if (contactId) {
+                await DealerLocation.updateOne(
+                    { $or: [{ dealerId }, { clientDealerId: dealerId }] },
+                    { $pull: { contacts: { _id: contactId } } }
+                );
+            }
+            updatedLoc = { contact: 'deleted', undone: true };
+        } else if (log.action === 'contact_update') {
+            const prev = log.previousState;
+            const dealerId = log.dealerId.trim().toUpperCase();
+            if (prev?._id) {
+                await DealerLocation.updateOne(
+                    { $or: [{ dealerId }, { clientDealerId: dealerId }], 'contacts._id': prev._id },
+                    {
+                        $set: {
+                            'contacts.$.name': prev.name,
+                            'contacts.$.title': prev.title,
+                            'contacts.$.phone': prev.phone,
+                            'contacts.$.email': prev.email,
+                            'contacts.$.isPrimary': prev.isPrimary
+                        }
+                    }
+                );
+            }
+            updatedLoc = { contact: 'restored', undone: true };
+        } else if (log.action === 'contact_delete') {
+            const prev = log.previousState;
+            const dealerId = log.dealerId.trim().toUpperCase();
+            if (prev) {
+                await DealerLocation.updateOne(
+                    { $or: [{ dealerId }, { clientDealerId: dealerId }] },
+                    { $push: { contacts: prev } }
+                );
+            }
+            updatedLoc = { contact: 'restored', undone: true };
         } else {
             const revertData = {
                 systemStatus: prev.systemStatus || 'active',
@@ -1191,6 +1617,8 @@ router.post('/batch-action', requireAuth, async (req, res) => {
         };
 
         const updatedDealers = [];
+        const locationBulkOps = [];
+        const profileBulkOps = [];
 
         for (const loc of targetLocations) {
             const prev = {
@@ -1201,24 +1629,29 @@ router.post('/batch-action', requireAuth, async (req, res) => {
                 isManuallyClassified: loc.isManuallyClassified || false
             };
             const next = { ...prev, isManuallyClassified: true };
+            const locUpdates = { isManuallyClassified: true };
 
             if (action === 'add_tags') {
                 const tagsToAdd = (payload?.tags || []).map(t => String(t).trim()).filter(Boolean);
                 const mergedTags = Array.from(new Set([...(loc.tags || []), ...tagsToAdd]));
                 loc.tags = mergedTags;
                 loc.isManuallyClassified = true;
+                locUpdates.tags = mergedTags;
                 next.tags = mergedTags;
 
                 // Sync businessType if system tag was added
                 const lowerTags = mergedTags.map(t => t.toLowerCase());
                 if (lowerTags.includes('franchise')) {
                     loc.businessType = 'franchise';
+                    locUpdates.businessType = 'franchise';
                     next.businessType = 'franchise';
                 } else if (lowerTags.includes('non-franchise')) {
                     loc.businessType = 'non-franchise';
+                    locUpdates.businessType = 'non-franchise';
                     next.businessType = 'non-franchise';
                 } else if (lowerTags.includes('broker')) {
                     loc.businessType = 'broker';
+                    locUpdates.businessType = 'broker';
                     next.businessType = 'broker';
                 }
             } else if (action === 'remove_tags') {
@@ -1226,17 +1659,20 @@ router.post('/batch-action', requireAuth, async (req, res) => {
                 const filteredTags = (loc.tags || []).filter(t => !tagsToRemove.has(String(t).toLowerCase()));
                 loc.tags = filteredTags;
                 loc.isManuallyClassified = true;
+                locUpdates.tags = filteredTags;
                 next.tags = filteredTags;
 
                 // If active businessType tag was removed, clear businessType
                 if (loc.businessType && tagsToRemove.has(loc.businessType.toLowerCase())) {
                     loc.businessType = null;
+                    locUpdates.businessType = null;
                     next.businessType = null;
                 }
             } else if (action === 'set_business_type') {
                 const bt = payload?.businessType || null;
                 loc.businessType = bt;
                 loc.isManuallyClassified = true;
+                locUpdates.businessType = bt;
                 next.businessType = bt;
             } else if (action === 'set_status') {
                 const st = payload?.systemStatus || 'active';
@@ -1245,14 +1681,23 @@ router.post('/batch-action', requireAuth, async (req, res) => {
                 loc.systemStatusChangedAt = new Date();
                 loc.systemStatusChangedBy = userSummary.name;
                 loc.isManuallyClassified = true;
+
+                locUpdates.systemStatus = loc.systemStatus;
+                locUpdates.systemStatusReason = loc.systemStatusReason;
+                locUpdates.systemStatusChangedAt = loc.systemStatusChangedAt;
+                locUpdates.systemStatusChangedBy = loc.systemStatusChangedBy;
+
                 next.systemStatus = loc.systemStatus;
                 next.systemStatusReason = loc.systemStatusReason;
             }
 
-            await loc.save();
-            updatedDealers.push(loc);
+            locationBulkOps.push({
+                updateOne: {
+                    filter: { _id: loc._id },
+                    update: { $set: locUpdates }
+                }
+            });
 
-            // Sync with DealerProfile
             const locKey = loc.clientDealerId || loc.dealerId;
             const profileUpdate = {
                 businessType: loc.businessType,
@@ -1261,10 +1706,12 @@ router.post('/batch-action', requireAuth, async (req, res) => {
                 systemStatusReason: loc.systemStatusReason,
                 isManuallyClassified: true
             };
-            await DealerProfile.findOneAndUpdate(
-                { $or: [{ clientDealerId: locKey }, { dealerLocation: loc._id }] },
-                { $set: profileUpdate }
-            );
+            profileBulkOps.push({
+                updateOne: {
+                    filter: { $or: [{ clientDealerId: locKey }, { dealerLocation: loc._id }] },
+                    update: { $set: profileUpdate }
+                }
+            });
 
             auditRecords.push({
                 dealerLocationId: loc._id,
@@ -1273,7 +1720,15 @@ router.post('/batch-action', requireAuth, async (req, res) => {
                 previousState: prev,
                 newState: next
             });
+
+            updatedDealers.push(loc);
         }
+
+        // Execute bulkWrites in parallel for instant execution across hundreds/thousands of rooftops
+        await Promise.all([
+            locationBulkOps.length > 0 ? DealerLocation.bulkWrite(locationBulkOps, { ordered: false }) : Promise.resolve(),
+            profileBulkOps.length > 0 ? DealerProfile.bulkWrite(profileBulkOps, { ordered: false }) : Promise.resolve()
+        ]);
 
         let batchAuditLog = null;
         if (targetLocations.length > 0) {

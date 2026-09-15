@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Tag, ChevronDown, Search, X, Plus, Settings, History, Bell, Ban, Check } from 'lucide-react';
+import { Tag, ChevronDown, Search, X, Plus, Settings, History, Bell, Ban, Check, CalendarClock } from 'lucide-react';
 import { useAuth } from '../../../auth/hooks/useAuth';
 import styles from './FilterBar.module.css';
 import { createGlobalTag, type StateRepMap, type StateBudget, type DealerStatusBreakdown, type UniversalTag } from '../../../../core/services/api';
@@ -46,6 +46,9 @@ interface FilterBarProps {
   onOpenSystemAudit?: () => void;
   onOpenGroupManager?: (initialTab?: 'groups' | 'approvals') => void;
   pendingProposalsCount?: number;
+  activeFollowUpsOnly?: boolean;
+  onToggleActiveFollowUps?: () => void;
+  activeFollowUpsCount?: number;
 }
 
 function formatDollar(n: number): string {
@@ -119,6 +122,9 @@ export function FilterBar({
   onOpenSystemAudit,
   onOpenGroupManager,
   pendingProposalsCount,
+  activeFollowUpsOnly = false,
+  onToggleActiveFollowUps,
+  activeFollowUpsCount,
 }: FilterBarProps) {
   const { user } = useAuth();
   const isInsideRep = user?.role === 'inside_rep';
@@ -685,6 +691,22 @@ export function FilterBar({
           )}
 
         <div className={styles.filterBarRightActions}>
+          {onToggleActiveFollowUps && (
+            <button
+              type="button"
+              className={`${styles.followUpFilterBtn} ${activeFollowUpsOnly ? styles.followUpFilterBtnActive : ''}`}
+              onClick={onToggleActiveFollowUps}
+              title={activeFollowUpsOnly ? 'Showing only rooftops with active follow-ups. Click to show all.' : 'Filter dealer table to only rooftops with active follow-ups scheduled'}
+              id="filterbar-followup-filter-btn"
+            >
+              <CalendarClock size={13} />
+              <span>Active Follow-Ups</span>
+              {activeFollowUpsCount != null && activeFollowUpsCount > 0 && (
+                <span className={styles.followUpCountBadge}>{activeFollowUpsCount}</span>
+              )}
+            </button>
+          )}
+
           {onOpenGroupManager && (
             <button
               type="button"

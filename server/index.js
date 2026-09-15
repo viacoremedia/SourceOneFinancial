@@ -7,6 +7,7 @@ const analyticsRoutes = require('./routes/analytics');
 const reportRoutes = require('./routes/reports');
 const dealerRoutes = require('./routes/dealers');
 const authRoutes = require('./routes/auth');
+const followupRoutes = require('./routes/followups');
 const { requireAuth } = require('./middleware/authMiddleware');
 
 const app = express();
@@ -148,6 +149,30 @@ app.get('/admin/match-route66', async (req, res) => {
     }
 });
 
+app.get('/admin/inspect-trader-boatmart', async (req, res) => {
+    try {
+        delete require.cache[require.resolve('./services/traderBoatmartMatcher')];
+        const { inspectFiles } = require('./services/traderBoatmartMatcher');
+        const result = await inspectFiles();
+        res.status(200).json(result);
+    } catch (err) {
+        console.error('Inspect error:', err);
+        res.status(500).json({ success: false, error: err.message, stack: err.stack });
+    }
+});
+
+app.get('/admin/match-trader-boatmart', async (req, res) => {
+    try {
+        delete require.cache[require.resolve('./services/traderBoatmartMatcher')];
+        const { processAllFiles } = require('./services/traderBoatmartMatcher');
+        const result = await processAllFiles();
+        res.status(200).json(result);
+    } catch (err) {
+        console.error('Process error:', err);
+        res.status(500).json({ success: false, error: err.message, stack: err.stack });
+    }
+});
+
 // ── Auth gate — everything below requires a valid JWT ──
 app.use(requireAuth);
 
@@ -159,6 +184,9 @@ app.use('/reports', reportRoutes);
 
 // Use dealer management routes (PROTECTED)
 app.use('/dealers', dealerRoutes);
+
+// Use follow-ups routes (PROTECTED)
+app.use('/followups', followupRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

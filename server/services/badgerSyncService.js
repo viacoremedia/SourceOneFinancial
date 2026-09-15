@@ -547,9 +547,15 @@ async function getDealerBadgerActivity(dealerId) {
             console.error(`Failed to fetch DealerCommunication records for ${candidateCode}:`, err.message);
             return [];
         }),
-        BadgerUpdateLog.find({ dealerId: candidateCode })
+        BadgerUpdateLog.find({
+            $or: [
+                { dealerId: { $in: dealerCodes } },
+                { clientDealerId: { $in: dealerCodes } },
+                ...(locDoc?._id ? [{ dealerLocation: locDoc._id }] : [])
+            ]
+        })
             .sort({ createdAt: -1 })
-            .limit(10)
+            .limit(25)
             .lean()
             .catch(() => [])
     ]);
@@ -921,10 +927,41 @@ async function undoBadgerCheckin(dealerId, appointmentId, user = null) {
  * Get recent manual update audit logs for a dealer
  */
 async function getDealerBadgerAuditLogs(dealerId) {
-    const { candidateCode } = await resolveDealerAndBadgerCustomer(dealerId);
-    return await BadgerUpdateLog.find({ dealerId: candidateCode })
+    if (!dealerId) return [];
+    const rawId = String(dealerId).trim();
+    let locDoc = null;
+    if (mongoose.Types.ObjectId.isValid(rawId)) {
+        locDoc = await DealerLocation.findById(rawId).lean();
+    }
+    if (!locDoc) {
+        locDoc = await DealerLocation.findOne({
+            $or: [
+                { clientDealerId: rawId.toUpperCase() },
+                { dealerId: rawId.toUpperCase() },
+                { clientDealerId: rawId },
+                { dealerId: rawId }
+            ]
+        }).lean();
+    }
+
+    const candidateCode = (locDoc?.clientDealerId || locDoc?.dealerId || rawId).toUpperCase();
+    const dealerCodes = Array.from(new Set([
+        rawId,
+        rawId.toUpperCase(),
+        candidateCode,
+        locDoc?.dealerId,
+        locDoc?.clientDealerId
+    ].filter(Boolean)));
+
+    return await BadgerUpdateLog.find({
+        $or: [
+            { dealerId: { $in: dealerCodes } },
+            { clientDealerId: { $in: dealerCodes } },
+            ...(locDoc?._id ? [{ dealerLocation: locDoc._id }] : [])
+        ]
+    })
         .sort({ createdAt: -1 })
-        .limit(20)
+        .limit(30)
         .lean();
 }
 

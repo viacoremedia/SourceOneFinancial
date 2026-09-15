@@ -154,11 +154,17 @@ const dealerLocationSchema = new mongoose.Schema({
 
     // ── Contacts (from Badger Maps & Manual CRM) ──
     contacts: [{
-        name: { type: String, trim: true, default: '' },
+        name: { type: String, required: true, trim: true },
         title: { type: String, trim: true, default: '' },
         phone: { type: String, trim: true, default: '' },
         email: { type: String, trim: true, default: '' },
-        isPrimary: { type: Boolean, default: false }
+        note: { type: String, trim: true, default: '' },
+        source: { type: String, enum: ['badger', 'manual'], default: 'manual' },
+        badgerContactId: { type: Number, default: null },
+        isPrimary: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now },
+        createdBy: { type: String, default: null }
     }],
 
     // ── Badger Maps Metadata & Notes ──

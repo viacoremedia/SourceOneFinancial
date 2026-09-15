@@ -10,8 +10,7 @@ import {
   overrideDealerRelationshipSegment,
   resetDealerRelationshipOverride,
   syncDealerBadger,
-  setDealerSystemStatus,
-  excludeDealer
+  setDealerSystemStatus
 } from '../../../../core/services/api';
 import type {
   RepMappings,
@@ -41,8 +40,6 @@ import {
   History,
   RefreshCw,
   Skull,
-  EyeOff,
-  Eye,
   MapPin,
   LayoutGrid,
   CheckCircle,
@@ -388,7 +385,11 @@ export function AnalyticsDrawer({
       selectedState || undefined,
       selectedRep || undefined,
       selectedGroup || undefined,
-      selectedUnderwriter || undefined
+      selectedUnderwriter || undefined,
+      appStartDate || initialStartDate || undefined,
+      appEndDate || initialEndDate || undefined,
+      tags && tags.length > 0 ? tags : undefined,
+      excludeTags && excludeTags.length > 0 ? excludeTags : undefined
     )
       .then((res) => {
         if (active) {
@@ -408,7 +409,21 @@ export function AnalyticsDrawer({
     return () => {
       active = false;
     };
-  }, [isOpen, selectedDealerId, selectedGroup, selectedState, selectedRep, selectedUnderwriter, appHistoryPage]);
+  }, [
+    isOpen,
+    selectedDealerId,
+    selectedGroup,
+    selectedState,
+    selectedRep,
+    selectedUnderwriter,
+    appHistoryPage,
+    appStartDate,
+    appEndDate,
+    initialStartDate,
+    initialEndDate,
+    tags,
+    excludeTags
+  ]);
 
   // Load Communication History data when target, filters or page changes
   useEffect(() => {
@@ -507,7 +522,16 @@ export function AnalyticsDrawer({
     }
 
     let active = true;
-    getSmallDealers({ search: selectedDealerId, scope: 'all' })
+    getSmallDealers({
+      search: selectedDealerId,
+      scope: 'all',
+      datePreset: (datePresetLabel as any) || undefined,
+      startDate: appStartDate || initialStartDate || undefined,
+      endDate: appEndDate || initialEndDate || undefined,
+      businessType: businessType || undefined,
+      tags: tags && tags.length > 0 ? tags : undefined,
+      excludeTags: excludeTags && excludeTags.length > 0 ? excludeTags : undefined
+    })
       .then((res) => {
         if (active && res?.dealers && res.dealers.length > 0) {
           const matched = res.dealers.find(
@@ -527,7 +551,20 @@ export function AnalyticsDrawer({
     return () => {
       active = false;
     };
-  }, [isOpen, selectedDealerId, tableRowData, allTableDealers]);
+  }, [
+    isOpen,
+    selectedDealerId,
+    tableRowData,
+    allTableDealers,
+    datePresetLabel,
+    appStartDate,
+    initialStartDate,
+    appEndDate,
+    initialEndDate,
+    businessType,
+    tags,
+    excludeTags
+  ]);
 
   // Rep list
   const repList = useMemo(() => {
@@ -669,20 +706,6 @@ export function AnalyticsDrawer({
     }
   };
 
-  const isDealerExcluded = Boolean(drdData?.profile?.isExcludedByRep);
-
-  const handleToggleExclude = async () => {
-    if (!selectedDealerId || selectedDealerId === 'all') return;
-    try {
-      const nextState = !isDealerExcluded;
-      await excludeDealer(selectedDealerId, nextState);
-      const updated = await getDealerRelationshipDrawer(selectedDealerId);
-      setDrdData(updated);
-      alert(nextState ? `Dealer ${selectedDealerId} excluded from your portfolio.` : `Dealer ${selectedDealerId} restored to portfolio.`);
-    } catch (err: any) {
-      alert(err.message || 'Failed to toggle exclusion');
-    }
-  };
 
   // Header Title & Location derivation
   const isDealerSelected = Boolean(selectedDealerId && selectedDealerId !== 'all');
@@ -999,18 +1022,6 @@ export function AnalyticsDrawer({
                     <Skull size={12} />
                     <span>Flag Status</span>
                   </button>
-
-                  {isInsideRep && (
-                    <button
-                      className={styles.tabBtn}
-                      onClick={handleToggleExclude}
-                      title={isDealerExcluded ? 'Restore account to your portfolio' : 'Exclude account from your portfolio'}
-                      style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: 'rgba(245, 158, 11, 0.3)', color: '#fbbf24' }}
-                    >
-                      {isDealerExcluded ? <Eye size={12} /> : <EyeOff size={12} />}
-                      <span>{isDealerExcluded ? 'Include in View' : 'Exclude from View'}</span>
-                    </button>
-                  )}
                 </div>
                 {badgerSyncMsg && (
                   <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '4px', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>

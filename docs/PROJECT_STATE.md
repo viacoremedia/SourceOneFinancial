@@ -1,14 +1,43 @@
-# Source One — Project Resumption Notes
+# Source One — Project State & Release Overview
 
-**Last Updated:** June 29, 2026  
-**Status:** Waiting for data from Andrew Bowgen (ECN Capital / Source One)  
-**Email Sent:** June 29, 2026 — requesting historical CSV exports + daily OMNI webhook setup
+**Current Version:** v1.6.0  
+**Last Updated:** September 15, 2026  
+**Status:** v1.6.0 Production Active (Local dev servers running on 3001 and 5173)
 
 ---
 
-## Where We Left Off
+## v1.6.0 Release Overview (September 15, 2026)
 
-### Email Sent to Andrew (June 29, 2026)
+### 1. Interactive Follow-Up Urgency Engine & Active Filter
+- **Full-Network Follow-Up Management:** `ScheduleFollowUpModal` and `FollowUpDrawer` allow sales reps and managers to search any dealer rooftop across the network and schedule time-stamped follow-ups with contextual notes.
+- **Central Audit Logging & Undo:** All follow-up actions (schedule, update, complete) create structured audit logs in MongoDB, supporting one-click rollback (`undoDealerQuickAction`).
+- **FilterBar "Active Follow-Ups" Toggle:** Quick toggle pill displaying live active count (`{activeFollowUpsCount}`). Filters both rooftop table and multi-location dealer groups.
+- **Urgency Chronological Sorting:** Default sort orders active follow-ups from least to greatest time away from now (overdue first, then today, then upcoming).
+- **Dynamic Injected Follow-Up Column:** Renders status badges (🔴 Overdue, 🟡 Due Today, 🟢 Due in X days), formatted timestamp, and truncated note with click-to-view note modal.
+
+### 2. Rooftop Contact Directory & Audit Recovery
+- **Full CRUD Rooftop Contacts:** `DealerContactsModal` supports adding, editing, deleting, and restoring team members (GMs, F&I, sales managers).
+- **One-Click Quick Copy:** Copy phone numbers and emails directly to clipboard.
+- **Decoupled Architecture:** State updates decoupled via `useRef` and memoized callbacks in `BadgerQuickModal`, eliminating twitching/infinite re-render cycles.
+
+### 3. Timeframe-Scoped Analytics Drawer
+- **Strict Timeframe Mirroring:** `AnalyticsDrawer` accurately queries and displays application counts, approval rates, and booked loan volumes scoped directly to the user's active rolling window (7d, 30d) or custom date range, preventing stale all-time data leakage.
+
+### 4. Multi-Rooftop Enterprise Management & Proposal Desk
+- **Single-Tenancy Guardrails:** Prevents satellite stores from belonging to multiple parents simultaneously.
+- **Rep Proposal Desk:** Sales reps can propose grouping accounts with justification notes; managers can review, cherry-pick stores, and approve or reject submissions in the Approval Desk.
+- **Centralized Funding Hierarchy:** Designates corporate parent entities as Central Funders while maintaining distinct rooftop tracking.
+
+### 5. Opportunity Pipeline & Day-over-Day Funnel
+- **Interactive Kanban Pipeline:** Direct Kanban board for dealer applications (New, Underwriting, Approvals, Funded Deals, Declines).
+- **Overnight Movement Banner:** Tracks day-over-day status movements.
+
+### 6. Corporate Light Mode Default
+- **High-Contrast Light Theme:** Default crisp Light Mode with instant header toggle between Light and Dark themes.
+
+---
+
+## Historical Ingestion & OMNI / Badger Data Status
 
 Requested:
 1. One-time historical CSV export of each of 3 OMNI tables (Jan 1, 2025 → present)

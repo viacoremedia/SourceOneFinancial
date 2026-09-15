@@ -11,7 +11,10 @@ import {
   Layers,
   Building2,
   GitPullRequest,
-  LayoutGrid
+  LayoutGrid,
+  CalendarClock,
+  Users,
+  BarChart3
 } from 'lucide-react';
 import styles from './PatchNotesModal.module.css';
 
@@ -94,9 +97,9 @@ export function PatchNotesModal({ isOpen: controlledIsOpen, onClose: controlledO
           </div>
 
           <div className={styles.toastBody}>
-            <h4 className={styles.toastTitle}>What's New in Source One</h4>
+            <h4 className={styles.toastTitle}>What's New in Source One v1.6</h4>
             <p className={styles.toastDesc}>
-              Opportunity Pipeline, Dealer Groups &amp; Proposal Desk, Centralized Funding, and Corporate Light Mode are now live.
+              Follow-Up Urgency Engine &amp; Filter, Rooftop Contact Directory, Scoped Analytics, Proposal Desk, and Opportunity Pipeline are now live.
             </p>
           </div>
 
@@ -191,6 +194,48 @@ export function PatchNotesModal({ isOpen: controlledIsOpen, onClose: controlledO
                       </p>
                       <div className={styles.howToUse}>
                         <strong>How to use:</strong> Click the Sun / Moon icon in the top-right header anytime to switch between Light and Dark mode.
+                      </div>
+                    </div>
+
+                    {/* 2. Follow-Up Engine & Active Follow-Ups Filter */}
+                    <div className={styles.featureCard}>
+                      <div className={styles.featureCardHeader}>
+                        <CalendarClock size={17} className={styles.featureIcon} />
+                        <span className={styles.featureName}>Interactive Follow-Up Engine & Urgency Filter</span>
+                      </div>
+                      <p className={styles.featureDesc}>
+                        Never drop a dealer relationship or commitment. Schedule time-stamped follow-ups with notes, search any rooftop across the network directly from the drawer, and toggle the "Active Follow-Ups" filter to see only accounts with pending tasks, sorted chronologically by urgency (least to greatest time away from now). An interactive Follow-Up column with color-coded urgency badges automatically appears in the table.
+                      </p>
+                      <div className={styles.howToUse}>
+                        <strong>How to use:</strong> Click "Active Follow-Ups" in the filter bar or click the clock icon beside any dealer. In the Follow-Ups drawer, schedule new follow-ups for any store, complete pending items, or undo actions anytime.
+                      </div>
+                    </div>
+
+                    {/* 3. Rooftop Contact Directory */}
+                    <div className={styles.featureCard}>
+                      <div className={styles.featureCardHeader}>
+                        <Users size={17} className={styles.featureIcon} />
+                        <span className={styles.featureName}>Rooftop Contact Directory & Audit Recovery</span>
+                      </div>
+                      <p className={styles.featureDesc}>
+                        Full CRUD contact management for every dealership with instant response and zero UI jitter. Manage GMs, Finance Managers, and sales staff, mark primary contacts, copy phone and email in one click, and restore deleted contacts via full audit recovery.
+                      </p>
+                      <div className={styles.howToUse}>
+                        <strong>How to use:</strong> Click "Manage Contacts" from the Badger Activity modal or Dealer 360 to view team members, add manual entries, or edit details.
+                      </div>
+                    </div>
+
+                    {/* 4. Scoped Analytics */}
+                    <div className={styles.featureCard}>
+                      <div className={styles.featureCardHeader}>
+                        <BarChart3 size={17} className={styles.featureIcon} />
+                        <span className={styles.featureName}>Timeframe-Scoped Analytics Drawer</span>
+                      </div>
+                      <p className={styles.featureDesc}>
+                        Dealer 360 metrics now strictly reflect your active rolling window (7d, 30d, or custom dates) across application counts, approval rates, and booking volumes, preventing stale all-time totals from muddying active period reviews.
+                      </p>
+                      <div className={styles.howToUse}>
+                        <strong>How to use:</strong> Switch rolling windows (7d / 30d) or choose a date range on the dashboard — the analytics drawer instantly recalculates stats to match your exact selection.
                       </div>
                     </div>
 

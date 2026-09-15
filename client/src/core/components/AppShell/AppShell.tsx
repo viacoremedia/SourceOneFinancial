@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Sparkles } from 'lucide-react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { Sparkles, CalendarClock } from 'lucide-react';
 import { useAuth } from '../../../features/auth/hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 import { SettingsPanel } from '../../../features/auth/components/SettingsPanel';
@@ -8,7 +8,9 @@ import { RepScorecard } from '../../../features/dashboard/components/RepScorecar
 import { UnderwriterScorecard, type UnderwriterDateRange } from '../../../features/dashboard/components/UnderwriterScorecard/UnderwriterScorecard';
 import { ScorecardReports } from '../../../features/dashboard/components/ScorecardReports/ScorecardReports';
 import { PatchNotesModal } from '../../../features/dashboard/components/PatchNotesModal';
+import { FollowUpsDrawer } from '../../../features/dashboard/components/FollowUpsDrawer';
 import { BugReporter } from '../../../components/BugReporter';
+import { getFollowUps } from '../../services/api';
 import styles from './AppShell.module.css';
 import type { RollingWindow } from '../../../features/dashboard/types';
 
@@ -52,6 +54,27 @@ export function AppShell({
   const [underwriterOpen, setUnderwriterOpen] = useState(false);
   const [patchNotesOpen, setPatchNotesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [followUpsOpen, setFollowUpsOpen] = useState(false);
+  const [activeFollowUpsCount, setActiveFollowUpsCount] = useState(0);
+
+  const refreshFollowUpsCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await getFollowUps('active');
+      if (res?.counts) {
+        setActiveFollowUpsCount(res.counts.totalActive || 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refreshFollowUpsCount();
+    const handleUpdate = () => refreshFollowUpsCount();
+    window.addEventListener('followups-updated', handleUpdate);
+    return () => window.removeEventListener('followups-updated', handleUpdate);
+  }, [refreshFollowUpsCount]);
 
   const isInsideRep = user?.role === 'inside_rep';
 
@@ -237,6 +260,38 @@ export function AppShell({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 <span>Daily Digest</span>
               </button>
+
+              <button
+                className={styles.navCell}
+                onClick={() => setFollowUpsOpen(true)}
+                title="Scheduled Rooftop Follow-ups & Reminders"
+                id="followups-btn"
+                aria-label="Follow-ups"
+              >
+                <CalendarClock size={14} color="#f59e0b" />
+                <span>Follow-ups</span>
+                {activeFollowUpsCount > 0 && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '17px',
+                      height: '17px',
+                      padding: '0 4px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      borderRadius: '9999px',
+                      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      marginLeft: '3px'
+                    }}
+                  >
+                    {activeFollowUpsCount}
+                  </span>
+                )}
+              </button>
             </div>
           </nav>
         )}
@@ -331,6 +386,13 @@ export function AppShell({
                   </button>
                   <button
                     className={styles.mobileDrawerItem}
+                    onClick={() => { setMobileMenuOpen(false); setFollowUpsOpen(true); }}
+                  >
+                    <CalendarClock size={18} color="#f59e0b" />
+                    <span>Follow-ups {activeFollowUpsCount > 0 ? `(${activeFollowUpsCount})` : ''}</span>
+                  </button>
+                  <button
+                    className={styles.mobileDrawerItem}
                     onClick={() => { setMobileMenuOpen(false); setSettingsOpen(true); }}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -380,6 +442,16 @@ export function AppShell({
         />
       )}
       <PatchNotesModal isOpen={patchNotesOpen} onClose={() => setPatchNotesOpen(false)} />
+      <FollowUpsDrawer
+        isOpen={followUpsOpen}
+        onClose={() => {
+          setFollowUpsOpen(false);
+          refreshFollowUpsCount();
+        }}
+        onCountsUpdated={(counts) => {
+          setActiveFollowUpsCount(counts.totalActive);
+        }}
+      />
     </div>
   );
 }

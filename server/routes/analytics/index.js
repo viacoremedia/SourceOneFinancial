@@ -19,6 +19,7 @@ const DealerCommunication = require('../../models/DealerCommunication');
 const DealerProfile = require('../../models/DealerProfile');
 const SalesBudget = require('../../models/SalesBudget');
 const LargeDealerBudget = require('../../models/LargeDealerBudget');
+const FollowUp = require('../../models/FollowUp');
 const { getDealerStatsMap, getNetworkAggregateStats } = require('../../services/dealerStatsService');
 const { getRepAliasMap, getRepDisplayMap, getRepHandles, isInactiveRep, isExcludedRep, resolveRepName } = require('../../config/repConfig');
 const { getLatestDataDate } = require('../../utils/dateUtils');
@@ -1741,6 +1742,41 @@ router.get('/dealers/small', async (req, res) => {
 
         // Satellite stores roll up under their Central Funder and are excluded from top-level table rows
         baseMatch.fundingParent = null;
+
+        // Active follow-ups filter: scope to dealerships that have scheduled active follow-ups
+        if (req.query.activeFollowUps === 'true' || req.query.activeFollowUpsOnly === 'true') {
+            const fuQuery = { status: 'pending' };
+            if (req.user && req.user._id) {
+                fuQuery.userId = req.user._id;
+            }
+            const activeFollowUps = await FollowUp.find(fuQuery).select('dealerId clientDealerId').lean();
+            const activeDealerIds = Array.from(new Set(
+                activeFollowUps.flatMap(f => [f.dealerId, f.clientDealerId])
+                    .filter(Boolean)
+                    .map(id => String(id).trim().toUpperCase())
+            ));
+
+            if (activeDealerIds.length === 0) {
+                baseMatch._id = { $in: [] };
+            } else {
+                const matchedLocations = await DealerLocation.find({
+                    $or: [
+                        { dealerId: { $in: activeDealerIds } },
+                        { clientDealerId: { $in: activeDealerIds } }
+                    ]
+                }).select('_id fundingParent').lean();
+
+                const locIds = [];
+                for (const loc of matchedLocations) {
+                    if (loc.fundingParent) {
+                        locIds.push(loc.fundingParent);
+                    }
+                    locIds.push(loc._id);
+                }
+                baseMatch._id = { $in: locIds };
+                delete baseMatch.dealerGroup; // allow showing follow-ups regardless of group rollup
+            }
+        }
 
         // Inside sales reps automatically exclude their personal excluded accounts
         if (req.user && req.user.role === 'inside_rep' && req.user.excludedDealers && req.user.excludedDealers.length > 0) {

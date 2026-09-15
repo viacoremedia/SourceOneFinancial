@@ -299,8 +299,8 @@ router.post('/change-password', requireAuth, async (req, res) => {
     }
 });
 
-// ── POST /auth/create-rep-account (admin+) ──
-router.post('/create-rep-account', requireAuth, requireRole('admin'), async (req, res) => {
+// ── POST /auth/create-rep-account & /auth/create-rep-user (admin+) ──
+router.post(['/create-rep-account', '/create-rep-user'], requireAuth, requireRole('admin'), async (req, res) => {
     try {
         const { email, password, name = '', assignedRep } = req.body;
         if (!email || typeof email !== 'string') {

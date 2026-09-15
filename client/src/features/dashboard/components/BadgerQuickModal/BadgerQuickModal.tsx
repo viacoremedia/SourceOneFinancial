@@ -19,14 +19,20 @@ import {
   Phone,
   Mail,
   Copy,
-  Check
+  Check,
+  Users,
+  CalendarClock
 } from 'lucide-react';
+import { DealerContactsModal } from '../DealerContactsModal/DealerContactsModal';
+import { ScheduleFollowUpModal } from '../ScheduleFollowUpModal/ScheduleFollowUpModal';
 import {
   getDealerBadgerActivity,
   updateDealerBadgerNotepad,
   createDealerBadgerCheckin,
   undoBadgerNotepadUpdate,
   undoBadgerCheckin,
+  undoFollowUpAction,
+  undoDealerContactAction,
   syncDealerBadger,
   type BadgerActivityData,
   type BadgerContact
@@ -216,6 +222,8 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
   const [contactsSyncMsg, setContactsSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedContactField, setCopiedContactField] = useState<string | null>(null);
   const [isContactsCollapsed, setIsContactsCollapsed] = useState(false);
+  const [showContactsModal, setShowContactsModal] = useState(false);
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
 
   // Sync contacts from activity on load
   useEffect(() => {
@@ -223,6 +231,10 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
       setContacts(activity.contacts);
     }
   }, [activity?.contacts]);
+
+  const handleContactsUpdated = useCallback((updatedContacts: any[]) => {
+    setContacts(updatedContacts);
+  }, []);
 
   const copyContactEmail = (email: string, id: string) => {
     navigator.clipboard.writeText(email);
@@ -391,6 +403,46 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
       }
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to delete check-in from Badger Maps');
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
+  // Undo Follow-Up
+  const handleUndoFollowUp = async (logId: string) => {
+    if (isUndoing) return;
+    setIsUndoing(true);
+    setError(null);
+    try {
+      const res = await undoFollowUpAction(logId);
+      if (res.success) {
+        setNoteSuccessMsg('Follow-up action successfully reverted.');
+        await loadActivity();
+        window.dispatchEvent(new CustomEvent('followups-updated'));
+        setTimeout(() => setNoteSuccessMsg(null), 3000);
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to revert follow-up action');
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
+  // Undo Contact
+  const handleUndoContact = async (logId: string) => {
+    if (isUndoing) return;
+    setIsUndoing(true);
+    setError(null);
+    try {
+      const res = await undoDealerContactAction(dealerId, logId);
+      if (res.success) {
+        setNoteSuccessMsg('Contact action successfully reverted.');
+        await loadActivity();
+        window.dispatchEvent(new CustomEvent('contacts-updated'));
+        setTimeout(() => setNoteSuccessMsg(null), 3000);
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to revert contact action');
     } finally {
       setIsUndoing(false);
     }
@@ -732,12 +784,42 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
         <div className={isFullView ? styles.auditFullList : undefined} style={!isFullView ? { display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' } : undefined}>
           {activity.recentLogs.map((log) => {
             const isNotepad = log.action === 'notepad_update';
+            const isFollowUp = log.action.startsWith('followup_');
+            const isContact = log.action.startsWith('contact_');
+
+            let badge = null;
+            if (isNotepad) {
+              badge = <><FileText size={11} /> Note Added</>;
+            } else if (log.action === 'followup_create') {
+              badge = <><CalendarClock size={11} color="#fbbf24" /> Follow-Up Scheduled</>;
+            } else if (log.action === 'followup_complete') {
+              badge = <><CheckCircle size={11} color="#22c55e" /> Follow-Up Completed</>;
+            } else if (log.action === 'followup_delete') {
+              badge = <><RotateCcw size={11} color="#f43f5e" /> Follow-Up Removed</>;
+            } else if (log.action === 'contact_create') {
+              badge = <><Users size={11} color="#34d399" /> Contact Added</>;
+            } else if (log.action === 'contact_update') {
+              badge = <><Users size={11} color="#34d399" /> Contact Updated</>;
+            } else if (log.action === 'contact_delete') {
+              badge = <><Users size={11} color="#f43f5e" /> Contact Removed</>;
+            } else {
+              badge = <><MapPin size={11} /> Check-In</>;
+            }
+
+            const badgeClass = isNotepad
+              ? styles.badgeNotepad
+              : isFollowUp
+              ? styles.badgeFollowUp
+              : isContact
+              ? styles.badgeContact
+              : styles.badgeCheckin;
+
             return (
               <div key={log._id} className={styles.auditCard}>
                 <div className={styles.auditCardHeader}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className={`${styles.auditActionBadge} ${isNotepad ? styles.badgeNotepad : styles.badgeCheckin}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      {isNotepad ? <><FileText size={11} /> Note Added</> : <><MapPin size={11} /> Check-In</>}
+                    <span className={`${styles.auditActionBadge} ${badgeClass}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      {badge}
                     </span>
                     <span className={log.isUndone ? styles.statusPillReverted : styles.statusPillActive}>
                       {log.isUndone ? 'Reverted' : 'Active'}
@@ -750,6 +832,54 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
                   {isNotepad ? (
                     <div>
                       <strong>Note: </strong><span>"{log.payload?.noteText || ''}"</span>
+                    </div>
+                  ) : isFollowUp ? (
+                    <div>
+                      {log.action === 'followup_create' && (
+                        <div>
+                          <strong>Due: </strong><span>{formatDate(log.payload?.dueDate || log.payload?.followUp?.dueDate)}</span>
+                          {log.payload?.note && (
+                            <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>Note: "{log.payload.note}"</div>
+                          )}
+                        </div>
+                      )}
+                      {log.action === 'followup_complete' && (
+                        <div>
+                          <span>Completed follow-up for <strong>{log.payload?.dealerName || dealerName}</strong></span>
+                          {log.payload?.previousFollowUp?.dueDate && (
+                            <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
+                              Original due: {formatDate(log.payload.previousFollowUp.dueDate)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {log.action === 'followup_delete' && (
+                        <div>
+                          <span>Removed scheduled follow-up</span>
+                          {log.payload?.previousFollowUp?.dueDate && (
+                            <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
+                              Was scheduled for: {formatDate(log.payload.previousFollowUp.dueDate)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : isContact ? (
+                    <div>
+                      <div>
+                        <strong>{log.payload?.contact?.name || log.payload?.previousContact?.name || 'Contact'}</strong>
+                        {(log.payload?.contact?.title || log.payload?.previousContact?.title) && (
+                          <span style={{ color: '#94a3b8' }}> · {log.payload?.contact?.title || log.payload?.previousContact?.title}</span>
+                        )}
+                      </div>
+                      {(log.payload?.contact?.phone || log.payload?.previousContact?.phone || log.payload?.contact?.email || log.payload?.previousContact?.email) && (
+                        <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>
+                          {[
+                            log.payload?.contact?.phone || log.payload?.previousContact?.phone,
+                            log.payload?.contact?.email || log.payload?.previousContact?.email
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div>
@@ -780,6 +910,28 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
                       >
                         <RotateCcw size={11} />
                         <span>Revert Note</span>
+                      </button>
+                    ) : isFollowUp ? (
+                      <button
+                        type="button"
+                        className={styles.undoBtn}
+                        onClick={() => handleUndoFollowUp(log._id)}
+                        disabled={isUndoing}
+                        title="Revert this follow-up change"
+                      >
+                        <RotateCcw size={11} />
+                        <span>Revert Follow-Up</span>
+                      </button>
+                    ) : isContact ? (
+                      <button
+                        type="button"
+                        className={styles.undoBtn}
+                        onClick={() => handleUndoContact(log._id)}
+                        disabled={isUndoing}
+                        title="Revert this contact change"
+                      >
+                        <RotateCcw size={11} />
+                        <span>Revert Contact</span>
                       </button>
                     ) : log.payload?.appointmentId ? (
                       <button
@@ -1043,6 +1195,21 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
             <span>{isSyncingContacts ? 'Syncing...' : 'Sync Contacts'}</span>
           </button>
 
+          <button
+            type="button"
+            className={styles.syncContactsBtn}
+            onClick={() => setShowContactsModal(true)}
+            title="Manage all contacts, add manual contacts, or edit details"
+            style={{
+              background: 'rgba(52, 211, 153, 0.12)',
+              color: '#34d399',
+              borderColor: 'rgba(52, 211, 153, 0.3)'
+            }}
+          >
+            <Users size={12} />
+            <span>Manage Contacts</span>
+          </button>
+
           {contacts.length > 0 && (
             <button
               type="button"
@@ -1127,14 +1294,32 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
               <span>{activity?.dealerName || dealerName}</span>
               <span className={styles.dealerBadge}>{dealerId}</span>
             </div>
-            <button
-              className={styles.closeButton}
-              onClick={onClose}
-              title="Close drawer (Esc)"
-              type="button"
-            >
-              <X size={20} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setShowFollowUpModal(true)}
+                className={styles.syncContactsBtn}
+                style={{
+                  background: 'rgba(251, 191, 36, 0.12)',
+                  color: '#fbbf24',
+                  borderColor: 'rgba(251, 191, 36, 0.3)',
+                  padding: '4px 10px',
+                  fontSize: '12px'
+                }}
+                title="Schedule follow-up reminder for this dealership"
+              >
+                <CalendarClock size={13} />
+                <span>Follow-up</span>
+              </button>
+              <button
+                className={styles.closeButton}
+                onClick={onClose}
+                title="Close drawer (Esc)"
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           <div className={styles.metaRow}>
@@ -1296,6 +1481,21 @@ export const BadgerQuickModal: React.FC<BadgerQuickModalProps> = ({
           )}
         </div>
       </div>
+      {showContactsModal && (
+        <DealerContactsModal
+          dealerId={dealerId}
+          dealerName={activity?.dealerName || dealerName}
+          onClose={() => setShowContactsModal(false)}
+          onContactsUpdated={handleContactsUpdated}
+        />
+      )}
+      {showFollowUpModal && (
+        <ScheduleFollowUpModal
+          dealerId={dealerId}
+          dealerName={activity?.dealerName || dealerName}
+          onClose={() => setShowFollowUpModal(false)}
+        />
+      )}
     </div>,
     document.body
   );

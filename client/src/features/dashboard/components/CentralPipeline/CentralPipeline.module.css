@@ -676,29 +676,97 @@
 .dynamicFieldsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
-  padding: 4px 6px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 5px;
+  gap: 5px;
+  margin: 4px 0 6px 0;
 }
 
 .dynamicFieldItem {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9.5px;
-  color: #94a3b8;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  min-height: 22px;
+}
+
+.dynamicFieldItem:only-child {
+  grid-column: 1 / -1;
 }
 
 .dynamicFieldLabel {
   color: #64748b;
-  font-weight: 500;
+  font-size: 8.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .dynamicFieldValue {
+  font-size: 10.5px;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Card Bottom Action Row: 50/50 Split for Badger Activity & Dealer Profile ── */
+.cardBottomActionRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.cardActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  text-decoration: none;
+  white-space: nowrap;
+  min-height: 28px;
+}
+
+.cardActionBtn:hover {
+  transform: translateY(-1px);
+}
+
+.cardActionBtn:active {
+  transform: translateY(0);
+}
+
+.badgerActionBtn {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.badgerActionBtn:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fef08a;
+}
+
+.dealerProfileActionBtn {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+.dealerProfileActionBtn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
 }
 
 /* Footer Row */
@@ -1165,22 +1233,52 @@
 }
 
 :global([data-theme="light"]) .dynamicFieldsGrid {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: transparent;
+  border-color: transparent;
 }
 
 :global([data-theme="light"]) .dynamicFieldItem {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
   color: #334155;
 }
 
 :global([data-theme="light"]) .dynamicFieldLabel {
-  color: #475569;
+  color: #64748b;
   font-weight: 600;
 }
 
 :global([data-theme="light"]) .dynamicFieldValue {
   color: #0f172a;
   font-weight: 800;
+}
+
+:global([data-theme="light"]) .cardBottomActionRow {
+  border-top-color: #e2e8f0;
+}
+
+:global([data-theme="light"]) .badgerActionBtn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+:global([data-theme="light"]) .badgerActionBtn:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+:global([data-theme="light"]) .dealerProfileActionBtn {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0284c7;
+}
+
+:global([data-theme="light"]) .dealerProfileActionBtn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0369a1;
 }
 
 :global([data-theme="light"]) .lenderTag {
